@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
+    />
+    <title>Cardápio — Casa Coffee Colab</title>
+    <meta
+      name="description"
+      content="Cafés, brunch e doces do Casa Coffee Colab — um cardápio autoral, com um pouco de poesia em cada linha."
+    />
+  </head>
+  <body class="min-h-screen">
+    <!-- Header injetado pelo app.js -->
+    <div id="site-header"></div>
+
+    <main class="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16 3xl:max-w-[1100px]">
+      <header class="max-w-2xl">
+        <p class="decor text-2xl sm:text-3xl">o que a casa serve</p>
+        <h1 class="mt-1 font-titulo text-4xl sm:text-5xl">Cardápio</h1>
+        <p class="mt-3 text-cafe/70">
+          um cardápio pra ler devagar. cada prato tem a sua história — a gente só
+          escreveu a primeira linha.
+        </p>
+      </header>
+
+      <!-- =====================================================================
+           Cafés & Bebidas
+           ===================================================================== -->
+      <section class="mt-14" aria-labelledby="cafes-title">
+        <div class="flex items-center gap-3 border-b border-cafe/15 pb-3">
+          <i data-lucide="coffee" class="h-5 w-5 text-terracota"></i>
+          <h2 id="cafes-title" class="font-titulo text-2xl sm:text-3xl">Cafés &amp; Bebidas</h2>
+        </div>
+        <ul class="mt-6 space-y-6">
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Espresso</h3>
+              <p class="text-sm text-cafe/70">curto, intenso, o começo de tudo.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 7,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Coado do dia</h3>
+              <p class="text-sm text-cafe/70">o grão da vez, passado no pano, sem pressa.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 9,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Cappuccino</h3>
+              <p class="text-sm text-cafe/70">espuma que abraça, canela pra despedir.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 12,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Alma do Casa</h3>
+              <p class="text-sm text-cafe/70">nosso blend autoral — encorpado, de final doce.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 13,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Matchá da Manhã</h3>
+              <p class="text-sm text-cafe/70">verdinho, cremoso, pra começar em paz.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 15,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Chocolate quente</h3>
+              <p class="text-sm text-cafe/70">o cobertor dos dias de chuva, em caneca.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 14,00</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- =====================================================================
+           Comidas & Brunch
+           ===================================================================== -->
+      <section class="mt-14" aria-labelledby="brunch-title">
+        <div class="flex items-center gap-3 border-b border-cafe/15 pb-3">
+          <i data-lucide="sunrise" class="h-5 w-5 text-terracota"></i>
+          <h2 id="brunch-title" class="font-titulo text-2xl sm:text-3xl">Comidas &amp; Brunch</h2>
+        </div>
+        <ul class="mt-6 space-y-6">
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Brunch de Domingo</h3>
+              <p class="text-sm text-cafe/70">a mesa farta pra ficar a manhã inteira.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 59,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Tosta de fermentação natural</h3>
+              <p class="text-sm text-cafe/70">pão que leva dois dias e some em dois minutos.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 26,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Ovos mexidos do Casa</h3>
+              <p class="text-sm text-cafe/70">cremosos, com cebolinha da horta do vizinho.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 22,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Pão na chapa</h3>
+              <p class="text-sm text-cafe/70">manteiga derretendo — o clássico que não erra.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 12,00</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- =====================================================================
+           Que Seja Doce
+           ===================================================================== -->
+      <section class="mt-14" aria-labelledby="doce-title">
+        <div class="flex items-center gap-3 border-b border-cafe/15 pb-3">
+          <i data-lucide="heart" class="h-5 w-5 text-terracota"></i>
+          <h2 id="doce-title" class="font-titulo text-2xl sm:text-3xl">Que Seja Doce</h2>
+        </div>
+        <ul class="mt-6 space-y-6">
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Bolo da vó (fatia)</h3>
+              <p class="text-sm text-cafe/70">a receita de sempre, do jeito que tu lembra.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 14,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Cookie da casa</h3>
+              <p class="text-sm text-cafe/70">crocante na beira, mole no meio, quentinho se der.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 11,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Banana bread</h3>
+              <p class="text-sm text-cafe/70">a banana madura que virou aconchego.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 15,00</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- =====================================================================
+           Manhãs do Take Away (combos 7h–10h)
+           ===================================================================== -->
+      <section class="mt-14" aria-labelledby="takeaway-title">
+        <div class="flex flex-wrap items-center gap-3 border-b border-cafe/15 pb-3">
+          <i data-lucide="coffee" class="h-5 w-5 text-terracota"></i>
+          <h2 id="takeaway-title" class="font-titulo text-2xl sm:text-3xl">Manhãs do Take Away</h2>
+          <span class="rounded-full bg-caramelo/20 px-3 py-1 text-xs font-medium text-cafe">7h às 10h · pra levar</span>
+        </div>
+        <ul class="mt-6 space-y-6">
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Combo Desperta</h3>
+              <p class="text-sm text-cafe/70">café coado + pão na chapa pra encarar o dia.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 18,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Combo Verde</h3>
+              <p class="text-sm text-cafe/70">matchá + cookie da casa, no teu passo.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 24,00</span>
+          </li>
+          <li class="flex items-baseline gap-4">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-titulo text-lg">Combo Vizinho</h3>
+              <p class="text-sm text-cafe/70">cappuccino + fatia de bolo pra dividir no caminho.</p>
+            </div>
+            <span class="shrink-0 font-medium text-cafe">R$ 23,00</span>
+          </li>
+        </ul>
+      </section>
+
+      <p class="mt-14 border-t border-cafe/10 pt-6 text-xs text-cafe/50">
+        * valores ilustrativos, só pra dar o tom. o cardápio de verdade a gente ajusta
+        com a estação e com o que a cidade traz de bom.
+      </p>
+    </main>
+
+    <!-- Footer injetado pelo app.js -->
+    <div id="site-footer"></div>
+
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>

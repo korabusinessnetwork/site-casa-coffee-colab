@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
+    />
+    <title>Planos — Casa Coffee Colab</title>
+    <meta
+      name="description"
+      content="Faz parte do Casa: assinatura com desconto na loja, pontos de fidelidade e conquistas pra desbloquear. No teu ritmo, cancela quando quiser."
+    />
+  </head>
+  <body class="min-h-screen">
+    <!-- Header injetado pelo app.js -->
+    <div id="site-header"></div>
+
+    <main>
+      <!-- ===================================================================
+           Intro
+           =================================================================== -->
+      <section class="bg-cafe py-14 text-bege sm:py-20">
+        <div class="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <p class="decor text-3xl text-caramelo">fica um pouco, sempre</p>
+          <h1 class="mt-1 font-titulo text-4xl text-bege sm:text-5xl">Faz parte do Casa</h1>
+          <p class="mt-4 text-bege/80">
+            uma assinatura pra quem já sente o Casa como um segundo endereço. Tu ganha
+            desconto na loja, junta pontos a cada visita e desbloqueia conquistas pelo
+            caminho. Sem pegadinha — cancela quando quiser.
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           Os 4 tiers
+           =================================================================== -->
+      <section class="py-14 sm:py-20" aria-labelledby="tiers-title">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
+          <h2 id="tiers-title" class="sr-only">Planos de assinatura</h2>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+            <!-- Bronze -->
+            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Bronze</p>
+              <p class="font-titulo text-2xl">Vizinho de Sempre</p>
+              <p class="mt-3"><span class="font-titulo text-3xl">R$29,90</span><span class="text-sm text-cafe/60">/mês</span></p>
+              <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">3% na loja</span>
+                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">1x pontos</span>
+              </div>
+              <ul class="mt-5 flex-1 space-y-2 text-sm text-cafe/80">
+                <li>· 3% de desconto na loja</li>
+                <li>· 1 ponto a cada R$1</li>
+                <li>· agenda dos eventos antes de todo mundo</li>
+              </ul>
+              <button type="button" data-assinar data-tier="bronze" class="btn-primary mt-6">assinar</button>
+            </article>
+
+            <!-- Prata -->
+            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Prata</p>
+              <p class="font-titulo text-2xl">Frequentador</p>
+              <p class="mt-3"><span class="font-titulo text-3xl">R$49,90</span><span class="text-sm text-cafe/60">/mês</span></p>
+              <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">6% na loja</span>
+                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">1,25x pontos</span>
+              </div>
+              <ul class="mt-5 flex-1 space-y-2 text-sm text-cafe/80">
+                <li>· 6% de desconto na loja</li>
+                <li>· 1,25 ponto a cada R$1</li>
+                <li>· um café cortesia no mês do teu aniversário</li>
+              </ul>
+              <button type="button" data-assinar data-tier="prata" class="btn-primary mt-6">assinar</button>
+            </article>
+
+            <!-- Ouro (favorito) -->
+            <article class="relative flex flex-col rounded-2xl bg-bege p-6 ring-2 ring-caramelo lg:-translate-y-2">
+              <span class="absolute -top-3 left-6 rounded-full bg-caramelo px-3 py-1 text-xs font-semibold text-cafe">favorito</span>
+              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Ouro</p>
+              <p class="font-titulo text-2xl">Gente do Casa</p>
+              <p class="mt-3"><span class="font-titulo text-3xl">R$79,90</span><span class="text-sm text-cafe/60">/mês</span></p>
+              <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">10% na loja</span>
+                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">1,5x pontos</span>
+              </div>
+              <ul class="mt-5 flex-1 space-y-2 text-sm text-cafe/80">
+                <li>· 10% de desconto na loja</li>
+                <li>· 1,5 ponto a cada R$1</li>
+                <li>· convite pros encontros da Residência Gente do Casa</li>
+                <li>· prioridade nos produtos de colab</li>
+              </ul>
+              <button type="button" data-assinar data-tier="ouro" class="btn-primary mt-6">assinar</button>
+            </article>
+
+            <!-- Diamante -->
+            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Diamante</p>
+              <p class="font-titulo text-2xl">Alma do Casa</p>
+              <p class="mt-3"><span class="font-titulo text-3xl">R$129,90</span><span class="text-sm text-cafe/60">/mês</span></p>
+              <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">15% na loja</span>
+                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">2x pontos</span>
+              </div>
+              <ul class="mt-5 flex-1 space-y-2 text-sm text-cafe/80">
+                <li>· 15% de desconto na loja</li>
+                <li>· 2 pontos a cada R$1</li>
+                <li>· um lugar guardado nos eventos com casa cheia</li>
+                <li>· voz nas próximas colabs e blends do Casa</li>
+              </ul>
+              <button type="button" data-assinar data-tier="diamante" class="btn-primary mt-6">assinar</button>
+            </article>
+          </div>
+
+          <!-- Área de aviso/erro do checkout (preenchida pelo app.js quando precisa) -->
+          <p
+            class="mt-6 hidden rounded-xl bg-caramelo/15 px-4 py-3 text-center text-sm text-cafe"
+            data-assinar-note
+            role="status"
+            aria-live="polite"
+          ></p>
+
+          <p class="mt-6 text-xs text-cafe/50">* valores fictícios, a definir.</p>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           Como funciona a fidelidade
+           =================================================================== -->
+      <section class="bg-verde/5 py-14 sm:py-20" aria-labelledby="fidelidade-title">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
+          <div class="max-w-2xl">
+            <p class="decor text-2xl sm:text-3xl">cada visita conta</p>
+            <h2 id="fidelidade-title" class="mt-1 font-titulo text-3xl sm:text-4xl">Como os pontos funcionam</h2>
+            <p class="mt-3 text-cafe/70">
+              simples que nem pedir o de sempre: tu usa o Casa, junta ponto, e troca por
+              coisa boa.
+            </p>
+          </div>
+
+          <div class="mt-10 grid gap-4 sm:grid-cols-3 lg:gap-6">
+            <article class="rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <span class="grid h-12 w-12 place-items-center rounded-full bg-verde/10 text-verde">
+                <i data-lucide="star" class="h-6 w-6"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-xl">Ganha 1 ponto a cada R$1</h3>
+              <p class="mt-2 text-sm text-cafe/70">
+                em café, comida ou loja. O teu plano multiplica: no Ouro, cada R$1 vira
+                1,5 ponto; no Diamante, 2.
+              </p>
+            </article>
+
+            <article class="rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <span class="grid h-12 w-12 place-items-center rounded-full bg-verde/10 text-verde">
+                <i data-lucide="coffee" class="h-6 w-6"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-xl">Junta no teu ritmo</h3>
+              <p class="mt-2 text-sm text-cafe/70">
+                sem prazo apertado pra queimar ponto. Eles ficam te esperando, igual a
+                gente.
+              </p>
+            </article>
+
+            <article class="rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <span class="grid h-12 w-12 place-items-center rounded-full bg-verde/10 text-verde">
+                <i data-lucide="gift" class="h-6 w-6"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-xl">Resgata em coisa boa</h3>
+              <p class="mt-2 text-sm text-cafe/70">
+                produto da loja, mimo de um parceiro local do bairro, ou um cupom pra
+                usar aqui. Tu escolhe.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           Conquistas / emblemas (teaser)
+           =================================================================== -->
+      <section class="py-14 sm:py-20" aria-labelledby="conquistas-title">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
+          <div class="max-w-2xl">
+            <p class="decor text-2xl sm:text-3xl">um agrado pela jornada</p>
+            <h2 id="conquistas-title" class="mt-1 font-titulo text-3xl sm:text-4xl">Conquistas do Casa</h2>
+            <p class="mt-3 text-cafe/70">
+              usando o Casa tu vai desbloqueando emblemas — pequenas lembranças de que
+              esse lugar também é teu. Aqui vão alguns pra tu conhecer:
+            </p>
+          </div>
+
+          <div class="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-5 lg:gap-6">
+            <article class="flex flex-col items-center rounded-2xl bg-branco/60 p-6 text-center ring-1 ring-cafe/10">
+              <span class="grid h-16 w-16 place-items-center rounded-full bg-terracota/10 text-terracota">
+                <i data-lucide="coffee" class="h-8 w-8"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-lg">Primeira Xícara</h3>
+              <p class="mt-1 text-xs text-cafe/60">o teu primeiro café aqui.</p>
+            </article>
+
+            <article class="flex flex-col items-center rounded-2xl bg-branco/60 p-6 text-center ring-1 ring-cafe/10">
+              <span class="grid h-16 w-16 place-items-center rounded-full bg-terracota/10 text-terracota">
+                <i data-lucide="sunrise" class="h-8 w-8"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-lg">Manhã de Sempre</h3>
+              <p class="mt-1 text-xs text-cafe/60">virou rotina passar de manhã.</p>
+            </article>
+
+            <article class="flex flex-col items-center rounded-2xl bg-branco/60 p-6 text-center ring-1 ring-cafe/10">
+              <span class="grid h-16 w-16 place-items-center rounded-full bg-terracota/10 text-terracota">
+                <i data-lucide="heart" class="h-8 w-8"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-lg">Gente do Casa</h3>
+              <p class="mt-1 text-xs text-cafe/60">tu já é de casa por aqui.</p>
+            </article>
+
+            <article class="flex flex-col items-center rounded-2xl bg-branco/60 p-6 text-center ring-1 ring-cafe/10">
+              <span class="grid h-16 w-16 place-items-center rounded-full bg-terracota/10 text-terracota">
+                <i data-lucide="award" class="h-8 w-8"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-lg">Alma do Casa</h3>
+              <p class="mt-1 text-xs text-cafe/60">o coração desse lugar bate contigo.</p>
+            </article>
+
+            <article class="flex flex-col items-center rounded-2xl bg-branco/60 p-6 text-center ring-1 ring-cafe/10">
+              <span class="grid h-16 w-16 place-items-center rounded-full bg-cafe/5 text-cafe/40">
+                <i data-lucide="sparkles" class="h-8 w-8"></i>
+              </span>
+              <h3 class="mt-4 font-titulo text-lg text-cafe/50">e mais por vir</h3>
+              <p class="mt-1 text-xs text-cafe/50">tem conquista escondida pra tu achar.</p>
+            </article>
+          </div>
+
+          <p class="mt-8 text-xs text-cafe/50">* valores fictícios, a definir.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer injetado pelo app.js -->
+    <div id="site-footer"></div>
+
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
+    />
+    <title>Colab — Casa Coffee Colab</title>
+    <meta
+      name="description"
+      content="Residência Gente do Casa: artistas e marcas do bairro que expõem e colaboram no Casa Coffee Colab. Quer colar com a gente?"
+    />
+  </head>
+  <body class="min-h-screen">
+    <!-- Header injetado pelo app.js -->
+    <div id="site-header"></div>
+
+    <main>
+      <!-- ===================================================================
+           Hero — Residência Gente do Casa
+           =================================================================== -->
+      <section class="relative">
+        <div class="photo-green relative flex min-h-[56vh] w-full items-center py-20 sm:min-h-[64vh]">
+          <div class="absolute inset-0 bg-black/45"></div>
+          <div class="relative mx-auto w-full max-w-4xl px-4 sm:px-6 3xl:max-w-[1200px]">
+            <p class="decor text-3xl text-bege sm:text-4xl">a cidade mora aqui dentro</p>
+            <h1 class="mt-1 font-titulo text-4xl font-semibold leading-[1.02] text-branco xs:text-5xl sm:text-6xl lg:text-7xl">
+              Residência Gente do Casa
+            </h1>
+            <p class="mt-6 max-w-2xl text-base text-bege/90 sm:text-lg">
+              A cada trimestre, o Casa abre espaço pra artistas e marcas do bairro
+              morarem um pouco na gente: obra na parede, produto na prateleira,
+              história na mesa. É vizinhança virando encontro.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           Carrossel — colabs (reutiliza setupCarousel via data-carousel="cards")
+           =================================================================== -->
+      <section data-carousel="cards" class="py-14 sm:py-20" aria-labelledby="colabs-title">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <h2 id="colabs-title" class="font-titulo text-3xl sm:text-4xl">Quem já colou com a gente</h2>
+              <p class="mt-2 text-cafe/70">residências, produtos convidados e rotas afetivas do entorno</p>
+            </div>
+            <div class="hidden shrink-0 gap-2 sm:flex">
+              <button data-carousel-prev type="button" aria-label="Anterior" class="grid h-10 w-10 place-items-center rounded-full border border-cafe/20 text-cafe transition-colors hover:border-terracota hover:text-terracota">
+                <i data-lucide="chevron-left" class="h-5 w-5"></i>
+              </button>
+              <button data-carousel-next type="button" aria-label="Próximo" class="grid h-10 w-10 place-items-center rounded-full border border-cafe/20 text-cafe transition-colors hover:border-terracota hover:text-terracota">
+                <i data-lucide="chevron-right" class="h-5 w-5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          data-carousel-track
+          class="carousel-track mt-8 gap-4 px-4 scroll-pl-4 sm:px-6 sm:scroll-pl-6 3xl:mx-auto 3xl:max-w-[1600px]"
+          aria-label="Colabs do Casa"
+        >
+          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
+            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
+              <div class="photo-warm w-24 shrink-0 sm:w-28"></div>
+              <div class="p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">residência do trimestre</p>
+                <h3 class="mt-1 font-titulo text-xl">Ateliê Lomba Grande</h3>
+                <p class="mt-1 text-sm text-cafe/70">cerâmica feita à mão que veste as mesas do Casa.</p>
+              </div>
+            </div>
+          </article>
+          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
+            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
+              <div class="photo-green w-24 shrink-0 sm:w-28"></div>
+              <div class="p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">produto convidado</p>
+                <h3 class="mt-1 font-titulo text-xl">Torrefação Vale dos Sinos</h3>
+                <p class="mt-1 text-sm text-cafe/70">micro-lote que a gente serve por tempo limitado.</p>
+              </div>
+            </div>
+          </article>
+          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
+            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
+              <div class="photo-bege w-24 shrink-0 sm:w-28"></div>
+              <div class="p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">rota afetiva</p>
+                <h3 class="mt-1 font-titulo text-xl">Feira da Hamburgo Velho</h3>
+                <p class="mt-1 text-sm text-cafe/70">produtores do bairro que abastecem a nossa cozinha.</p>
+              </div>
+            </div>
+          </article>
+          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
+            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
+              <div class="photo-warm w-24 shrink-0 sm:w-28"></div>
+              <div class="p-5">
+                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">colab passada</p>
+                <h3 class="mt-1 font-titulo text-xl">Selo Trilha Sonora</h3>
+                <p class="mt-1 text-sm text-cafe/70">a galera que assinou as playlists da casa por uma estação.</p>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           Como a residência acontece
+           =================================================================== -->
+      <section class="bg-verde/5 py-14 sm:py-20" aria-labelledby="como-title">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
+          <div class="max-w-2xl">
+            <h2 id="como-title" class="font-titulo text-3xl sm:text-4xl">Como a colab acontece</h2>
+            <p class="mt-2 text-cafe/70">sem burocracia — do jeito que vizinho combina com vizinho.</p>
+          </div>
+          <div class="mt-10 grid gap-4 sm:grid-cols-3 lg:gap-6">
+            <article class="rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <p class="font-decor text-3xl text-caramelo">um</p>
+              <h3 class="mt-1 font-titulo text-xl">A gente conversa</h3>
+              <p class="mt-2 text-sm text-cafe/70">tu chega com a tua ideia, a gente toma um café e sente se combina.</p>
+            </article>
+            <article class="rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <p class="font-decor text-3xl text-caramelo">dois</p>
+              <h3 class="mt-1 font-titulo text-xl">Vira residência</h3>
+              <p class="mt-2 text-sm text-cafe/70">teu trabalho ganha um canto no Casa por uma temporada — parede, prateleira ou mesa.</p>
+            </article>
+            <article class="rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
+              <p class="font-decor text-3xl text-caramelo">três</p>
+              <h3 class="mt-1 font-titulo text-xl">A cidade conhece</h3>
+              <p class="mt-2 text-sm text-cafe/70">a gente apresenta pra quem passa aqui — e o bairro inteiro fica sabendo.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           Convite — quer colar com a gente?
+           =================================================================== -->
+      <section class="py-14 sm:py-20" aria-labelledby="convite-title">
+        <div class="mx-auto max-w-3xl px-4 text-center sm:px-6">
+          <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-terracota/10 text-terracota">
+            <i data-lucide="heart" class="h-7 w-7"></i>
+          </span>
+          <p class="decor mt-4 text-3xl">é artista, faz, cria, planta?</p>
+          <h2 id="convite-title" class="mt-1 font-titulo text-3xl sm:text-4xl">Quer colar com a gente?</h2>
+          <p class="mx-auto mt-4 max-w-xl text-cafe/70">
+            se tu é do bairro ou da cidade e tem um trabalho pra mostrar, manda um oi.
+            A gente adora conhecer gente que faz coisa bonita com as próprias mãos.
+          </p>
+          <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <a
+              href="mailto:casacoffeecolab@gmail.com?subject=Quero%20colar%20com%20o%20Casa&body=Oi%2C%20gente%20do%20Casa!%20Meu%20nome%20%C3%A9..."
+              class="btn-primary"
+            >
+              <i data-lucide="mail" class="h-4 w-4"></i> manda um e-mail
+            </a>
+            <a
+              href="https://wa.me/5551993605262?text=Oi%2C%20gente%20do%20Casa!%20Quero%20propor%20uma%20colab."
+              target="_blank"
+              rel="noopener"
+              class="btn-ghost"
+            >
+              <i data-lucide="message-circle" class="h-4 w-4"></i> chama no WhatsApp
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer injetado pelo app.js -->
+    <div id="site-footer"></div>
+
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
+    />
+    <!-- A home mora em /pages/home.html. Este index só existe pra que a raiz "/"
+         (ex.: acessar pelo IP na rede) caia direto na home, em dev e em prod. -->
+    <meta http-equiv="refresh" content="0; url=/pages/home.html" />
+    <title>Casa Coffee Colab</title>
+    <script>
+      window.location.replace('/pages/home.html');
+    </script>
+  </head>
+  <body>
+    <p>Redirecionando pro Casa… <a href="/pages/home.html">entra por aqui</a>.</p>
+  </body>
+</html>

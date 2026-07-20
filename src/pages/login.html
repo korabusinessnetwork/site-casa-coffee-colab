@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
+    />
+    <title>Que bom te ver de volta — entrar</title>
+    <meta
+      name="description"
+      content="Entra na tua conta do Casa Coffee Colab e continua de onde parou."
+    />
+  </head>
+  <body class="min-h-screen">
+    <!-- Header injetado pelo app.js -->
+    <div id="site-header"></div>
+
+    <main>
+      <section class="py-14 sm:py-20">
+        <div class="mx-auto max-w-md px-4 sm:px-6">
+          <div class="text-center">
+            <p class="decor text-3xl sm:text-4xl">que bom te ver de volta</p>
+            <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">entra na tua conta</h1>
+            <p class="mt-3 text-cafe/70">continua de onde tu parou. a xícara ainda tá quente. ☕</p>
+          </div>
+
+          <form class="mt-10 rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10 sm:p-8" data-login-form novalidate>
+            <div>
+              <label for="log-email" class="block text-sm font-medium text-cafe">e-mail</label>
+              <input id="log-email" name="email" type="email" autocomplete="email" required
+                class="mt-1 w-full rounded-xl border border-cafe/20 bg-branco/70 px-4 py-2.5 text-cafe placeholder:text-cafe/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota"
+                placeholder="teu@email.com" />
+            </div>
+
+            <div class="mt-4">
+              <div class="flex items-center justify-between">
+                <label for="log-senha" class="block text-sm font-medium text-cafe">senha</label>
+                <button type="button" data-reset class="text-xs font-medium text-terracota hover:underline">
+                  esqueci a senha
+                </button>
+              </div>
+              <div class="relative mt-1">
+                <input id="log-senha" name="senha" type="password" autocomplete="current-password" required
+                  class="w-full rounded-xl border border-cafe/20 bg-branco/70 px-4 py-2.5 pr-12 text-cafe placeholder:text-cafe/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota"
+                  placeholder="tua senha" />
+                <button type="button" data-toggle-senha aria-label="mostrar senha" aria-pressed="false"
+                  class="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-cafe/50 hover:text-terracota focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota">
+                  <i data-lucide="eye" class="h-5 w-5"></i>
+                </button>
+              </div>
+            </div>
+
+            <p class="mt-4 hidden rounded-xl bg-terracota/10 px-4 py-3 text-sm text-terracota" data-form-erro aria-live="polite"></p>
+            <p class="mt-4 hidden rounded-xl bg-verde/10 px-4 py-3 text-sm text-verde" data-reset-msg aria-live="polite"></p>
+
+            <button type="submit" class="btn-primary mt-6 w-full">entrar</button>
+
+            <p class="mt-5 text-center text-sm text-cafe/70">
+              ainda não tem conta?
+              <a href="/pages/cadastro.html" class="font-medium text-terracota hover:underline">cria a tua</a>.
+            </p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer injetado pelo app.js -->
+    <div id="site-footer"></div>
+
+    <script type="module" src="../app.js"></script>
+  </body>
+</html>

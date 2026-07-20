@@ -1,0 +1,136 @@
+/* Fontes bundled via @fontsource (sem CDN). Placeholders até termos
+   Rexton/Mayonice — ver TODO no CLAUDE.md. */
+@import '@fontsource/sora/300.css';
+@import '@fontsource/sora/400.css';
+@import '@fontsource/sora/500.css';
+@import '@fontsource/sora/600.css';
+@import '@fontsource/sora/700.css';
+@import '@fontsource/fraunces/400.css';
+@import '@fontsource/fraunces/500.css';
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/fraunces/700.css';
+@import '@fontsource/caveat/400.css';
+@import '@fontsource/caveat/600.css';
+@import '@fontsource/caveat/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-bege text-cafe font-sora antialiased;
+    /* Header é position: fixed (sai do fluxo) — compensamos o vão com um
+       padding-top igual à altura do header (h-16 no mobile / h-20 a partir de md).
+       Centralizado aqui pra valer em TODAS as páginas, sem repetir por arquivo. */
+    @apply pt-16 md:pt-20;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-titulo text-cafe;
+  }
+
+  /* Foco visível e acessível em toda a UI */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-terracota;
+  }
+}
+
+@layer components {
+  /* Botão primário — tom acolhedor, cantos suaves */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full
+           bg-terracota px-5 py-2.5 text-sm font-medium text-bege
+           transition-colors duration-200 hover:bg-cafe
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota;
+  }
+
+  /* Traço manuscrito decorativo */
+  .decor {
+    @apply font-decor text-caramelo;
+  }
+
+  /* Botão secundário/gentil — contorno */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-full
+           border border-cafe/25 px-5 py-2.5 text-sm font-medium text-cafe
+           transition-colors duration-200 hover:border-terracota hover:text-terracota
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota;
+  }
+
+  /* Pílula de filtro (catálogo da loja). Estado ativo é aplicado via JS
+     (bg-terracota text-bege border-terracota). */
+  .filtro {
+    @apply rounded-full border border-cafe/20 px-4 py-2 text-sm font-medium text-cafe
+           transition-colors hover:border-terracota
+           focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota;
+  }
+
+  /* -------------------------------------------------------------------------
+     Placeholders de foto (gradientes da marca) — TODO: trocar por fotos reais.
+     Ver CLAUDE.md › "Imagens / fotos reais (TODO)".
+     ------------------------------------------------------------------------- */
+  .photo-warm {
+    background-image: linear-gradient(135deg, #8c3a2a 0%, #a56a3a 55%, #5b3c34 100%);
+  }
+  .photo-green {
+    background-image: linear-gradient(135deg, #305429 0%, #5b3c34 100%);
+  }
+  .photo-bege {
+    background-image: linear-gradient(135deg, #ead8c1 0%, #a56a3a 120%);
+  }
+
+  /* -------------------------------------------------------------------------
+     Carrossel (scroll-snap). O JS (setupCarousel) cuida de autoplay/dots.
+     ------------------------------------------------------------------------- */
+  .carousel-track {
+    @apply flex snap-x snap-mandatory overflow-x-auto scroll-smooth;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  .carousel-track::-webkit-scrollbar {
+    display: none; /* WebKit */
+  }
+  .carousel-slide {
+    @apply snap-start shrink-0;
+  }
+
+  /* Bolinhas do hero */
+  .dot {
+    @apply h-2.5 w-2.5 rounded-full bg-branco/50 transition-all duration-200
+           hover:bg-branco/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-branco;
+  }
+  .dot[aria-current='true'] {
+    @apply w-6 bg-branco;
+  }
+}
+
+/* Reduced-motion: sem scroll suave no track e sem snap forçado que "pule" */
+@media (prefers-reduced-motion: reduce) {
+  .carousel-track {
+    scroll-behavior: auto;
+  }
+}
+
+/* Sempre respeitar quem pediu menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
