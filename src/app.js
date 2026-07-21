@@ -1242,6 +1242,84 @@ function initPlanosPage() {
     nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
+  // Deslogado → manda pro login guardando o destino: volta pra ONDE clicou
+  // (home ou /planos), não sempre pros planos. Caminho interno → seguro
+  // (o login sanitiza via sanitizeRedirect, anti open-redirect).
+  const irProLogin = () => {
+    const destino = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/pages/login.html?redirect=${destino}`;
+  };
+
+  // Abre o Checkout hospedado do Asaas (modo assinatura). O preço vem do BANCO na
+  // Edge Function — o client só manda o tier_slug; functions.invoke já envia o JWT
+  // da sessão no Authorization (a function valida e vincula a assinatura ao user.id).
+  const irProPagamento = async (tier, btn) => {
+    const textoBtn = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'te levando pro pagamento…';
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { tier_slug: tier },
+      });
+      if (error || !data?.url) {
+        avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
+        return;
+      }
+      window.location.href = data.url; // Checkout hospedado do Asaas
+    } catch {
+      avisar('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = textoBtn;
+    }
+  };
+
+  // Confirmação de conta ANTES de pagar: mostra com qual conta (a sessão em cache) a
+  // pessoa vai assinar e deixa TROCAR de conta. Assim ninguém assina numa conta em
+  // cache sem querer — dá pra escolher outra. Montado via DOM (o e-mail entra por
+  // textContent, nunca innerHTML) → sem risco de XSS.
+  const pedirConfirmacao = (tier, btn, email) => {
+    if (!nota) return irProPagamento(tier, btn); // página sem a nota → comportamento antigo
+    nota.textContent = '';
+    nota.classList.remove('hidden');
+
+    const box = document.createElement('div');
+    box.className = 'rounded-2xl bg-terracota/5 p-4 text-sm text-cafe ring-1 ring-terracota/15';
+
+    const linha = document.createElement('p');
+    linha.append('vais assinar como ');
+    const emailEl = document.createElement('strong');
+    emailEl.className = 'font-semibold';
+    emailEl.textContent = email || 'tua conta'; // textContent → e-mail escapado por natureza
+    linha.append(emailEl);
+
+    const trocarLinha = document.createElement('p');
+    trocarLinha.className = 'mt-1 text-cafe/60';
+    trocarLinha.append('não é você? ');
+    const trocar = document.createElement('button');
+    trocar.type = 'button';
+    trocar.className = 'font-medium text-terracota hover:underline';
+    trocar.textContent = 'trocar de conta';
+    trocar.addEventListener('click', async () => {
+      trocar.disabled = true;
+      trocar.textContent = 'saindo…';
+      await signOut(); // limpa a sessão em cache
+      irProLogin(); // volta pra cá depois de logar de novo
+    });
+    trocarLinha.append(trocar);
+
+    const continuar = document.createElement('button');
+    continuar.type = 'button';
+    continuar.className =
+      'btn-primary mt-3 text-sm';
+    continuar.textContent = 'continuar pro pagamento';
+    continuar.addEventListener('click', () => irProPagamento(tier, btn));
+
+    box.append(linha, trocarLinha, continuar);
+    nota.append(box);
+    nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
   botoes.forEach((btn) =>
     btn.addEventListener('click', async () => {
       const tier = btn.dataset.tier;
@@ -1250,36 +1328,10 @@ function initPlanosPage() {
       // Config pendente → degrada com aviso gentil, sem quebrar.
       if (!supabase) return avisar('a assinatura ainda não tá ligada por aqui (config pendente). 💛');
 
-      // Deslogado → manda pro login guardando o destino: volta pra ONDE clicou
-      // (home ou /planos), não sempre pros planos. Caminho interno → seguro
-      // (o login sanitiza via sanitizeRedirect, anti open-redirect).
+      // Deslogado → login. Logado → confirma a conta antes de pagar (dá pra trocar).
       const session = await getSession();
-      if (!session) {
-        const destino = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = `/pages/login.html?redirect=${destino}`;
-        return;
-      }
-
-      const textoBtn = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'te levando pro pagamento…';
-      try {
-        // O preço vem do BANCO na Edge Function — o client só manda o tier_slug.
-        // functions.invoke já envia o JWT da sessão no Authorization (a function valida).
-        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-          body: { tier_slug: tier },
-        });
-        if (error || !data?.url) {
-          avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
-          return;
-        }
-        window.location.href = data.url; // Checkout hospedado do Asaas
-      } catch {
-        avisar('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = textoBtn;
-      }
+      if (!session) return irProLogin();
+      pedirConfirmacao(tier, btn, session.user?.email);
     })
   );
 }
