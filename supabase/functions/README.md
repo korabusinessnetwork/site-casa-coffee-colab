@@ -1,159 +1,179 @@
-# Edge Functions — Casa Coffee Colab (Stripe 6a+6b · Pontos Fase 3)
+# Edge Functions — Casa Coffee Colab (ASAAS · Pontos Fase 3)
 
-Quatro functions (Supabase, Deno) + a lib compartilhada:
+Gateway de pagamento: **Asaas** (Pix + Cartão, Checkout hospedado). Quatro
+functions (Supabase, Deno) + a lib compartilhada:
 
 ```
 supabase/functions/
-├── _shared/lib.ts             # Stripe, Supabase service_role, CORS, JWT, getSiteUrl(),
-│                              # ensureStripeCustomer, computeCartFromDb, getUserTierDiscount,
-│                              # getTierMultiplier, creditPoints (pontos)
-├── create-checkout-session/   # Checkout: assinatura {tier_slug} OU loja {items}; exige JWT
-├── create-portal-session/     # Billing Portal da assinatura; exige JWT
+├── _shared/lib.ts             # Asaas (fetch + access_token), Supabase service_role, CORS,
+│                              # JWT, getSiteUrl(), computeCartFromDb, getUserTierDiscount,
+│                              # getTierMultiplier, creditPoints, checkAchievements
+├── create-checkout-session/   # Checkout Asaas: assinatura {tier_slug} OU loja {items}; exige JWT
+├── cancel-subscription/       # cancela a assinatura ativa do usuário (DELETE /subscriptions); exige JWT
 ├── redeem-reward/             # resgata recompensa por pontos (rpc redeem_reward); exige JWT
-└── stripe-webhook/            # eventos do Stripe; verifica assinatura + idempotência + pontos
+└── asaas-webhook/             # eventos do Asaas; token no header + idempotência + pontos
 ```
 
-> **SÓ TEST MODE nesta fase.** Chaves `sk_test_…` / `whsec_…` de test. O código é
-> **agnóstico de ambiente** — no go-live troca só os secrets (test → live). Ver o
-> checklist de go-live no `CLAUDE.md`.
+> **SANDBOX primeiro.** A chave de sandbox (`$aact_hmlg_…`) é de homologação. O
+> código é **agnóstico de ambiente** — no go-live troca só os secrets
+> (`$aact_hmlg_…` → `$aact_prod_…`, novo webhook token, SITE_URL de prod). A base
+> da API é derivada do prefixo da chave (`hmlg` = sandbox), sem `if` no código.
 
 ## Regras de segredo (relembrando)
 
 Estes vivem **só** nas env vars da function (`supabase secrets`), **nunca** no
 client/bundle/repo:
 
-- `STRIPE_SECRET_KEY` — `sk_test_…`
-- `STRIPE_WEBHOOK_SECRET` — `whsec_…` (vem ao cadastrar o endpoint do webhook)
-- `SITE_URL` — base das `success_url`/`cancel_url` (dev: `http://localhost:5173`)
+- `ASAAS_API_KEY` — a chave da API do Asaas (`$aact_hmlg_…` em sandbox). **Vaza
+  tudo** — jamais no client. (Uma chave de SANDBOX vazada é tolerável; a de
+  **produção** NUNCA pode vazar.)
+- `ASAAS_WEBHOOK_TOKEN` — token que tu escolhe e cadastra no webhook do Asaas; o
+  webhook compara com o header `asaas-access-token` de cada evento.
+- `SITE_URL` — base das `successUrl`/`cancelUrl` (dev: `http://localhost:5173`).
 
 Já injetados pelo Supabase (não precisa setar): `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`.
 
-No **client** vai só `VITE_STRIPE_PUBLISHABLE_KEY` (`pk_test_…`) no `.env` — nunca aqui.
+No **client** NÃO vai nenhuma chave de pagamento: o Checkout do Asaas é 100%
+hospedado (o front só redireciona pro `link` que a function devolve). O `.env` do
+client tem só o Supabase (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, e opcional
+`VITE_SITE_URL`).
 
 ## Pré-requisitos
 
 - [Supabase CLI](https://supabase.com/docs/guides/cli) instalado e logado (`supabase login`).
 - Projeto linkado: `supabase link --project-ref <SEU_PROJECT_REF>`.
+- Conta Asaas **sandbox** (grátis): https://sandbox.asaas.com — ver o passo-a-passo abaixo.
+
+## 0) Abrir a conta sandbox do Asaas e pegar a chave
+
+1. Cria a conta grátis em **https://sandbox.asaas.com** (é o ambiente de teste,
+   separado da conta de produção — nada cobra de verdade).
+2. Dentro do painel sandbox: **Configurações → Integrações → Chave de API** →
+   **Gerar chave**. Ela começa com `$aact_hmlg_…`. **Copia e guarda** (é o
+   `ASAAS_API_KEY`). Não cola em lugar nenhum do repo/client.
+3. Escolhe um **token de webhook** (uma senha forte inventada por ti — ex.: gera
+   um UUID). Esse é o `ASAAS_WEBHOOK_TOKEN`; tu vai usá-lo no passo 3.
 
 ## 1) Setar os secrets
 
 ```bash
-supabase secrets set STRIPE_SECRET_KEY=sk_test_xxx
+supabase secrets set ASAAS_API_KEY='$aact_hmlg_...'      # aspas: a chave tem "$"
+supabase secrets set ASAAS_WEBHOOK_TOKEN='o-token-que-escolheu'
 supabase secrets set SITE_URL=http://localhost:5173
-# o STRIPE_WEBHOOK_SECRET só existe DEPOIS de cadastrar o endpoint (passo 3) — setar então:
-supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_xxx
 
 # conferir:
 supabase secrets list
 ```
 
+> A base da API (sandbox vs prod) é derivada do prefixo da chave. Se algum dia
+> precisar forçar, dá pra setar `ASAAS_BASE_URL` — normalmente **não precisa**.
+
 ## 2) Deploy das functions
 
 ```bash
 supabase functions deploy create-checkout-session
-supabase functions deploy create-portal-session
+supabase functions deploy cancel-subscription
 supabase functions deploy redeem-reward
-# o webhook NÃO usa JWT (quem chama é o Stripe, autenticado pela assinatura):
-supabase functions deploy stripe-webhook --no-verify-jwt
+# o webhook NÃO usa JWT (quem chama é o Asaas, autenticado pelo token no header):
+supabase functions deploy asaas-webhook --no-verify-jwt
 ```
 
 A URL do webhook fica:
-`https://<SEU_PROJECT_REF>.functions.supabase.co/stripe-webhook`
+`https://<SEU_PROJECT_REF>.functions.supabase.co/asaas-webhook`
 
-## 3) Cadastrar o endpoint do webhook no Stripe (test)
+## 3) Cadastrar o webhook no Asaas (sandbox)
 
-Stripe Dashboard (**test mode**) → Developers → Webhooks → **Add endpoint**:
+Painel sandbox → **Configurações → Integrações → Webhooks** (Notificações via
+webhook) → **Adicionar**:
 
-- **URL:** `https://<SEU_PROJECT_REF>.functions.supabase.co/stripe-webhook`
-- **Eventos (assinatura — 6a):** `checkout.session.completed`,
-  `customer.subscription.created`, `customer.subscription.updated`,
-  `customer.subscription.deleted`.
-- **Eventos (loja — 6b):** `checkout.session.async_payment_succeeded`,
-  `checkout.session.async_payment_failed` (Pix/Boleto confirmam/falham depois do
-  checkout; cartão já fecha no `checkout.session.completed`).
-- **Evento (pontos de renovação — Fase 3):** `invoice.paid` (credita os pontos da
-  mensalidade nas RENOVAÇÕES; a 1ª fatura já é creditada no
-  `checkout.session.completed`, então o webhook ignora `billing_reason='subscription_create'`).
+- **URL:** `https://<SEU_PROJECT_REF>.functions.supabase.co/asaas-webhook`
+- **Token de autenticação:** o mesmo valor de `ASAAS_WEBHOOK_TOKEN` (o Asaas manda
+  ele no header `asaas-access-token`; a function rejeita 401 se não bater).
+- **Versão da API:** v3.
+- **Eventos:** habilita
+  - **Checkout:** `CHECKOUT_PAID`, `CHECKOUT_EXPIRED`, `CHECKOUT_CANCELED`.
+  - **Pagamento (pontos da assinatura, 1ª cobrança + renovações):**
+    `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED`.
 
-Copie o **Signing secret** (`whsec_…`) e rode o `supabase secrets set STRIPE_WEBHOOK_SECRET=…`
-do passo 1 (depois **re-deploy** o webhook pra pegar o secret novo:
-`supabase functions deploy stripe-webhook --no-verify-jwt`).
+> Não precisa re-deploy ao cadastrar o webhook: o token já está no secret. Se tu
+> TROCAR o token, aí sim: `supabase secrets set ASAAS_WEBHOOK_TOKEN=…` e re-deploy
+> do `asaas-webhook`.
 
-## 3b) Habilitar Pix e Boleto (loja) — só painel, ZERO código
+## 4) Migration
 
-Stripe Dashboard (**test mode**) → Settings → **Payment methods** → habilite
-**Pix** e **Boleto** (cartão já vem ligado). O Checkout usa automaticamente os
-métodos habilitados (a function não fixa a lista). Pix/Boleto exigem moeda BRL
-(já é o caso). No go-live, repita isso na conta **live**.
-
-## 4) Testar o webhook local (opcional, com Stripe CLI)
-
-```bash
-stripe listen --forward-to https://<SEU_PROJECT_REF>.functions.supabase.co/stripe-webhook
-# o `stripe listen` imprime um whsec_ próprio pra usar enquanto testa localmente
-```
+Roda a **`0011_asaas.sql`** no **SQL Editor** (depois da 0010). Ela adiciona os
+ids do Asaas (`profiles.asaas_customer_id`, `subscriptions.asaas_*`,
+`orders.asaas_*`) e a tabela de idempotência `asaas_events`. É idempotente e não
+mexe em nada das migrations anteriores (as colunas `stripe_*` continuam no banco,
+só param de ser usadas).
 
 ## Logs
 
 ```bash
 supabase functions logs create-checkout-session
-supabase functions logs create-portal-session
+supabase functions logs cancel-subscription
 supabase functions logs redeem-reward
-supabase functions logs stripe-webhook
+supabase functions logs asaas-webhook
 ```
 
 ## Sequência completa (resumo)
 
-1. `node scripts/stripe-seed.mjs` → cria produtos/preços test, imprime os `price_id`.
-2. Cole os `price_id` na `0006_stripe.sql`, rode-a no **SQL Editor**. Rode também a
-   **`0007_orders_stripe.sql`** (loja) e a **`0008_points.sql`** (pontos/recompensas).
-3. `supabase secrets set` de `STRIPE_SECRET_KEY` e `SITE_URL`.
+1. Abre a conta **sandbox** do Asaas, gera a `ASAAS_API_KEY` (`$aact_hmlg_…`) e
+   escolhe um `ASAAS_WEBHOOK_TOKEN` (passo 0).
+2. Roda a **`0011_asaas.sql`** no SQL Editor (passo 4).
+3. `supabase secrets set` de `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` e `SITE_URL`.
 4. `supabase functions deploy` das **quatro** functions (webhook com `--no-verify-jwt`).
-5. Cadastre/atualize o endpoint do webhook no Stripe (test) com os eventos de
-   assinatura, loja **e** `invoice.paid` (pontos de renovação), pegue o `whsec_` e
-   `supabase secrets set STRIPE_WEBHOOK_SECRET=…` → re-deploy do webhook.
-6. (Loja) Habilite **Pix** e **Boleto** em Settings → Payment methods.
-7. No client: `.env` com `VITE_STRIPE_PUBLISHABLE_KEY=pk_test_…` (e o resto do Supabase).
+5. Cadastra o webhook no Asaas (sandbox) com o token e os eventos de checkout +
+   pagamento (passo 3).
+6. No client: `.env` com o Supabase (sem nenhuma chave de pagamento).
 
-> **Atualizando de 6b → Fase 3:** já tinha o webhook cadastrado? Só **adicione o
-> evento `invoice.paid`** ao endpoint existente, rode a `0008_points.sql`, e faça
-> `deploy` do `redeem-reward` + re-`deploy` do `stripe-webhook`.
+## Como testar (sandbox)
 
-## Como testar (test mode)
+**Assinatura:** logado, em `/planos` clica "assinar" → Checkout do Asaas → paga
+com **cartão de teste** ou **Pix** (o sandbox tem cartões de teste na doc do Asaas;
+o Pix gera um QR simulável no painel) → volta pra `checkout-sucesso.html?assinatura=1`.
+No `CHECKOUT_PAID` a function grava `subscriptions` + espelha `profiles.tier_slug`;
+os pontos entram no `PAYMENT_CONFIRMED/RECEIVED`. Confere no banco.
 
-**Assinatura (6a):** logado, em `/planos` clica "assinar" → Checkout → cartão
-**4242 4242 4242 4242** (validade futura / CVC / CEP quaisquer) → volta pra
-checkout-sucesso. Confere `subscriptions` + `profiles.tier_slug` no banco.
-
-**Loja (6b):**
+**Loja:**
 - Adiciona itens ao carrinho, abre o drawer, "finalizar compra".
   - Deslogado → vai pro login e volta pro carrinho (`?cart=open`).
-  - Logado → Checkout do Stripe.
-- **Cartão:** `4242 4242 4242 4242` → aprova na hora. O `checkout.session.completed`
-  cria a `orders` (status `pago`) + `order_items`. Confere no banco.
-- **Boleto (test):** escolhe Boleto no Checkout → o `completed` cria a order como
-  `pendente`; pra confirmar, no Dashboard test o boleto tem botão de simular
-  pagamento (ou via Stripe CLI). Aí o `async_payment_succeeded` vira `pago`.
-- **Pix (test):** escolhe Pix → QR de teste; no test mode o Dashboard/CLI permite
-  simular a confirmação → `async_payment_succeeded` → `pago`.
-- **Desconto do tier:** com uma assinatura ATIVA, o total no Checkout já vem com o
-  `discount_percent` do tier (linha "-X%"). Sem assinatura = 0%. Confere que
-  `orders.desconto_centavos`/`total_centavos` batem com o cobrado.
+  - Logado → Checkout do Asaas.
+- Paga (cartão de teste ou Pix). O `CHECKOUT_PAID` finaliza a `orders` (que já foi
+  PRÉ-CRIADA como `pendente`) pra `pago` + cria os pontos. Se o checkout expira/é
+  cancelado, o `CHECKOUT_EXPIRED/CANCELED` marca o pedido pendente como `cancelado`.
+- **Desconto do tier:** com assinatura ATIVA, o total do checkout já vem com o
+  `discount_percent` do tier (o Asaas não tem campo de desconto, então o carrinho
+  vira UM item consolidado cujo valor = total já com desconto; a discriminação real
+  fica em `order_items`). Sem assinatura = 0%.
 
-**Billing portal:** no perfil, "gerenciar assinatura" → Billing Portal do Stripe
-(cancelar/atualizar cartão) → volta pro perfil.
+**Cancelar assinatura:** no perfil, "cancelar assinatura" → confirma → a function
+`cancel-subscription` faz `DELETE /subscriptions/{id}` no Asaas, marca
+`subscriptions.status='cancelada'` e limpa `profiles.tier_slug`. (O Asaas não tem
+portal de cobrança hospedado — por isso a tela é nossa.)
 
 **Pontos (Fase 3):**
-- Após uma compra paga, os pontos = `floor(total_com_desconto × points_multiplier)`
-  do tier ativo (sem plano = 1x). Ex.: R$49,41 no Ouro (1,5x) → `floor(74.115)` = **74**.
-  Confere no extrato (`/pages/conta/pontos.html`) ou na tabela `points_ledger`.
-- **Idempotência:** reenviar o mesmo evento (Stripe → Webhooks → Resend) **não**
-  duplica o crédito (unique `(ref_type, ref_id)` no ledger + `stripe_events`).
-- **Renovação:** `invoice.paid` com `billing_reason='subscription_cycle'` credita de novo;
-  a 1ª fatura (`subscription_create`) não recredita.
+- Após uma compra/assinatura paga, os pontos = `floor(valor × points_multiplier)`
+  do tier ativo (sem plano = 1x). Loja: sobre o **total já com desconto**.
+- **Idempotência:** reenviar o mesmo evento (o Asaas reenvia em caso de falha) **não**
+  duplica o crédito (unique `(ref_type, ref_id)` no ledger + `asaas_events` por `id`).
+- **Renovação:** cada mensalidade gera novo `PAYMENT_CONFIRMED/RECEIVED` (ref =
+  `payment.id`) → credita de novo, sem duplicar.
 - **Resgate:** em `/pages/conta/pontos.html`, "resgatar" → desconta o saldo, cria
   `redemptions`, baixa estoque e (se cupom) gera um código `CASA-XXXX` (30 dias).
-  Saldo insuficiente → mensagem gentil, sem débito. Resgate concorrente é serializado
-  pelo `for update` na `redeem_reward`.
-- **RLS:** anon não lê `points_ledger`/`redemptions`/`coupons` de ninguém (só o dono, logado).
+- **RLS:** anon não lê `points_ledger`/`redemptions`/`coupons`/`asaas_events` de
+  ninguém (só o dono, logado).
+
+---
+
+## Go-live (produção) — só config/secrets, o código NÃO muda
+
+1. Cria/usa a conta **de produção** do Asaas (https://www.asaas.com), completa o
+   cadastro/KYC, e gera a chave de produção (`$aact_prod_…`).
+2. Troca os secrets: `supabase secrets set ASAAS_API_KEY='$aact_prod_…'`,
+   um `ASAAS_WEBHOOK_TOKEN` novo, e `SITE_URL=https://<teu-domínio>`. Re-deploy das
+   **quatro** functions.
+3. Cadastra o webhook na conta de **produção** (mesmos eventos), com o token novo.
+4. Habilita Pix e Cartão na conta de produção (se ainda não estiverem).
+5. O client não muda (não tem chave de pagamento).

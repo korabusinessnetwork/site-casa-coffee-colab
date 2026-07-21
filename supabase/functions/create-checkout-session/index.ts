@@ -1,32 +1,54 @@
 // =============================================================================
 // Casa Coffee Colab — create-checkout-session (Edge Function, Deno)
-// Cria uma Stripe Checkout Session. Dois modos:
-//   • ASSINATURA  (6a): body { tier_slug } → mode 'subscription'.
-//   • LOJA        (6b): body { items: [{product_slug, variant, qtd}] } → 'payment'.
+// Cria um Checkout hospedado do ASAAS (Pix + Cartão). Dois modos:
+//   • ASSINATURA  (body { tier_slug }) → chargeTypes ['RECURRENT'] + subscription.
+//   • LOJA        (body { items: [{product_slug, variant, qtd}] }) → ['DETACHED'].
 //
 // SEGURANÇA (ver CLAUDE.md › Segurança):
 //   • Verifica o JWT do usuário logado — só autenticado cria checkout.
-//   • NUNCA confia em preço/total vindo do client. Assinatura: price do BANCO
+//   • NUNCA confia em preço/total vindo do client. Assinatura: preço do BANCO
 //     pelo tier_slug. Loja: subtotal somado server-side em products/variants
 //     (computeCartFromDb) e desconto do tier ATIVO (getUserTierDiscount).
-//   • success_url/cancel_url montadas server-side a partir de SITE_URL (env).
-//   • Comportamento idêntico em test e live — muda só a chave (secrets).
+//   • CPF é digitado pelo pagador na PÁGINA do Asaas (a gente não guarda CPF).
+//   • successUrl/cancelUrl montadas server-side a partir de SITE_URL (env).
+//   • Comportamento idêntico em sandbox e prod — muda só a chave (secrets).
 //
-// Retorna: { url } — o front redireciona pro Checkout do Stripe.
+// CORRELAÇÃO (webhook):
+//   • LOJA: a gente PRÉ-CRIA o pedido 'pendente' (+ order_items) e usa o
+//     `orders.id` como externalReference do checkout. O Asaas não tem campo de
+//     desconto, então o carrinho vira UM item consolidado cujo value = total JÁ
+//     COM DESCONTO (a discriminação por item fica em order_items, no banco).
+//   • ASSINATURA: externalReference = `sub:<user_id>:<tier_slug>` (o webhook
+//     resolve a assinatura do Asaas por esse externalReference).
+//
+// Retorna: { url } — o front redireciona pro Checkout do Asaas.
 // =============================================================================
 
 import {
-  stripe,
   supabaseAdmin,
   handleCors,
   jsonResponse,
   getUserFromRequest,
   getSiteUrl,
-  ensureStripeCustomer,
   computeCartFromDb,
   getUserTierDiscount,
+  asaasPost,
+  reaisFromCentavos,
+  AsaasError,
   type CartInputItem,
 } from '../_shared/lib.ts';
+
+// minutesToExpire do checkout hospedado (link deixa de valer depois disso).
+const CHECKOUT_EXPIRA_MIN = 60;
+
+// Monta o customerData (prefill) só com o que existe — Asaas rejeita string vazia.
+function buildCustomerData(nome?: string | null, email?: string | null, telefone?: string | null) {
+  const cd: Record<string, string> = {};
+  if (nome) cd.name = nome;
+  if (email) cd.email = email;
+  if (telefone) cd.phone = telefone;
+  return Object.keys(cd).length ? cd : undefined;
+}
 
 Deno.serve(async (req) => {
   const pre = handleCors(req);
@@ -47,91 +69,111 @@ Deno.serve(async (req) => {
   }
 
   const site = getSiteUrl();
-  const success_url = `${site}/pages/checkout-sucesso.html?session_id={CHECKOUT_SESSION_ID}`;
   const cancel_url = `${site}/pages/checkout-cancelado.html`;
 
-  try {
-    // Cliente do Stripe (reusa/cria) — serve pros dois modos.
-    const customerId = await ensureStripeCustomer(user);
+  // Prefill do pagador (nome/telefone do profiles; e-mail do auth). Nunca CPF.
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('full_name, telefone')
+    .eq('id', user.id)
+    .maybeSingle();
+  const customerData = buildCustomerData(profile?.full_name, user.email, profile?.telefone);
 
+  try {
     // -------------------------------------------------------------------------
-    // MODO LOJA (payment) — quando vem `items`.
+    // MODO LOJA (DETACHED) — quando vem `items`.
     // -------------------------------------------------------------------------
     if (Array.isArray(body.items)) {
       const { lines, subtotal_cents } = await computeCartFromDb(body.items as CartInputItem[]);
 
       // Desconto do tier ATIVO (server-side). Sem assinatura = 0%.
       const { tier_slug, discount_percent } = await getUserTierDiscount(user.id);
+      const desconto_centavos = Math.round((subtotal_cents * discount_percent) / 100);
+      const total_centavos = subtotal_cents - desconto_centavos;
 
-      // Desconto aplicado via Coupon percent_off DINÂMICO (duration 'once').
-      // Escolhi coupon em vez de mexer no unit_amount de cada linha porque:
-      //   (a) preserva o preço cheio de cada item no Checkout (transparente);
-      //   (b) o desconto vira UMA linha clara "-X%" pro cliente;
-      //   (c) o webhook lê o valor real cobrado em session.total_details, sem
-      //       recalcular rateio/arredondamento por linha.
-      // max_redemptions:1 → o coupon efêmero não pode ser reusado.
-      let discounts: { coupon: string }[] | undefined;
-      if (discount_percent > 0) {
-        const coupon = await stripe.coupons.create({
-          percent_off: discount_percent,
-          duration: 'once',
-          name: `Desconto ${tier_slug} (${discount_percent}%)`,
-          max_redemptions: 1,
-          metadata: { user_id: user.id, tier_slug: tier_slug ?? '' },
-        });
-        discounts = [{ coupon: coupon.id }];
-      }
-
-      // Snapshot COMPACTO do carrinho (server-side) pro webhook criar order_items.
-      // Não é dado do client — é o resultado da validação/preço do BANCO.
-      const itemsMeta = JSON.stringify(
-        lines.map((l) => ({
-          sl: l.product_slug,
-          vo: l.variant_opcao ?? '',
-          n: l.nome,
-          u: l.unit_cents,
-          q: l.qtd,
-        })),
-      );
-      // Metadata do Stripe: máx. 500 chars por valor. Carrinho enorme → erro gentil.
-      if (itemsMeta.length > 490) {
-        return jsonResponse({ error: 'carrinho grande demais pro checkout — tira alguns itens?' }, 400);
-      }
-
-      const session = await stripe.checkout.sessions.create({
-        mode: 'payment',
-        customer: customerId,
-        client_reference_id: user.id,
-        // SEM payment_method_types: o Checkout usa automaticamente os métodos
-        // habilitados no Dashboard (cartão já vem; Pix/Boleto é só ligar no painel,
-        // ZERO código). É o equivalente ao automatic_payment_methods pro Checkout.
-        line_items: lines.map((l) => ({
-          quantity: l.qtd,
-          price_data: {
-            currency: 'brl',
-            unit_amount: l.unit_cents, // preço do BANCO, nunca do client
-            product_data: { name: l.variante_label ? `${l.nome} — ${l.variante_label}` : l.nome },
-          },
-        })),
-        discounts, // undefined quando não há desconto
-        metadata: {
-          kind: 'store',
+      // 2.1) PRÉ-CRIA o pedido 'pendente' + itens (server-side; nunca do client).
+      // O externalReference do checkout será o orders.id → o webhook finaliza este
+      // mesmo pedido (idempotente por orders.id). Se o Asaas falhar, desfaz.
+      const { data: order, error: oErr } = await supabaseAdmin
+        .from('orders')
+        .insert({
           user_id: user.id,
-          tier_slug: tier_slug ?? '',
-          discount_percent: String(discount_percent),
-          subtotal_cents: String(subtotal_cents),
-          items: itemsMeta,
-        },
-        payment_intent_data: { metadata: { kind: 'store', user_id: user.id } },
-        success_url,
-        cancel_url,
-      });
+          status: 'pendente',
+          origem: 'site',
+          subtotal_centavos,
+          desconto_centavos,
+          total_centavos,
+          tier_slug_aplicado: tier_slug,
+        })
+        .select('id')
+        .single();
+      if (oErr || !order) {
+        console.error('[create-checkout-session] falha ao criar pedido', oErr);
+        return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 500);
+      }
 
-      return jsonResponse({ url: session.url });
+      const rows = lines.map((l) => ({
+        order_id: order.id,
+        product_id: l.product_id,
+        variant_id: l.variant_id,
+        nome_snapshot: l.nome,
+        variante_snapshot: l.variante_label,
+        preco_unit_centavos: l.unit_cents,
+        qtd: l.qtd,
+      }));
+      const { error: iErr } = await supabaseAdmin.from('order_items').insert(rows);
+      if (iErr) {
+        await supabaseAdmin.from('orders').delete().eq('id', order.id); // cascade nos itens
+        console.error('[create-checkout-session] falha ao criar itens', iErr);
+        return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 500);
+      }
+
+      // 2.2) Cria o Checkout do Asaas. UM item consolidado = total já com desconto
+      // (o Asaas não tem campo de desconto). A discriminação real fica em order_items.
+      const totalItens = lines.reduce((s, l) => s + l.qtd, 0);
+      const descricao =
+        discount_percent > 0
+          ? `${totalItens} ${totalItens === 1 ? 'item' : 'itens'} · desconto ${discount_percent}% do teu plano`
+          : `${totalItens} ${totalItens === 1 ? 'item' : 'itens'}`;
+
+      let checkout: any;
+      try {
+        checkout = await asaasPost('/checkouts', {
+          billingTypes: ['PIX', 'CREDIT_CARD'],
+          chargeTypes: ['DETACHED'],
+          minutesToExpire: CHECKOUT_EXPIRA_MIN,
+          externalReference: order.id,
+          callback: {
+            successUrl: `${site}/pages/checkout-sucesso.html?ref=${order.id}`,
+            cancelUrl: cancel_url,
+            expiredUrl: cancel_url,
+            autoRedirect: true,
+          },
+          items: [
+            {
+              name: 'Pedido Casa Coffee Colab',
+              description: descricao,
+              quantity: 1,
+              value: reaisFromCentavos(total_centavos),
+              externalReference: order.id,
+            },
+          ],
+          customerData,
+        });
+      } catch (err) {
+        // Falhou no Asaas → não deixa pedido órfão.
+        await supabaseAdmin.from('orders').delete().eq('id', order.id);
+        throw err;
+      }
+
+      // 2.3) Guarda o id do checkout no pedido (auditoria + UNIQUE de idempotência).
+      await supabaseAdmin.from('orders').update({ asaas_checkout_id: checkout.id }).eq('id', order.id);
+
+      return jsonResponse({ url: checkout.link });
     }
 
     // -------------------------------------------------------------------------
-    // MODO ASSINATURA (subscription) — quando vem `tier_slug`.
+    // MODO ASSINATURA (RECURRENT) — quando vem `tier_slug`.
     // -------------------------------------------------------------------------
     const tier_slug = body.tier_slug;
     if (typeof tier_slug !== 'string' || !tier_slug) {
@@ -140,34 +182,58 @@ Deno.serve(async (req) => {
 
     const { data: tier, error: tierErr } = await supabaseAdmin
       .from('tiers')
-      .select('slug, nome, stripe_price_id, ativo')
+      .select('slug, nome, preco_centavos, ativo')
       .eq('slug', tier_slug)
       .maybeSingle();
 
     if (tierErr) return jsonResponse({ error: 'erro ao buscar o plano' }, 500);
     if (!tier || !tier.ativo) return jsonResponse({ error: 'plano indisponível' }, 400);
-    if (!tier.stripe_price_id) {
-      return jsonResponse({ error: 'plano ainda não tem preço configurado' }, 400);
+    if (!tier.preco_centavos || tier.preco_centavos <= 0) {
+      return jsonResponse({ error: 'plano sem preço configurado' }, 400);
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [{ price: tier.stripe_price_id, quantity: 1 }],
-      client_reference_id: user.id,
-      subscription_data: { metadata: { user_id: user.id, tier_slug: tier.slug } },
-      metadata: { user_id: user.id, tier_slug: tier.slug },
-      allow_promotion_codes: true,
-      success_url,
-      cancel_url,
+    const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (1ª cobrança hoje)
+    // externalReference da assinatura: `sub:<user_id>:<tier_slug>:<nonce>`. O nonce
+    // (uuid) torna a resolução no webhook inequívoca — mesmo que o usuário cancele e
+    // reassine o MESMO tier (GET /subscriptions?externalReference retorna 1 só).
+    // O webhook faz split(':') e lê [1]=user_id, [2]=tier_slug (nonce é ignorado).
+    const nonce = crypto.randomUUID();
+    const checkout: any = await asaasPost('/checkouts', {
+      billingTypes: ['PIX', 'CREDIT_CARD'],
+      chargeTypes: ['RECURRENT'],
+      minutesToExpire: CHECKOUT_EXPIRA_MIN,
+      externalReference: `sub:${user.id}:${tier.slug}:${nonce}`,
+      callback: {
+        successUrl: `${site}/pages/checkout-sucesso.html?assinatura=1`,
+        cancelUrl: cancel_url,
+        expiredUrl: cancel_url,
+        autoRedirect: true,
+      },
+      subscription: {
+        cycle: 'MONTHLY',
+        nextDueDate: hoje,
+      },
+      items: [
+        {
+          name: `Plano ${tier.nome}`,
+          description: 'assinatura mensal · Casa Coffee Colab',
+          quantity: 1,
+          value: reaisFromCentavos(tier.preco_centavos),
+        },
+      ],
+      customerData,
     });
 
-    return jsonResponse({ url: session.url });
+    return jsonResponse({ url: checkout.link });
   } catch (err) {
     // Erros de validação do carrinho (carrinho vazio/produto indisponível/qtd) → 400.
     const msg = (err as Error)?.message ?? '';
     const isValidacao = /carrinho|produto|opção|quantidade|item sem/i.test(msg);
     if (isValidacao) return jsonResponse({ error: msg }, 400);
+    if (err instanceof AsaasError) {
+      console.error('[create-checkout-session] Asaas', err.status, err.payload);
+      return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 502);
+    }
     console.error('[create-checkout-session]', err);
     return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 500);
   }

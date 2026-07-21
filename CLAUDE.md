@@ -222,69 +222,94 @@ os dados. Nada de service_role no bundle.
 
 ---
 
-## Pagamentos (Fase 6 — Stripe)
+## Pagamentos (Asaas — substituiu o Stripe)
 
-Fundação em **test mode**: assinatura dos 4 tiers via **Stripe Checkout** hospedado.
-Toda a lógica sensível fica nas **Edge Functions** (`supabase/functions/`), nunca no client.
+Gateway atual: **Asaas** (gateway BR). Assinatura dos 4 tiers **e** loja via
+**Asaas Checkout** hospedado (`POST /checkouts` → redireciona pro `link`).
+**Pix + Cartão** apenas (SEM boleto). O **CPF é coletado na página hospedada do
+Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Functions**
+(`supabase/functions/`), nunca no client.
 
-- **Código agnóstico de ambiente:** test e live rodam o MESMO código — muda só a
-  chave (secrets). Sem `if test/if live` no código.
+> **Migrou do Stripe → Asaas.** As functions `stripe-webhook/` e
+> `create-portal-session/` e o `scripts/stripe-seed.mjs` foram **removidos**. As
+> colunas `stripe_*` continuam no banco (migrations são imutáveis) mas não são mais
+> usadas. O Asaas **não tem seed de preços** (o valor vai no corpo do checkout) nem
+> **portal de cobrança hospedado** (por isso a tela de cancelar é NOSSA).
+
+- **Redirect 100% hospedado:** NÃO existe chave pública de pagamento no bundle. O
+  client só chama a function e redireciona pro `link` que ela devolve.
+- **Código agnóstico de ambiente:** sandbox e prod rodam o MESMO código — muda só a
+  chave (secrets). A base da API (`api-sandbox` vs `api`) é derivada do **prefixo da
+  chave** (`hmlg` = sandbox), override opcional via `ASAAS_BASE_URL`. Sem `if` no código.
 - **Segredos SÓ nas Edge Functions** (`supabase secrets`, nunca client/bundle/repo):
-  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SITE_URL`. Injetados pelo Supabase:
-  `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. No **client** só `VITE_STRIPE_PUBLISHABLE_KEY`.
-- **`_shared/lib.ts`**: client Stripe (fetch http client do Deno), Supabase service_role,
-  CORS, `getUserFromRequest()` (valida o JWT), `jsonResponse()`, `getSiteUrl()`.
-- **`_shared/lib.ts` (loja, 6b)**: `ensureStripeCustomer()`, `computeCartFromDb()`
-  (valida itens e SOMA o subtotal pelo **BANCO** — products/product_variants, nunca do
-  client) e `getUserTierDiscount()` (desconto do tier ATIVO via `profiles.tier_slug →
-  tiers.discount_percent`; sem assinatura = 0%).
-- **`create-checkout-session`** — dois modos:
-  - **assinatura** (`{ tier_slug }` → mode `subscription`): lê `stripe_price_id` do BANCO.
-  - **loja** (`{ items: [{product_slug, variant, qtd}] }` → mode `payment`): recalcula
-    subtotal server-side, aplica o desconto do tier via **Stripe Coupon `percent_off`
-    dinâmico** (`duration:'once'`, `max_redemptions:1`), e grava um snapshot compacto do
-    carrinho em `metadata.items` pro webhook. **Sem `payment_method_types`** → o Checkout
-    usa os métodos habilitados no Dashboard (cartão/Pix/Boleto) sem hardcode.
-  - Ambos: valida JWT, cria/reusa Customer, monta `success_url`/`cancel_url` via `getSiteUrl()`.
-- **`create-portal-session`** (6b): valida JWT, pega `profiles.stripe_customer_id`, cria
-  uma **Billing Portal Session** (`return_url` → perfil). Assinante gerencia/cancela no Stripe.
-- **`stripe-webhook`** (deploy com `--no-verify-jwt`): SEMPRE verifica a assinatura
-  (`constructEventAsync`) + idempotência via `stripe_events` (PK = `event.id`).
-  - **assinatura**: `customer.subscription.*` e `checkout.session.completed` (mode
-    subscription) → upsert `subscriptions` + espelha `profiles.tier_slug`.
-  - **loja**: `checkout.session.completed` (mode payment) cria `orders` + `order_items`
-    via service_role (idempotente por `orders.stripe_checkout_id`), com
-    `subtotal/desconto/total` vindos de `session.amount_*` (valor REAL cobrado).
-    Pix/Boleto são assíncronos → `completed` pode criar `pendente` e o
-    `checkout.session.async_payment_succeeded` finaliza pra `pago` (`async_payment_failed`
-    → `cancelado`). Crédito de **pontos** é Fase 3 (só TODO comentado, já com o `total`).
-- **Migration `0006_stripe`**: `stripe_events`, `profiles.stripe_customer_id`, UNIQUE em
-  `subscriptions.stripe_subscription_id`, `UPDATE`s dos `tiers.stripe_price_id`.
-- **Migration `0007_orders_stripe`**: auditoria de `orders`/`order_items` (a 0001 já tinha
-  as colunas — reusadas pelos nomes canônicos PT: `subtotal_centavos`/`desconto_centavos`/
-  `total_centavos`/`tier_slug_aplicado`/`stripe_checkout_id`/`preco_unit_centavos`) +
-  índice **UNIQUE em `orders.stripe_checkout_id`** (idempotência do webhook da loja).
-- **Front (loja)**: o drawer "finalizar compra" chama a function mode `payment` (deslogado
-  → login e volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier;
-  `checkout-sucesso.html` limpa o carrinho; o perfil tem "gerenciar assinatura" (portal).
-- **Setup/deploy**: ver `supabase/functions/README.md`. Teste com o cartão
-  **4242 4242 4242 4242** (validade futura / CVC / CEP quaisquer); Pix/Boleto se simulam
-  no Dashboard/CLI do test mode.
+  `ASAAS_API_KEY` (`$aact_hmlg_…` em sandbox), `ASAAS_WEBHOOK_TOKEN` (token que a gente
+  escolhe e cadastra no webhook), `SITE_URL`. Injetados pelo Supabase: `SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`. No **client**, nenhuma chave de pagamento.
+- **`_shared/lib.ts` (Asaas)**: `asaasBaseUrl()`, `AsaasError`, `asaasFetch/Post/Get/Delete`
+  (auth via header `access_token`), `reaisFromCentavos`/`centavosFromReais` (o Asaas fala
+  em REAIS decimais; o banco em centavos). Helpers agnósticos de gateway (reusados):
+  `computeCartFromDb()` (SOMA o subtotal pelo **BANCO** — products/product_variants, nunca
+  do client), `getUserTierDiscount()` (desconto do tier ATIVO via `profiles.tier_slug →
+  tiers.discount_percent`; sem assinatura = 0%), `getTierMultiplier()`, `creditPoints()`
+  (idempotente por `(ref_type,ref_id)`), `checkAchievements()`, `getUserFromRequest()`,
+  CORS, `jsonResponse()`, `getSiteUrl()`.
+- **`create-checkout-session`** — dois modos, ambos exigem JWT:
+  - **assinatura** (`{ tier_slug }` → `chargeTypes:["RECURRENT"]`): lê `preco_centavos` do
+    tier no BANCO, `subscription:{ cycle:"MONTHLY", nextDueDate: hoje }`. `externalReference`
+    = `sub:<userId>:<tierSlug>:<nonce>` (o nonce garante 1 match ao resolver a assinatura
+    criada, mesmo em re-assinatura). `successUrl` → `checkout-sucesso.html?assinatura=1`.
+  - **loja** (`{ items: [{product_slug, variant, qtd}] }` → `chargeTypes:["DETACHED"]`):
+    recalcula subtotal server-side, aplica o desconto do tier. Como o **Asaas não tem
+    campo de desconto**, o carrinho vira **UM item consolidado** cujo `value` = total já
+    com desconto (a discriminação real fica em `order_items`). **Pré-cria a `orders`
+    como `pendente` + `order_items`**; `externalReference` = `order.id` (UUID); em falha
+    do Asaas, apaga a order. `successUrl` → `checkout-sucesso.html?ref=<order.id>`.
+  - Ambos: `billingTypes:["PIX","CREDIT_CARD"]`, `customerData` (prefill nome/e-mail/tel),
+    `callback` com `successUrl`/`cancelUrl`/`expiredUrl` via `getSiteUrl()`.
+- **`cancel-subscription`** (a NOSSA tela substitui o portal): exige JWT, lê a assinatura
+  ATIVA do **próprio** usuário (nunca id vindo do client), faz `DELETE /subscriptions/{id}`
+  no Asaas, marca `subscriptions.status='cancelada'` e limpa `profiles.tier_slug`. Asaas
+  404 → trata como já cancelada e reflete no banco. Retorna `{ ok, proxima_cobranca }`.
+- **`asaas-webhook`** (deploy com `--no-verify-jwt`): auth = **token compartilhado** no
+  header `asaas-access-token` (comparado com `ASAAS_WEBHOOK_TOKEN`; NÃO é HMAC).
+  Idempotência via `asaas_events` (PK = `id` do evento, `evt_…`). Em erro → 500 sem gravar
+  o evento (o Asaas reenvia); em sucesso → grava e 200.
+  - **loja**: `CHECKOUT_PAID` finaliza a MESMA `orders` (por `id` = externalReference) pra
+    `pago` (nunca faz downgrade de `pago`) + credita pontos (`ref_type='order'`,
+    `ref_id=order.id`, motivo `'compra na loja'`) + `checkAchievements`. `CHECKOUT_EXPIRED`/
+    `CHECKOUT_CANCELED` marca o pedido pendente como `cancelado`.
+  - **assinatura**: `CHECKOUT_PAID` resolve a assinatura criada via
+    `GET /subscriptions?externalReference=…`, faz upsert em `subscriptions` (por
+    `asaas_subscription_id`) e espelha `profiles.tier_slug` — **sem pontos aqui**. Os pontos
+    vêm dos eventos de **pagamento** `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` (`ref_type=
+    'subscription'`, `ref_id=payment.id`, motivo `'assinatura'`) — 1ª cobrança E renovações,
+    sem duplicar (idempotente por `payment.id`). O handler de pagamento **se auto-cura**
+    (cria a linha de subscription se o evento de pagamento chegar antes do checkout).
+- **Migration `0011_asaas`**: `profiles.asaas_customer_id`; `subscriptions.asaas_customer_id`
+  + `asaas_subscription_id` (UNIQUE); `orders.asaas_checkout_id` (UNIQUE) + `asaas_payment_id`;
+  tabela `asaas_events(id text pk, event, processed_at)` com RLS (SELECT só do owner).
+  Idempotente; não mexe em nada anterior (as colunas `stripe_*` ficam intactas, sem uso).
+- **Front**: o drawer "finalizar compra" chama a function da loja (deslogado → login e
+  volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier; `checkout-
+  sucesso.html` limpa o carrinho e — na loja — sonda `points_ledger` por `?ref=` pra mostrar
+  "+X pontos"; na assinatura (`?assinatura=1`) não sonda (os pontos vêm por `payment.id`,
+  desconhecido do client). O perfil mostra a **próxima cobrança** (de
+  `subscriptions.current_period_end`) e tem "cancelar assinatura" (confirma → chama a
+  `cancel-subscription`).
+- **Setup/deploy**: ver `supabase/functions/README.md`. Teste em sandbox com cartão de
+  teste (doc do Asaas) ou Pix simulado no painel sandbox.
 
 > **Go-live LIVE (o que muda no dia — só config/secrets, o código NÃO muda):**
-> - **Criar os produtos/preços em LIVE mode** (rodar `scripts/stripe-seed.mjs` com a
->   `sk_live_…`), pegar os `price_id` live e rodar uma **migration NOVA** com os
->   `UPDATE public.tiers set stripe_price_id=… ` live (a 0006 é imutável).
-> - Trocar os secrets das functions pros de LIVE: `supabase secrets set` de
->   `STRIPE_SECRET_KEY` (`sk_live_…`), `STRIPE_WEBHOOK_SECRET` (`whsec_…` do endpoint
->   **live**) e `SITE_URL` (domínio de prod). Re-deploy das **três** functions.
-> - **Cadastrar um novo endpoint de webhook em LIVE mode** no Stripe (o whsec de test
->   não vale em live), com os eventos de assinatura **e** de loja
->   (`checkout.session.completed`, `customer.subscription.*`,
->   `checkout.session.async_payment_succeeded|failed`).
-> - **Habilitar Pix e Boleto na conta LIVE** (Settings → Payment methods) — cartão já vem.
-> - No client/Vercel: `VITE_STRIPE_PUBLISHABLE_KEY` = `pk_live_…`.
-> - Conferir que os 4 tiers têm `stripe_price_id` live no banco antes de abrir as vendas.
+> - Criar/usar a conta de **produção** do Asaas (KYC completo) e gerar a chave
+>   `$aact_prod_…`.
+> - Trocar os secrets das functions: `supabase secrets set` de `ASAAS_API_KEY`
+>   (`$aact_prod_…`), um `ASAAS_WEBHOOK_TOKEN` novo e `SITE_URL` (domínio de prod).
+>   Re-deploy das **quatro** functions.
+> - **Cadastrar o webhook na conta LIVE** (o token/endpoint de sandbox não vale em
+>   prod), com os eventos de checkout (`CHECKOUT_PAID`/`EXPIRED`/`CANCELED`) e de
+>   pagamento (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`).
+> - **Habilitar Pix e Cartão na conta LIVE**.
+> - No client/Vercel: nada de chave de pagamento (o checkout é hospedado).
 
 ---
 
@@ -360,8 +385,8 @@ só LÊ (RLS: cada um lê o próprio ledger).
 
 Segredos:
 - .env no .gitignore; .env.example (sem valores reais) versionado. NUNCA commitar segredo.
-- Só no client/Vercel: SUPABASE_URL, SUPABASE_ANON_KEY, STRIPE_PUBLISHABLE_KEY.
-- SÓ nas env vars das Edge Functions (nunca no bundle/Vercel/repo): SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, POS_WEBHOOK_SECRET.
+- Só no client/Vercel: SUPABASE_URL, SUPABASE_ANON_KEY. (O checkout do Asaas é hospedado — NÃO existe chave pública de pagamento no bundle.)
+- SÓ nas env vars das Edge Functions (nunca no bundle/Vercel/repo): SUPABASE_SERVICE_ROLE_KEY, ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN, POS_WEBHOOK_SECRET.
 
 Banco (RLS-by-default):
 - Toda tabela sobe com RLS habilitado e deny-by-default. Nenhuma tabela sem política explícita.
@@ -371,7 +396,7 @@ Banco (RLS-by-default):
 Confiança zero no client:
 - Pontos calculados e gravados só server-side (ledger append-only). Front só lê.
 - create-checkout-session recalcula preço, desconto do tier e total pelo BANCO — nunca confia no valor/carrinho do client.
-- Webhooks (Stripe e PDV): verificar assinatura (Stripe signature / HMAC) + idempotência por id de evento (anti-replay). SEMPRE.
+- Webhooks (Asaas e PDV): verificar autenticidade (Asaas → token no header `asaas-access-token` vs `ASAAS_WEBHOOK_TOKEN`; PDV → HMAC) + idempotência por id de evento (anti-replay). SEMPRE.
 - Escapar toda string vinda do banco antes de injetar no DOM (evitar XSS no JS vanilla).
 
 Gate de fim de leva (backend): rodar antes de commitar —
@@ -385,5 +410,5 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Cada migration deve ser autocontida e, quando possível, idempotente (IF NOT EXISTS / CREATE OR REPLACE).
 - Ao gerar migrations, SEMPRE diga ao humano exatamente quais arquivos rodar e em que ordem.
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
-- Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel).
+- Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS — **o humano ainda precisa aplicar esta no SQL Editor, depois da 0010**).
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.

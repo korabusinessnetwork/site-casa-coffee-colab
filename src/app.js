@@ -849,7 +849,7 @@ function initCart() {
           avisarCheckout('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
           return;
         }
-        window.location.href = data.url; // Checkout hospedado do Stripe
+        window.location.href = data.url; // Checkout hospedado do Asaas
       } catch {
         avisarCheckout('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
       } finally {
@@ -1224,8 +1224,9 @@ function initProductPage() {
 }
 
 // =============================================================================
-// PÁGINA DE PLANOS (planos.html) — botões "assinar" são placeholder.
-// O checkout (Stripe) vem na Fase 2; por ora só revela o aviso gentil.
+// PÁGINA DE PLANOS (planos.html) — botão "assinar" leva pro Checkout do Asaas.
+// A Edge Function create-checkout-session (modo assinatura) monta o link; aqui a
+// gente só redireciona. Sem supabase configurado, degrada com aviso gentil.
 // =============================================================================
 function initPlanosPage() {
   const botoes = document.querySelectorAll('[data-assinar]');
@@ -1268,7 +1269,7 @@ function initPlanosPage() {
           avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
           return;
         }
-        window.location.href = data.url; // Checkout hospedado do Stripe
+        window.location.href = data.url; // Checkout hospedado do Asaas
       } catch {
         avisar('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
       } finally {
@@ -1282,7 +1283,11 @@ function initPlanosPage() {
 // Página de sucesso do checkout: compra concluída → esvazia o carrinho local.
 // (A fonte da verdade do pedido é o banco, gravado pelo webhook; o carrinho é só UI.)
 // Também mostra "+X pontos" quando o webhook terminar de creditar (é assíncrono,
-// então a gente sonda o ledger algumas vezes pelo session_id da URL).
+// então a gente sonda o ledger algumas vezes pelo `ref` da URL — o orders.id que a
+// gente passou como externalReference/successUrl no checkout da LOJA).
+// Na volta da ASSINATURA a successUrl é `?assinatura=1` (sem ref): os pontos da
+// assinatura são creditados no evento de pagamento (ref = payment.id, que o client
+// não conhece), então aqui a gente só esvazia o carrinho e deixa o aviso da página.
 async function initCheckoutSucessoPage() {
   if (!document.querySelector('[data-checkout-sucesso]')) return;
   Cart.clearCart();
@@ -1290,20 +1295,20 @@ async function initCheckoutSucessoPage() {
   const slot = document.querySelector('[data-pontos-credito]');
   if (!slot || !supabase) return;
 
-  const sessionId = new URLSearchParams(window.location.search).get('session_id');
-  if (!sessionId) return;
+  const ref = new URLSearchParams(window.location.search).get('ref');
+  if (!ref) return; // assinatura (?assinatura=1) ou sem ref → nada a sondar
 
   const session = await getSession();
   if (!session) return;
 
-  // O crédito de pontos vem pelo webhook (idempotente, ref_id = session_id).
+  // O crédito de pontos vem pelo webhook (idempotente, ref_id = orders.id).
   // Sonda o ledger algumas vezes; se aparecer, mostra o carinho. Sem drama se não.
   for (let tentativa = 0; tentativa < 5; tentativa++) {
     const { data } = await supabase
       .from('points_ledger')
       .select('delta')
       .eq('user_id', session.user.id)
-      .eq('ref_id', sessionId)
+      .eq('ref_id', ref)
       .maybeSingle();
     if (data && Number(data.delta) > 0) {
       slot.textContent = `+${Number(data.delta).toLocaleString('pt-BR')} pontos pra ti 💛`;
@@ -1556,7 +1561,7 @@ async function renderUserPanel(panel) {
   }
 
   panel.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
-  panel.querySelector('[data-panel-assinatura]')?.addEventListener('click', abrirBillingPortal);
+  panel.querySelector('[data-panel-assinatura]')?.addEventListener('click', irParaAssinatura);
 }
 
 // Count-up (easeOutCubic) do 0 até o alvo. Usado no saldo do painel.
@@ -1572,19 +1577,9 @@ function animarContagem(el, alvo, dur = 900) {
   requestAnimationFrame(passo);
 }
 
-// Abre o Billing Portal do Stripe (create-portal-session). Reusa a Edge Function
-// da 6b. Falhou? volta pro perfil (onde dá pra tentar de novo com aviso).
-async function abrirBillingPortal() {
-  if (!supabase) return;
-  try {
-    const { data, error } = await supabase.functions.invoke('create-portal-session', { body: {} });
-    if (!error && data?.url) {
-      window.location.href = data.url;
-      return;
-    }
-  } catch {
-    /* cai no fallback abaixo */
-  }
+// "minha assinatura" (painel do header) → leva pro perfil, onde fica a nossa tela
+// de gerenciar/cancelar (o Asaas não tem portal de cobrança hospedado).
+function irParaAssinatura() {
   window.location.href = '/pages/conta/perfil.html';
 }
 
@@ -1800,6 +1795,25 @@ async function initPerfilPage() {
     plano = escapeHtml(t?.nome || profile.tier_slug);
   }
 
+  // Próxima cobrança da assinatura ativa (subscriptions é RLS: só a própria linha).
+  // O Asaas não tem portal hospedado — a data vem do current_period_end que o
+  // webhook mantém a partir do nextDueDate da assinatura no Asaas.
+  let proximaCobranca = '';
+  if (temPlano && supabase) {
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('current_period_end')
+      .eq('user_id', session.user.id)
+      .eq('status', 'ativa')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (sub?.current_period_end) {
+      const d = new Date(sub.current_period_end);
+      if (!Number.isNaN(d.getTime())) proximaCobranca = d.toLocaleDateString('pt-BR');
+    }
+  }
+
   root.innerHTML = `
     <div class="mx-auto max-w-2xl">
       <p class="decor text-2xl sm:text-3xl">que bom te ver</p>
@@ -1816,7 +1830,15 @@ async function initPerfilPage() {
           <dd class="mt-1 font-titulo text-lg">${plano}</dd>
           ${
             temPlano
-              ? `<button type="button" data-gerenciar-assinatura class="mt-2 text-xs font-medium text-terracota hover:underline">gerenciar assinatura</button>
+              ? `${proximaCobranca ? `<p class="mt-1 text-xs text-cafe/60">próxima cobrança em ${proximaCobranca}</p>` : ''}
+                 <button type="button" data-cancelar-assinatura class="mt-2 text-xs font-medium text-terracota hover:underline">cancelar assinatura</button>
+                 <div class="mt-2 hidden rounded-lg bg-terracota/5 p-2 text-xs text-cafe" data-cancelar-confirm>
+                   <p>tem certeza que quer cancelar? tu perde os benefícios do plano.</p>
+                   <div class="mt-2 flex gap-2">
+                     <button type="button" data-cancelar-sim class="font-medium text-terracota hover:underline">sim, cancelar</button>
+                     <button type="button" data-cancelar-nao class="text-cafe/60 hover:underline">deixa quieto</button>
+                   </div>
+                 </div>
                  <p class="mt-1 hidden text-xs text-cafe/60" data-assinatura-msg aria-live="polite"></p>`
               : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-terracota hover:underline">ver os planos</a>`
           }
@@ -1862,33 +1884,54 @@ async function initPerfilPage() {
 
   renderIcons();
 
-  // "gerenciar assinatura" → abre o Billing Portal do Stripe (create-portal-session).
-  const gerenciarBtn = root.querySelector('[data-gerenciar-assinatura]');
+  // "cancelar assinatura" → nossa própria tela (o Asaas não tem portal hospedado).
+  // Pede confirmação e chama a Edge Function cancel-subscription (que cancela no
+  // Asaas e reflete no banco). Sucesso → atualiza o card sem recarregar.
+  const cancelarBtn = root.querySelector('[data-cancelar-assinatura]');
+  const cancelarConfirm = root.querySelector('[data-cancelar-confirm]');
+  const cancelarNao = root.querySelector('[data-cancelar-nao]');
+  const cancelarSim = root.querySelector('[data-cancelar-sim]');
   const assinaturaMsg = root.querySelector('[data-assinatura-msg]');
-  gerenciarBtn?.addEventListener('click', async () => {
+
+  cancelarBtn?.addEventListener('click', () => {
     assinaturaMsg?.classList.add('hidden');
+    cancelarConfirm?.classList.remove('hidden');
+    cancelarBtn.classList.add('hidden');
+  });
+  cancelarNao?.addEventListener('click', () => {
+    cancelarConfirm?.classList.add('hidden');
+    cancelarBtn?.classList.remove('hidden');
+  });
+
+  cancelarSim?.addEventListener('click', async () => {
     if (!supabase) return;
-    const texto = gerenciarBtn.textContent;
-    gerenciarBtn.disabled = true;
-    gerenciarBtn.textContent = 'abrindo…';
+    cancelarSim.disabled = true;
+    cancelarSim.textContent = 'cancelando…';
     try {
-      const { data, error } = await supabase.functions.invoke('create-portal-session', { body: {} });
-      if (error || !data?.url) {
+      const { data, error } = await supabase.functions.invoke('cancel-subscription', { body: {} });
+      cancelarConfirm?.classList.add('hidden');
+      if (error || !data?.ok) {
         if (assinaturaMsg) {
-          assinaturaMsg.textContent = 'não deu pra abrir o portal agora. tenta de novo daqui a pouco?';
+          assinaturaMsg.textContent = 'não deu pra cancelar agora. tenta de novo daqui a pouco? 💛';
           assinaturaMsg.classList.remove('hidden');
         }
+        cancelarBtn?.classList.remove('hidden');
         return;
       }
-      window.location.href = data.url;
+      if (assinaturaMsg) {
+        assinaturaMsg.textContent = 'assinatura cancelada. vai fazer falta — mas a porta fica aberta. 💛';
+        assinaturaMsg.classList.remove('hidden');
+      }
     } catch {
+      cancelarConfirm?.classList.add('hidden');
       if (assinaturaMsg) {
         assinaturaMsg.textContent = 'a gente não conseguiu falar com o servidor agora.';
         assinaturaMsg.classList.remove('hidden');
       }
+      cancelarBtn?.classList.remove('hidden');
     } finally {
-      gerenciarBtn.disabled = false;
-      gerenciarBtn.textContent = texto;
+      cancelarSim.disabled = false;
+      cancelarSim.textContent = 'sim, cancelar';
     }
   });
 

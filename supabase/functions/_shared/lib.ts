@@ -2,17 +2,19 @@
 // Casa Coffee Colab — supabase/functions/_shared/lib.ts
 // Fundação compartilhada das Edge Functions (Deno). Ver CLAUDE.md › Segurança.
 //
+// Gateway de pagamento: ASAAS (Pix + Cartão via Checkout hospedado).
+//
 // Segredos vivem SÓ nas env vars da function (supabase secrets), NUNCA no
 // client/bundle/repo:
-//   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SITE_URL  → setados por nós.
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY             → injetados pelo Supabase.
+//   ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN, SITE_URL  → setados por nós.
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY       → injetados pelo Supabase.
 //
-// Código AGNÓSTICO DE AMBIENTE: o comportamento é idêntico em test e live —
-// muda só a chave (sk_test/whsec_test ↔ sk_live/whsec_live) via secrets. Nada
-// de "if test/if live" no código.
+// Código AGNÓSTICO DE AMBIENTE: o comportamento é idêntico em sandbox e produção
+// — muda só a chave ($aact_hmlg_… ↔ $aact_prod_…) via secrets. A base da API é
+// derivada do prefixo da chave (hmlg = sandbox), com override via ASAAS_BASE_URL.
+// Nada de "if sandbox/if prod" no código.
 // =============================================================================
 
-import Stripe from 'https://esm.sh/stripe@17.7.0?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.110.6';
 
 // --- Env obrigatória (falha alto e cedo se faltar) ---------------------------
@@ -22,11 +24,75 @@ export function requireEnv(nome: string): string {
   return v;
 }
 
-// --- Stripe (chave secreta da env) -------------------------------------------
-// httpClient de fetch é obrigatório no Deno (o default do SDK usa Node http).
-export const stripe = new Stripe(requireEnv('STRIPE_SECRET_KEY'), {
-  httpClient: Stripe.createFetchHttpClient(),
-});
+// =============================================================================
+// ASAAS — cliente REST minimalista (fetch + header access_token).
+// A chave secreta vem da env (nunca do client/bundle). A base é derivada do
+// prefixo: chaves de sandbox contêm "hmlg" (homologação). Override explícito
+// via ASAAS_BASE_URL, se um dia precisar.
+// =============================================================================
+const ASAAS_API_KEY = requireEnv('ASAAS_API_KEY');
+
+function asaasBaseUrl(): string {
+  const override = Deno.env.get('ASAAS_BASE_URL');
+  if (override) return override.replace(/\/+$/, '');
+  // $aact_hmlg_… = sandbox (homologação); $aact_prod_… = produção.
+  const isSandbox = /hmlg/i.test(ASAAS_API_KEY);
+  return isSandbox ? 'https://api-sandbox.asaas.com/v3' : 'https://api.asaas.com/v3';
+}
+
+export class AsaasError extends Error {
+  status: number;
+  payload: unknown;
+  constructor(message: string, status: number, payload: unknown) {
+    super(message);
+    this.name = 'AsaasError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+// Chamada crua à API do Asaas. Lança AsaasError em status != 2xx.
+export async function asaasFetch(path: string, init: RequestInit = {}): Promise<any> {
+  const res = await fetch(`${asaasBaseUrl()}${path}`, {
+    ...init,
+    headers: {
+      'access_token': ASAAS_API_KEY,
+      'Content-Type': 'application/json',
+      'User-Agent': 'CasaCoffeeColab/1.0',
+      ...(init.headers ?? {}),
+    },
+  });
+
+  const text = await res.text();
+  let data: any = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+
+  if (!res.ok) {
+    const msg =
+      data?.errors?.[0]?.description ?? data?.message ?? `Asaas respondeu ${res.status}`;
+    throw new AsaasError(String(msg), res.status, data);
+  }
+  return data;
+}
+
+export const asaasPost = (path: string, body: unknown) =>
+  asaasFetch(path, { method: 'POST', body: JSON.stringify(body) });
+export const asaasGet = (path: string) => asaasFetch(path, { method: 'GET' });
+export const asaasDelete = (path: string) => asaasFetch(path, { method: 'DELETE' });
+
+// Centavos (inteiro, como guardamos no banco) → reais decimais que o Asaas
+// espera no campo `value` (ex.: 4990 → 49.90). Arredonda a 2 casas.
+export function reaisFromCentavos(centavos: number): number {
+  return Math.round(centavos) / 100;
+}
+// E o inverso, pra ler valores do Asaas (reais) de volta pra centavos inteiros.
+export function centavosFromReais(reais: number): number {
+  return Math.round(Number(reais) * 100);
+}
 
 // --- Supabase admin (service_role — ignora RLS; escrita server-side) ---------
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são injetados no ambiente da function.
@@ -71,35 +137,18 @@ export async function getUserFromRequest(req: Request) {
 }
 
 // --- Base URL do site (montada server-side; nunca vinda do client) -----------
-// success_url/cancel_url do checkout saem daqui. Idêntico em test e live —
+// successUrl/cancelUrl do checkout saem daqui. Idêntico em sandbox e prod —
 // muda só o valor de SITE_URL no secrets (dev: http://localhost:5173).
 export function getSiteUrl(): string {
   return requireEnv('SITE_URL').replace(/\/+$/, ''); // sem barra final
-}
-
-// --- Stripe Customer do usuário (cria e persiste em profiles, ou reusa) -------
-// Usado por create-checkout-session (assinatura e loja) e create-portal-session.
-export async function ensureStripeCustomer(user: { id: string; email?: string | null }): Promise<string> {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('stripe_customer_id')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (profile?.stripe_customer_id) return profile.stripe_customer_id;
-
-  const customer = await stripe.customers.create({
-    email: user.email ?? undefined,
-    metadata: { supabase_user_id: user.id },
-  });
-  await supabaseAdmin.from('profiles').update({ stripe_customer_id: customer.id }).eq('id', user.id);
-  return customer.id;
 }
 
 // =============================================================================
 // CARRINHO — preço/validação SEMPRE do BANCO (nunca do client).
 // O client manda só { product_slug, variant, qtd }. Aqui a gente busca o preço
 // real em products/product_variants e soma o subtotal server-side. Ver CLAUDE.md
-// › Segurança ("confiança zero no client").
+// › Segurança ("confiança zero no client"). GATEWAY-AGNÓSTICO (Stripe→Asaas não
+// muda nada aqui).
 // =============================================================================
 export interface CartInputItem {
   product_slug: string;
@@ -206,6 +255,7 @@ export async function getUserTierDiscount(
 // assinatura = 1x). floor (arredonda pra baixo). O trigger update_points_balance
 // (0008) sincroniza o cache profiles.points_balance. Idempotente por (ref_type,
 // ref_id) — UNIQUE no ledger (0008): reprocessar o evento não duplica.
+// GATEWAY-AGNÓSTICO.
 // =============================================================================
 export async function getTierMultiplier(tierSlug: string | null): Promise<number> {
   if (!tierSlug) return 1;
@@ -270,5 +320,3 @@ export async function checkAchievements(userId: string): Promise<number> {
   }
   return Number(data ?? 0);
 }
-
-export { Stripe };

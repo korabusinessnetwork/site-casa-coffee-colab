@@ -41,13 +41,17 @@ function walk(dir, out = []) {
 // =============================================================================
 console.log('1) Segredos em src/ e dist/');
 const SECRET_PATTERNS = [
+  // ASAAS — gateway atual. A API key vaza tudo; NUNCA pode ir pro client/repo.
+  { re: /\$aact_[0-9A-Za-z_=+/-]{10,}/, nome: 'Asaas API key ($aact_)' },
+  // Stripe — gateway antigo (aposentado), mas manter os padrões não custa nada
+  // e continua barrando qualquer segredo desse tipo que apareça por engano.
   { re: /\bsk_live_[0-9a-zA-Z]{10,}/, nome: 'Stripe secret key (sk_live_)' },
   { re: /\bsk_test_[0-9a-zA-Z]{10,}/, nome: 'Stripe secret key (sk_test_)' },
   { re: /\brk_live_[0-9a-zA-Z]{10,}/, nome: 'Stripe restricted key (rk_live_)' },
   { re: /\bwhsec_[0-9a-zA-Z]{10,}/, nome: 'Stripe webhook secret (whsec_)' },
   { re: /\bAKIA[0-9A-Z]{16}\b/, nome: 'AWS access key id' },
   // Atribuição explícita de segredo em código
-  { re: /(SERVICE_ROLE_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|POS_WEBHOOK_SECRET)\s*[:=]\s*['"][^'"]+['"]/, nome: 'segredo atribuído literal' },
+  { re: /(SERVICE_ROLE_KEY|ASAAS_API_KEY|ASAAS_WEBHOOK_TOKEN|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|POS_WEBHOOK_SECRET)\s*[:=]\s*['"][^'"]+['"]/, nome: 'segredo atribuído literal' },
 ];
 
 // JWTs do Supabase são todos "eyJ...". A ANON key é PÚBLICA e PODE ir pro bundle
@@ -131,7 +135,7 @@ const SENSIVEIS = new Set([
   'profiles', 'audit_log', 'subscriptions', 'orders', 'order_items',
   'points_ledger', 'redemptions', 'user_achievements',
   'coupons', 'pos_webhook_events', 'unclaimed_points',
-  'stripe_events',
+  'stripe_events', 'asaas_events',
 ]);
 let sensivelOk = true;
 for (const pol of policies) {
