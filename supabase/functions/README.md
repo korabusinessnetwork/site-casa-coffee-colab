@@ -1,7 +1,7 @@
 # Edge Functions — Casa Coffee Colab (ASAAS · Pontos Fase 3)
 
-Gateway de pagamento: **Asaas** (Pix + Cartão, Checkout hospedado). Quatro
-functions (Supabase, Deno) + a lib compartilhada:
+Gateway de pagamento: **Asaas** (Checkout hospedado — loja: Pix + Cartão;
+assinatura: cartão-só). Quatro functions (Supabase, Deno) + a lib compartilhada:
 
 ```
 supabase/functions/
@@ -131,8 +131,9 @@ supabase functions logs asaas-webhook
 ## Como testar (sandbox)
 
 **Assinatura:** logado, em `/planos` clica "assinar" → Checkout do Asaas → paga
-com **cartão de teste** ou **Pix** (o sandbox tem cartões de teste na doc do Asaas;
-o Pix gera um QR simulável no painel) → volta pra `checkout-sucesso.html?assinatura=1`.
+com **cartão de teste** (o sandbox tem cartões de teste na doc do Asaas). A
+assinatura é **cartão-só** — o Asaas não permite Pix em cobrança recorrente
+(`RECURRENT` exige `CREDIT_CARD`) → volta pra `checkout-sucesso.html?assinatura=1`.
 No `CHECKOUT_PAID` a function grava `subscriptions` + espelha `profiles.tier_slug`;
 os pontos entram no `PAYMENT_CONFIRMED/RECEIVED`. Confere no banco.
 
@@ -168,6 +169,11 @@ portal de cobrança hospedado — por isso a tela é nossa.)
 ---
 
 ## Go-live (produção) — só config/secrets, o código NÃO muda
+
+> **Passar pra conta do dono do site?** Tem um guia de handoff dedicado, passo-a-passo:
+> [`HANDOFF.md`](../../HANDOFF.md) na raiz do repo — **Parte 1 (Asaas)** cobre sandbox
+> do dono → produção; **Partes 2 e 3** cobrem migrar também o Supabase e a Vercel. O
+> resumo abaixo é a versão curta.
 
 1. Cria/usa a conta **de produção** do Asaas (https://www.asaas.com), completa o
    cadastro/KYC, e gera a chave de produção (`$aact_prod_…`).

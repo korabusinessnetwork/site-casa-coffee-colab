@@ -1224,9 +1224,11 @@ function initProductPage() {
 }
 
 // =============================================================================
-// PÁGINA DE PLANOS (planos.html) — botão "assinar" leva pro Checkout do Asaas.
-// A Edge Function create-checkout-session (modo assinatura) monta o link; aqui a
-// gente só redireciona. Sem supabase configurado, degrada com aviso gentil.
+// BOTÕES "assinar" ([data-assinar][data-tier]) — leva DIRETO pro Checkout do Asaas.
+// Liga tanto a página de planos (planos.html) quanto o teaser "Faz parte do Casa"
+// da home — o mesmo contrato de DOM. A Edge Function create-checkout-session (modo
+// assinatura) monta o link; aqui a gente só redireciona. Deslogado → login e volta
+// pra origem. Sem supabase configurado, degrada com aviso gentil.
 // =============================================================================
 function initPlanosPage() {
   const botoes = document.querySelectorAll('[data-assinar]');
@@ -1248,10 +1250,12 @@ function initPlanosPage() {
       // Config pendente → degrada com aviso gentil, sem quebrar.
       if (!supabase) return avisar('a assinatura ainda não tá ligada por aqui (config pendente). 💛');
 
-      // Deslogado → manda pro login guardando o destino (volta pros planos).
+      // Deslogado → manda pro login guardando o destino: volta pra ONDE clicou
+      // (home ou /planos), não sempre pros planos. Caminho interno → seguro
+      // (o login sanitiza via sanitizeRedirect, anti open-redirect).
       const session = await getSession();
       if (!session) {
-        const destino = encodeURIComponent('/pages/planos.html');
+        const destino = encodeURIComponent(window.location.pathname + window.location.search);
         window.location.href = `/pages/login.html?redirect=${destino}`;
         return;
       }

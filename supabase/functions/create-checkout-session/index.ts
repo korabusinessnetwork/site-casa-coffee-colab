@@ -1,8 +1,10 @@
 // =============================================================================
 // Casa Coffee Colab — create-checkout-session (Edge Function, Deno)
-// Cria um Checkout hospedado do ASAAS (Pix + Cartão). Dois modos:
+// Cria um Checkout hospedado do ASAAS. Dois modos:
 //   • ASSINATURA  (body { tier_slug }) → chargeTypes ['RECURRENT'] + subscription.
+//                 billingTypes = ['CREDIT_CARD'] (recorrência no Asaas é cartão-só).
 //   • LOJA        (body { items: [{product_slug, variant, qtd}] }) → ['DETACHED'].
+//                 billingTypes = ['PIX','CREDIT_CARD'].
 //
 // SEGURANÇA (ver CLAUDE.md › Segurança):
 //   • Verifica o JWT do usuário logado — só autenticado cria checkout.
@@ -41,14 +43,10 @@ import {
 // minutesToExpire do checkout hospedado (link deixa de valer depois disso).
 const CHECKOUT_EXPIRA_MIN = 60;
 
-// Monta o customerData (prefill) só com o que existe — Asaas rejeita string vazia.
-function buildCustomerData(nome?: string | null, email?: string | null, telefone?: string | null) {
-  const cd: Record<string, string> = {};
-  if (nome) cd.name = nome;
-  if (email) cd.email = email;
-  if (telefone) cd.phone = telefone;
-  return Object.keys(cd).length ? cd : undefined;
-}
+// NÃO enviamos customerData: quando o objeto é enviado, o Asaas exige cpfCnpj +
+// endereço COMPLETO (address/addressNumber/postalCode/province), e a gente NÃO
+// coleta nem guarda CPF/endereço. Sem customerData, a PÁGINA HOSPEDADA do Asaas
+// coleta nome/CPF/e-mail/telefone/endereço direto do pagador (ver CLAUDE.md).
 
 Deno.serve(async (req) => {
   const pre = handleCors(req);
@@ -71,14 +69,6 @@ Deno.serve(async (req) => {
   const site = getSiteUrl();
   const cancel_url = `${site}/pages/checkout-cancelado.html`;
 
-  // Prefill do pagador (nome/telefone do profiles; e-mail do auth). Nunca CPF.
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('full_name, telefone')
-    .eq('id', user.id)
-    .maybeSingle();
-  const customerData = buildCustomerData(profile?.full_name, user.email, profile?.telefone);
-
   try {
     // -------------------------------------------------------------------------
     // MODO LOJA (DETACHED) — quando vem `items`.
@@ -100,7 +90,7 @@ Deno.serve(async (req) => {
           user_id: user.id,
           status: 'pendente',
           origem: 'site',
-          subtotal_centavos,
+          subtotal_centavos: subtotal_cents,
           desconto_centavos,
           total_centavos,
           tier_slug_aplicado: tier_slug,
@@ -158,7 +148,6 @@ Deno.serve(async (req) => {
               externalReference: order.id,
             },
           ],
-          customerData,
         });
       } catch (err) {
         // Falhou no Asaas → não deixa pedido órfão.
@@ -199,7 +188,11 @@ Deno.serve(async (req) => {
     // O webhook faz split(':') e lê [1]=user_id, [2]=tier_slug (nonce é ignorado).
     const nonce = crypto.randomUUID();
     const checkout: any = await asaasPost('/checkouts', {
-      billingTypes: ['PIX', 'CREDIT_CARD'],
+      // Assinatura = SÓ cartão. O Asaas recusa RECURRENT com PIX ("CREDIT_CARD é o
+      // único método permitido para operações RECURRENT"; PIX exige DETACHED) —
+      // Pix não pode ser debitado automaticamente todo mês. A loja (DETACHED) segue
+      // com PIX + CREDIT_CARD; só a assinatura é cartão-só.
+      billingTypes: ['CREDIT_CARD'],
       chargeTypes: ['RECURRENT'],
       minutesToExpire: CHECKOUT_EXPIRA_MIN,
       externalReference: `sub:${user.id}:${tier.slug}:${nonce}`,
@@ -221,7 +214,6 @@ Deno.serve(async (req) => {
           value: reaisFromCentavos(tier.preco_centavos),
         },
       ],
-      customerData,
     });
 
     return jsonResponse({ url: checkout.link });

@@ -226,7 +226,9 @@ os dados. Nada de service_role no bundle.
 
 Gateway atual: **Asaas** (gateway BR). Assinatura dos 4 tiers **e** loja via
 **Asaas Checkout** hospedado (`POST /checkouts` → redireciona pro `link`).
-**Pix + Cartão** apenas (SEM boleto). O **CPF é coletado na página hospedada do
+**Sem boleto.** Loja: **Pix + Cartão**; assinatura: **só cartão** — o Asaas não
+permite Pix em cobrança recorrente (`RECURRENT` exige `CREDIT_CARD`; Pix não é
+debitado sozinho todo mês). O **CPF é coletado na página hospedada do
 Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Functions**
 (`supabase/functions/`), nunca no client.
 
@@ -264,8 +266,10 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
     com desconto (a discriminação real fica em `order_items`). **Pré-cria a `orders`
     como `pendente` + `order_items`**; `externalReference` = `order.id` (UUID); em falha
     do Asaas, apaga a order. `successUrl` → `checkout-sucesso.html?ref=<order.id>`.
-  - Ambos: `billingTypes:["PIX","CREDIT_CARD"]`, `customerData` (prefill nome/e-mail/tel),
-    `callback` com `successUrl`/`cancelUrl`/`expiredUrl` via `getSiteUrl()`.
+  - `billingTypes`: **loja** `["PIX","CREDIT_CARD"]`; **assinatura** `["CREDIT_CARD"]`
+    (o Asaas recusa `RECURRENT` com PIX — só cartão renova sozinho). **Sem `customerData`**
+    (mandar parcial faria o Asaas exigir CPF+endereço completo; a página hospedada coleta
+    tudo). Ambos: `callback` com `successUrl`/`cancelUrl`/`expiredUrl` via `getSiteUrl()`.
 - **`cancel-subscription`** (a NOSSA tela substitui o portal): exige JWT, lê a assinatura
   ATIVA do **próprio** usuário (nunca id vindo do client), faz `DELETE /subscriptions/{id}`
   no Asaas, marca `subscriptions.status='cancelada'` e limpa `profiles.tier_slug`. Asaas
