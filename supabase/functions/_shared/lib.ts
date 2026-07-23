@@ -261,6 +261,14 @@ export async function getEffectiveSubscription(
 
   const rows = (subs ?? []) as EffectiveSubscription[];
   const now = Date.now();
+
+  // Desempate: uma assinatura 'ativa' SEMPRE ganha de uma 'pausada', mesmo que a
+  // pausada tenha current_period_end maior. Motivo: a 'ativa' é a que o Asaas
+  // renova de verdade — é ela que o upgrade deve subir e que concede benefício.
+  // A ordenação do banco (current_period_end desc) desempata DENTRO de cada grupo.
+  const ativaMs = (r: EffectiveSubscription) => (r.status === 'ativa' ? 0 : 1);
+  rows.sort((a, b) => ativaMs(a) - ativaMs(b)); // estável: preserva a ordem por período
+
   const granting =
     rows.find(
       (r) =>

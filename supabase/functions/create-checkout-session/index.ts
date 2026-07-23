@@ -284,6 +284,25 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'plano sem preço configurado' }, 400);
     }
 
+    // TRAVA ANTI-DUPLICAÇÃO (evita cobrança dobrada): se a pessoa JÁ tem uma
+    // assinatura vigente (ativa, ou pausada ainda no período pago), abrir um novo
+    // checkout de assinatura criaria uma SEGUNDA recorrência no Asaas — dois
+    // cartões cobrados todo mês. Quem já assina troca de plano pelo UPGRADE (perfil),
+    // não por um checkout novo. Só deixa passar quem não tem nada vigente (inclui
+    // 'cancelada' de verdade — Asaas 404 — que aí vira reassinatura legítima).
+    const jaVigente = await getEffectiveSubscription(user.id);
+    if (jaVigente) {
+      return jsonResponse(
+        {
+          error:
+            'você já tem uma assinatura vigente. pra trocar de plano, usa o upgrade na tua conta 💛',
+          ja_assina: true,
+          tier_atual: jaVigente.tier_slug ?? null,
+        },
+        409,
+      );
+    }
+
     const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (1ª cobrança hoje)
     // externalReference da assinatura: `sub:<user_id>:<tier_slug>:<nonce>`. O nonce
     // (uuid) torna a resolução no webhook inequívoca — mesmo que o usuário cancele e

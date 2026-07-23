@@ -1280,13 +1280,38 @@ function initPlanosPage() {
     }
   };
 
+  // Assinatura VIGENTE do próprio usuário (espelho client-side da trava do backend).
+  // Lê a própria linha de subscriptions (RLS: só o dono lê) e aplica o MESMO gating
+  // do getEffectiveSubscription: 'ativa' concede sempre; 'pausada' só enquanto o
+  // período pago não venceu; 'ativa' ganha de 'pausada' no desempate. Retorna a que
+  // concede benefício agora, ou null. É só UX — o backend (409) é a trava de verdade.
+  const assinaturaVigente = async (userId) => {
+    if (!userId) return null;
+    const { data: subs, error } = await supabase
+      .from('subscriptions')
+      .select('tier_slug, status, current_period_end')
+      .eq('user_id', userId)
+      .in('status', ['ativa', 'pausada'])
+      .order('current_period_end', { ascending: false, nullsFirst: false });
+    if (error || !subs?.length) return null;
+    const rows = subs.slice().sort((a, b) => (a.status === 'ativa' ? 0 : 1) - (b.status === 'ativa' ? 0 : 1));
+    const now = Date.now();
+    return (
+      rows.find(
+        (r) =>
+          r.status === 'ativa' ||
+          (r.status === 'pausada' && !!r.current_period_end && Date.parse(r.current_period_end) > now),
+      ) ?? null
+    );
+  };
+
   // Confirmação de conta ANTES de pagar: mostra com qual conta (a sessão em cache) a
   // pessoa vai assinar e deixa TROCAR de conta. Assim ninguém assina numa conta em
   // cache sem querer — dá pra escolher outra. Montado via DOM (o e-mail entra por
   // textContent, nunca innerHTML) → sem risco de XSS.
   const pedirConfirmacao = (tier, btn, email) => {
     if (!nota) return irProPagamento(tier, btn); // página sem a nota → comportamento antigo
-    nota.textContent = '';
+    nota.textContent = ''; // limpa qualquer box anterior (evita empilhar em cliques repetidos)
     nota.classList.remove('hidden');
 
     const box = document.createElement('div');
@@ -1319,7 +1344,10 @@ function initPlanosPage() {
     continuar.className =
       'btn-primary mt-3 text-sm';
     continuar.textContent = 'continuar pro pagamento';
-    continuar.addEventListener('click', () => irProPagamento(tier, btn));
+    continuar.addEventListener('click', () => {
+      continuar.disabled = true; // trava contra duplo-clique (evita abrir 2 checkouts)
+      irProPagamento(tier, btn);
+    });
 
     box.append(linha, trocarLinha, continuar);
     nota.append(box);
@@ -1337,6 +1365,27 @@ function initPlanosPage() {
       // Deslogado → login. Logado → confirma a conta antes de pagar (dá pra trocar).
       const session = await getSession();
       if (!session) return irProLogin();
+
+      // Já assina? Abrir um novo checkout criaria uma 2ª recorrência (cobrança
+      // dobrada) — o backend recusa (409), mas a gente avisa gentil aqui antes,
+      // apontando pro upgrade no perfil (troca de plano sem pagar do zero).
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'conferindo…';
+      let vigente = null;
+      try {
+        vigente = await assinaturaVigente(session.user?.id);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+      if (vigente) {
+        avisar(
+          'você já tem uma assinatura vigente por aqui 💛 pra trocar de plano, usa o "fazer upgrade" na tua conta — a gente cobra só a diferença dos dias que faltam.',
+        );
+        return;
+      }
+
       pedirConfirmacao(tier, btn, session.user?.email);
     })
   );

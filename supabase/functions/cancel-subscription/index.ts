@@ -43,58 +43,73 @@ Deno.serve(async (req) => {
   const user = await getUserFromRequest(req);
   if (!user) return jsonResponse({ error: 'não autenticado' }, 401);
 
-  // 2) Acha a assinatura ATIVA do próprio usuário (a mais recente, se houver mais).
-  const { data: sub, error: subErr } = await supabaseAdmin
+  // 2) Acha TODAS as assinaturas ATIVAS do próprio usuário. Normalmente é uma só,
+  // mas a trava anti-duplicação é recente — contas antigas podem ter mais de uma
+  // linha 'ativa' (bug histórico). Pausar UMA só deixaria a(s) outra(s) cobrando o
+  // cartão todo mês. Então pausamos TODAS. A mais recente (por current_period_end)
+  // define o `ativo_ate` que devolvemos pra UI.
+  const { data: subs, error: subErr } = await supabaseAdmin
     .from('subscriptions')
     .select('id, asaas_subscription_id, status, current_period_end')
     .eq('user_id', user.id)
     .eq('status', 'ativa')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('current_period_end', { ascending: false, nullsFirst: false });
 
   if (subErr) {
     console.error('[cancel-subscription] erro ao ler subscriptions', subErr);
     return jsonResponse({ error: 'não deu pra ler tua assinatura agora' }, 500);
   }
-  if (!sub) {
+  if (!subs || subs.length === 0) {
     return jsonResponse({ error: 'a gente não achou uma assinatura ativa no teu nome' }, 404);
   }
 
   try {
-    // 3) Pausa no Asaas (PUT /subscriptions/{id} status=INACTIVE). Se não tiver id
-    // do Asaas (caso raro/legado), pula a chamada e só reflete no banco.
-    if (sub.asaas_subscription_id) {
-      await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
-        status: 'INACTIVE',
-      });
+    // 3) Pausa CADA assinatura no Asaas (PUT status=INACTIVE) e reflete no banco.
+    // Um 404 numa linha (assinatura sumiu do gateway) não aborta as demais: essa
+    // vira 'cancelada' de vez; as outras seguem sendo pausadas.
+    const pausadas: typeof subs = []; // linhas que ficaram 'pausada' (benefício vivo)
+    for (const sub of subs) {
+      let sumiu = false;
+      if (sub.asaas_subscription_id) {
+        try {
+          await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
+            status: 'INACTIVE',
+          });
+        } catch (err) {
+          if (err instanceof AsaasError && err.status === 404) {
+            sumiu = true; // assinatura já não existe no Asaas → encerrar de vez
+          } else {
+            throw err; // erro de rede/5xx → deixa o Asaas/retry lidar (aborta tudo)
+          }
+        }
+      }
+
+      // Reflete no banco. Sumiu no gateway → 'cancelada' (não há período a manter).
+      // Senão → 'pausada' MANTENDO tier_slug e current_period_end (benefício segue
+      // até o fim do período pago).
+      const novoStatus = sumiu ? 'cancelada' : 'pausada';
+      const { error: uErr } = await supabaseAdmin
+        .from('subscriptions')
+        .update({ status: novoStatus, updated_at: new Date().toISOString() })
+        .eq('id', sub.id);
+      if (uErr) throw uErr;
+      if (!sumiu) pausadas.push(sub);
     }
 
-    // 4) Reflete no banco: assinatura 'pausada'. MANTÉM tier_slug no profile e o
-    // current_period_end — o benefício segue vivo até o fim do período pago.
-    const { error: uErr } = await supabaseAdmin
-      .from('subscriptions')
-      .update({ status: 'pausada', updated_at: new Date().toISOString() })
-      .eq('id', sub.id);
-    if (uErr) throw uErr;
+    // 4) Decide o benefício. Se SOBROU alguma pausada, o benefício segue vivo até o
+    // fim do maior período pago entre elas — mantém o tier no profile. Se TODAS
+    // sumiram do gateway (nada pausado), encerra de vez: limpa o tier.
+    if (pausadas.length === 0) {
+      await supabaseAdmin.from('profiles').update({ tier_slug: null }).eq('id', user.id);
+      return jsonResponse({ ok: true, cancelada: true, ativo_ate: null });
+    }
 
-    return jsonResponse({
-      ok: true,
-      pausada: true,
-      ativo_ate: sub.current_period_end ?? null,
-    });
+    // ativo_ate = maior current_period_end entre as que ficaram pausadas (subs já
+    // vem ordenado desc por current_period_end, então a 1ª pausada é a maior).
+    const ativoAte = pausadas[0].current_period_end ?? null;
+    return jsonResponse({ ok: true, pausada: true, ativo_ate: ativoAte });
   } catch (err) {
     if (err instanceof AsaasError) {
-      // Asaas já não tem a assinatura (404) → trata como encerrada de vez: marca
-      // 'cancelada' e tira o tier (não há período a preservar).
-      if (err.status === 404) {
-        await supabaseAdmin
-          .from('subscriptions')
-          .update({ status: 'cancelada', updated_at: new Date().toISOString() })
-          .eq('id', sub.id);
-        await supabaseAdmin.from('profiles').update({ tier_slug: null }).eq('id', user.id);
-        return jsonResponse({ ok: true, cancelada: true, ativo_ate: null });
-      }
       console.error('[cancel-subscription] Asaas', err.status, err.payload);
       return jsonResponse({ error: 'não deu pra pausar no gateway agora' }, 502);
     }

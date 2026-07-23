@@ -119,30 +119,22 @@ async function upsertSubscriptionRow(args: {
     current_period_end: periodEndIso,
     updated_at: new Date().toISOString(),
   };
-  if (asaasSubId) {
-    // onConflict no id do Asaas (UNIQUE na 0011) → uma linha por assinatura.
-    const { error } = await supabaseAdmin
-      .from('subscriptions')
-      .upsert(row, { onConflict: 'asaas_subscription_id' });
-    if (error) throw error;
-  } else {
-    // Sem id do Asaas (fallback raro): insere sem conflito (evita duplicar em
-    // reentrega checando se já existe uma ativa desse user/tier).
-    const { data: existing } = await supabaseAdmin
-      .from('subscriptions')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('tier_slug', tierSlug)
-      .is('asaas_subscription_id', null)
-      .maybeSingle();
-    if (existing) {
-      const { error } = await supabaseAdmin.from('subscriptions').update(row).eq('id', existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabaseAdmin.from('subscriptions').insert(row);
-      if (error) throw error;
-    }
+  if (!asaasSubId) {
+    // Sem id do Asaas a gente NÃO cria linha: uma assinatura sem
+    // asaas_subscription_id concede o tier mas NÃO dá pra pausar/upgrade/retomar
+    // (linha-fantasma). Em vez de gravar algo ingerenciável, lança — o webhook
+    // responde 500 e o Asaas REENVIA; na retentativa a subscription já costuma
+    // estar listável (GET /subscriptions?externalReference). E os eventos de
+    // PAGAMENTO (PAYMENT_CONFIRMED/RECEIVED) trazem o subscription.id e criam a
+    // linha correta de qualquer forma. Idempotência protege contra duplicar.
+    throw new Error('subscription do Asaas ainda não resolvível (sem id) — retry');
   }
+
+  // onConflict no id do Asaas (UNIQUE na 0011) → uma linha por assinatura.
+  const { error } = await supabaseAdmin
+    .from('subscriptions')
+    .upsert(row, { onConflict: 'asaas_subscription_id' });
+  if (error) throw error;
 }
 
 // Busca a Subscription no Asaas por asaas_subscription_id (pra atualizar
