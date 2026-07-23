@@ -1865,13 +1865,15 @@ async function initPerfilPage() {
   const pontos = Number(profile?.points_balance || 0).toLocaleString('pt-BR');
 
   // ── Estado da assinatura (pra "gerenciar assinatura") ─────────────────────
-  // Lê a linha MAIS RECENTE do próprio usuário em ('ativa','pausada') — RLS
-  // garante que só vem a dele. E a lista de tiers (leitura pública) pra montar
-  // as opções de upgrade e o nome/preço do plano. Nada disso confia no client:
-  // preço e cálculo do upgrade são refeitos server-side na Edge Function.
+  // Lê a linha MAIS RECENTE do próprio usuário em ('ativa','pausada','cancelada')
+  // — RLS garante que só vem a dele. E a lista de tiers (leitura pública) pra
+  // montar as opções de upgrade e o nome/preço do plano. Nada disso confia no
+  // client: preço e cálculo do upgrade são refeitos server-side na Edge Function.
+  // ('cancelada' entra pra oferecer "voltar pro plano" — a assinatura sumiu do
+  // Asaas, então é um checkout novo, não um "retomar".)
   let plano = 'ainda sem plano';
   let planoSlug = profile?.tier_slug || null;
-  let subStatus = null; // 'ativa' | 'pausada' | null
+  let subStatus = null; // 'ativa' | 'pausada' | 'cancelada' | null
   let periodEndMs = NaN;
   let ativoAte = ''; // DD/MM (current_period_end formatado)
   let tiers = []; // [{ slug, nome, preco_centavos, ordem }]
@@ -1882,7 +1884,7 @@ async function initPerfilPage() {
         .from('subscriptions')
         .select('tier_slug, status, current_period_end')
         .eq('user_id', session.user.id)
-        .in('status', ['ativa', 'pausada'])
+        .in('status', ['ativa', 'pausada', 'cancelada'])
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
@@ -1911,7 +1913,10 @@ async function initPerfilPage() {
   const ativa = subStatus === 'ativa';
   const emGraca = subStatus === 'pausada' && Number.isFinite(periodEndMs) && periodEndMs > agora;
   const pausada = subStatus === 'pausada'; // em graça OU vencida — dá pra retomar dos dois
-  const temGerenciar = ativa || pausada; // tem assinatura pra gerenciar
+  // Encerrada de vez no Asaas (404): não dá pra "retomar", só re-assinar. Só vale
+  // como estado gerenciável se ainda sabemos qual era o tier (pra oferecer a volta).
+  const reassinavel = subStatus === 'cancelada' && Boolean(planoSlug);
+  const temGerenciar = ativa || pausada || reassinavel; // tem assinatura pra gerenciar
   const temPlano = temGerenciar || Boolean(profile?.tier_slug);
   const proximaCobranca = ativoAte;
   // Upgrade só faz sentido com assinatura ATIVA e tiers acima do atual.
@@ -1939,7 +1944,9 @@ async function initPerfilPage() {
                 ? `<p class="mt-1 text-xs font-medium text-caramelo">pausado · ativo até ${ativoAte}</p>`
                 : pausada
                   ? `<p class="mt-1 text-xs font-medium text-cafe/60">pausado</p>`
-                  : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-terracota hover:underline">ver os planos</a>`
+                  : reassinavel
+                    ? `<p class="mt-1 text-xs font-medium text-cafe/60">encerrado</p>`
+                    : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-terracota hover:underline">ver os planos</a>`
           }
         </div>
         <div class="rounded-2xl bg-branco/60 p-4 ring-1 ring-cafe/10">
@@ -1962,7 +1969,9 @@ async function initPerfilPage() {
                     }</p>`
                   : emGraca
                     ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-cafe">${ativoAte}</strong> — e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
-                    : `<p class="mt-2 text-sm text-cafe/70">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser — reativando a mesma assinatura.</p>`
+                    : reassinavel
+                      ? `<p class="mt-2 text-sm text-cafe/70">tua assinatura do <strong class="font-semibold text-cafe">${plano}</strong> foi encerrada. quando quiser voltar, a porta tá aberta — é uma assinatura nova, começando um ciclo do zero.</p>`
+                      : `<p class="mt-2 text-sm text-cafe/70">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser — reativando a mesma assinatura.</p>`
               }
 
               <div class="mt-4 flex flex-wrap gap-3">
@@ -1974,7 +1983,9 @@ async function initPerfilPage() {
                 ${
                   ativa
                     ? `<button type="button" data-cancelar-assinatura class="btn-ghost text-sm">pausar assinatura</button>`
-                    : `<button type="button" data-retomar class="btn-primary text-sm"><i data-lucide="play-circle" class="h-4 w-4"></i>retomar plano</button>`
+                    : reassinavel
+                      ? `<button type="button" data-reassinar data-tier="${escapeHtml(planoSlug)}" class="btn-primary text-sm"><i data-lucide="play-circle" class="h-4 w-4"></i>voltar pro ${plano}</button>`
+                      : `<button type="button" data-retomar class="btn-primary text-sm"><i data-lucide="play-circle" class="h-4 w-4"></i>retomar plano</button>`
                 }
               </div>
 
@@ -2128,6 +2139,34 @@ async function initPerfilPage() {
     } finally {
       retomarBtn.disabled = false;
       retomarBtn.textContent = txt;
+    }
+  });
+
+  // Voltar pro plano (assinatura cancelada de vez no Asaas → não dá pra "retomar",
+  // então abre um checkout NOVO pro mesmo tier — assinatura nova, ciclo do zero).
+  const reassinarBtn = root.querySelector('[data-reassinar]');
+  reassinarBtn?.addEventListener('click', async () => {
+    if (!supabase) return;
+    const toTier = reassinarBtn.dataset.tier;
+    if (!toTier) return;
+    const txt = reassinarBtn.textContent;
+    reassinarBtn.disabled = true;
+    reassinarBtn.textContent = 'te levando pro pagamento…';
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { tier_slug: toTier },
+      });
+      if (error || !data?.url) {
+        mostrarMsg('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛', 'erro');
+        reassinarBtn.disabled = false;
+        reassinarBtn.textContent = txt;
+        return;
+      }
+      window.location.href = data.url; // Checkout hospedado do Asaas (assinatura nova)
+    } catch {
+      mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+      reassinarBtn.disabled = false;
+      reassinarBtn.textContent = txt;
     }
   });
 

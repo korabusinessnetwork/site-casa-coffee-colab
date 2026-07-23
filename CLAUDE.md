@@ -343,16 +343,20 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   desconhecido do client); no upgrade (`?upgrade=1`) troca o texto pra "plano turbinado 💛"
   e também não sonda.
 - **Front — "gerenciar assinatura" (perfil)**: `initPerfilPage` carrega a assinatura
-  (`status` em `['ativa','pausada']`) + a lista de `tiers` em paralelo e deriva o estado da
-  UI. A célula "teu plano" mostra o nome + um selo de status (ativa → ponto verde "ativo";
-  pausada dentro do período → "pausado · ativo até {data}"; pausada vencida → "pausado").
-  A seção `[data-gerenciar]` só aparece com assinatura ativa/pausada e traz:
+  (`status` em `['ativa','pausada','cancelada']`, a mais recente) + a lista de `tiers` em
+  paralelo e deriva o estado da UI. A célula "teu plano" mostra o nome + um selo de status
+  (ativa → ponto verde "ativo"; pausada dentro do período → "pausado · ativo até {data}";
+  pausada vencida → "pausado"; cancelada → "encerrado"). A seção `[data-gerenciar]` aparece
+  com assinatura ativa/pausada **ou** cancelada-com-tier-conhecido e traz:
   - **ativa** → "fazer upgrade" (abre painel `[data-upgrade-painel]` só com os tiers de
     `ordem` maior, cada botão explicando que cobra **só a diferença dos dias que faltam**;
     ao escolher, chama `create-checkout-session {upgrade_to_tier}` → se `data.url` redireciona
     pro checkout do delta, se `data.applied` mostra "a diferença ficou por nossa conta" e
     recarrega) **e** "pausar assinatura" (confirma → `cancel-subscription`).
   - **pausada** → "retomar plano" (`resume-subscription`; dentro do período não cobra nada).
+  - **cancelada** (Asaas 404 — sumiu do gateway, não dá pra "retomar") → "voltar pro {plano}"
+    (`[data-reassinar]`): chama `create-checkout-session {tier_slug}` do MESMO tier — é uma
+    **assinatura nova** (checkout hospedado, ciclo do zero), redireciona pro `data.url`.
 - **Setup/deploy**: ver `supabase/functions/README.md`. Teste em sandbox com cartão de
   teste (doc do Asaas) ou Pix simulado no painel sandbox.
 
