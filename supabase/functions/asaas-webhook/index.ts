@@ -187,6 +187,20 @@ async function resolveAsaasSubByRef(ref: string): Promise<any | null> {
   return null;
 }
 
+// Existe profile pra esse user? Usado pra DESCARTAR (200, sem retry) eventos
+// órfãos — ex.: um CHECKOUT_PAID/pagamento de um usuário que foi APAGADO (conta
+// deletada). Sem isso, o upsert/creditPoints bateria na FK de profiles, o webhook
+// daria 500 e o Asaas reenviaria pra sempre — podendo INTERROMPER a fila e travar
+// os eventos novos que estão ATRÁS do órfão. Órfão não é erro nosso: é nada-a-fazer.
+async function profileExists(userId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle();
+  return !!data;
+}
+
 // Espelha o tier ativo no profiles + persiste o customer do Asaas (best-effort).
 async function mirrorProfile(userId: string, tierSlug: string | null, customerId: string | null): Promise<void> {
   const patch: Record<string, unknown> = { tier_slug: tierSlug };
@@ -267,6 +281,13 @@ async function activateSubscription(checkout: any): Promise<void> {
   }
   const { userId, tierSlug } = parsed;
   const customerId = idOf(checkout?.customer);
+
+  // Usuário apagado (conta deletada) → descarta o evento (200, sem retry). Sem isso,
+  // o upsert bateria na FK de profiles e daria 500 pra sempre, travando a fila.
+  if (!(await profileExists(userId))) {
+    console.warn('[asaas-webhook] checkout de assinatura de usuário inexistente — ignorando:', userId);
+    return;
+  }
 
   // Resolve a Subscription criada. O nonce no externalReference garante 1 só. NÃO
   // usamos fallback por customer: pegar "a mais recente do cliente" (arr[0]) pode
@@ -377,6 +398,13 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
   }
   if (!userId || !tierSlug) {
     console.warn('[asaas-webhook] pagamento de assinatura sem user resolvível:', payment?.id);
+    return;
+  }
+
+  // Usuário apagado → descarta (200, sem retry). Sem isso, creditPoints bateria na
+  // FK de points_ledger→profiles e daria 500 pra sempre, travando a fila.
+  if (!(await profileExists(userId))) {
+    console.warn('[asaas-webhook] pagamento de assinatura de usuário inexistente — ignorando:', userId);
     return;
   }
 
