@@ -5,10 +5,13 @@
 //
 // Como funciona (PUT /subscriptions/{id} status=ACTIVE):
 //   • Ainda no período pago (current_period_end no futuro): mantém o nextDueDate
-//     original → NENHUMA cobrança agora; volta a cobrar normal no vencimento.
+//     original → NENHUMA cobrança agora; volta a cobrar normal no vencimento. Como
+//     já está pago, concede o benefício NA HORA ('ativa' + tier no profile).
 //   • Período já vencido (graça acabou): reativa com nextDueDate = hoje → o Asaas
-//     cobra o cartão salvo e começa um novo ciclo. (Retomar depois do vencimento
-//     é, na prática, voltar a pagar — mas reusando a assinatura/cartão.)
+//     cobra o cartão salvo e começa um novo ciclo. Aqui a gente NÃO concede na hora
+//     (o cartão pode recusar): a linha segue 'pausada' (vencida) e quem promove pra
+//     'ativa' + espelha o tier + credita pontos é o webhook, no PAYMENT_CONFIRMED.
+//     Retorna { cobranca_em_processamento: true } pra UI avisar que tá processando.
 //
 // SEGURANÇA (ver CLAUDE.md › Segurança):
 //   • Exige JWT válido. Só o DONO retoma a PRÓPRIA assinatura (lê a linha DELE,
@@ -16,7 +19,9 @@
 //   • Escrita via service_role. Garante profiles.tier_slug = tier retomado.
 //   • Idêntico em sandbox e prod — muda só a chave (secrets).
 //
-// Retorna: { ok: true, retomada: true, proxima_cobranca } — ou erro gentil.
+// Retorna: { ok: true, retomada: true, proxima_cobranca } (no período: benefício já
+// vale) — ou { ok, retomada, cobranca_em_processamento: true } (vencido: aguarda o
+// pagamento confirmar) — ou erro gentil.
 // =============================================================================
 
 import {
@@ -78,25 +83,42 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5) Reflete no banco: 'ativa' + próxima cobrança + garante o tier no profile.
-    const periodIso = nextDue.toISOString();
-    const { error: uErr } = await supabaseAdmin
-      .from('subscriptions')
-      .update({
-        status: 'ativa',
-        current_period_end: periodIso,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', sub.id);
-    if (uErr) throw uErr;
+    // 5) Reflete no banco — DEPENDE de já ter sido pago ou não:
+    if (aindaNoPeriodo) {
+      // Ainda no período JÁ PAGO: o benefício já é dele e não há cobrança agora.
+      // Concede na hora, MANTENDO o current_period_end original (não empurra a data).
+      const periodIso = new Date(periodEndMs).toISOString();
+      const { error: uErr } = await supabaseAdmin
+        .from('subscriptions')
+        .update({
+          status: 'ativa',
+          current_period_end: periodIso,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sub.id);
+      if (uErr) throw uErr;
 
-    const { error: pErr } = await supabaseAdmin
-      .from('profiles')
-      .update({ tier_slug: sub.tier_slug })
-      .eq('id', user.id);
-    if (pErr) throw pErr;
+      const { error: pErr } = await supabaseAdmin
+        .from('profiles')
+        .update({ tier_slug: sub.tier_slug })
+        .eq('id', user.id);
+      if (pErr) throw pErr;
 
-    return jsonResponse({ ok: true, retomada: true, proxima_cobranca: periodIso });
+      return jsonResponse({ ok: true, retomada: true, proxima_cobranca: periodIso });
+    }
+
+    // Período VENCIDO: o PUT acima dispara uma cobrança NOVA (nextDueDate=hoje) no
+    // cartão salvo — que PODE recusar. Então NÃO concede benefício agora: não marca
+    // 'ativa', não espelha o tier, não mexe no current_period_end (deixa vencido, pra
+    // getEffectiveSubscription não conceder). Quem promove pra 'ativa' + espelha o
+    // tier + grava o current_period_end real (~hoje+ciclo) + credita pontos é o
+    // webhook, no PAYMENT_CONFIRMED/RECEIVED. (Ver auditoria, Raiz B — B2/B4.)
+    return jsonResponse({
+      ok: true,
+      retomada: true,
+      cobranca_em_processamento: true,
+      proxima_cobranca: nextDueStr,
+    });
   } catch (err) {
     if (err instanceof AsaasError) {
       console.error('[resume-subscription] Asaas', err.status, err.payload);

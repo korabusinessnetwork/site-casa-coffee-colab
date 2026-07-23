@@ -39,6 +39,7 @@ import {
   asaasPut,
   reaisFromCentavos,
   centavosFromReais,
+  getEffectiveSubscription,
 } from '../_shared/lib.ts';
 
 const WEBHOOK_TOKEN = requireEnv('ASAAS_WEBHOOK_TOKEN');
@@ -229,28 +230,29 @@ async function activateSubscription(checkout: any): Promise<void> {
   const { userId, tierSlug } = parsed;
   const customerId = idOf(checkout?.customer);
 
-  // Resolve a Subscription criada. O nonce no externalReference garante 1 só.
+  // Resolve a Subscription criada. O nonce no externalReference garante 1 só. NÃO
+  // usamos fallback por customer: pegar "a mais recente do cliente" (arr[0]) pode
+  // agarrar a assinatura ERRADA (outra recorrência do mesmo cliente) e gravar o
+  // asaas_subscription_id trocado. Se o externalReference ainda não resolve (lag de
+  // propagação), a gente prefere LANÇAR e deixar o Asaas reenviar — na retentativa
+  // a subscription já aparece. (Ver auditoria, Raiz B — B1.)
   let asaasSub: any = null;
   try {
     const list = await asaasGet(
       `/subscriptions?externalReference=${encodeURIComponent(checkout.externalReference)}`,
     );
     const arr: any[] = list?.data ?? [];
-    if (arr.length) asaasSub = arr[arr.length - 1]; // mais recente
+    if (arr.length) asaasSub = arr[arr.length - 1]; // mais recente com ESTE ref (nonce → 1 só)
   } catch (err) {
     console.warn('[asaas-webhook] falha ao listar subscriptions por externalReference:', (err as Error).message);
   }
-  // Fallback: pelo customer (pega a mais recente do cliente).
-  if (!asaasSub && customerId) {
-    try {
-      const l2 = await asaasGet(`/subscriptions?customer=${encodeURIComponent(customerId)}`);
-      const arr: any[] = l2?.data ?? [];
-      if (arr.length) asaasSub = arr[0];
-    } catch { /* ignora */ }
-  }
 
   const asaasSubId = idOf(asaasSub?.id) ?? (asaasSub?.id ? String(asaasSub.id) : null);
-  const status = asaasSub ? mapSubStatus(asaasSub.status) : 'ativa';
+  if (!asaasSubId) {
+    // Sem id resolvível → não grava linha-fantasma (A4). Lança pra reprocessar.
+    throw new Error('subscription do Asaas ainda não resolvível por externalReference — retry');
+  }
+  const status = mapSubStatus(asaasSub.status);
   const periodEndIso = dueDateToIso(asaasSub?.nextDueDate);
 
   await upsertSubscriptionRow({ userId, tierSlug, customerId, asaasSubId, status, periodEndIso });
@@ -348,20 +350,41 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     return;
   }
 
-  // Self-heal: se a linha de subscriptions ainda não existe (pagamento antes do
-  // CHECKOUT_PAID), cria/atualiza agora buscando a subscription no Asaas.
+  // Self-heal: mantém a linha de subscriptions em dia — MAS só grava status/período
+  // quando temos dados CONFIÁVEIS do gateway. fetchAsaasSubscription é best-effort e
+  // devolve null em qualquer falha (timeout/5xx). NUNCA chutar 'ativa'/período=null:
+  // isso (a) ressuscitaria uma assinatura 'pausada' que recebeu um PAYMENT_RECEIVED
+  // tardio, e (b) destruiria um current_period_end correto. Ver auditoria (Raiz B).
   if (asaasSubId) {
     const asaasSub = await fetchAsaasSubscription(asaasSubId);
-    await upsertSubscriptionRow({
-      userId,
-      tierSlug,
-      customerId: idOf(payment?.customer),
-      asaasSubId,
-      status: asaasSub ? mapSubStatus(asaasSub.status) : 'ativa',
-      periodEndIso: dueDateToIso(asaasSub?.nextDueDate),
-    });
-    // Garante o tier espelhado (caso o CHECKOUT_PAID ainda não tenha rodado).
-    await mirrorProfile(userId, tierSlug, idOf(payment?.customer));
+    if (asaasSub) {
+      // Dados confiáveis do Asaas → upsert com status/período REAIS.
+      const statusReal = mapSubStatus(asaasSub.status);
+      await upsertSubscriptionRow({
+        userId,
+        tierSlug,
+        customerId: idOf(payment?.customer),
+        asaasSubId,
+        status: statusReal,
+        periodEndIso: dueDateToIso(asaasSub?.nextDueDate),
+      });
+      // Só espelha o tier no profile se a assinatura de fato CONCEDE benefício agora
+      // (ativa). Se veio INACTIVE/EXPIRED, não força o tier.
+      if (statusReal === 'ativa') await mirrorProfile(userId, tierSlug, idOf(payment?.customer));
+    } else {
+      // Fetch falhou (transitório). NÃO sobrescreve nada com chute. Se a linha já
+      // existe, mantém os dados confiáveis anteriores e segue pro crédito (o
+      // pagamento aconteceu de verdade). Se NÃO existe, força retry (o Asaas
+      // reenvia; na retentativa o fetch resolve) em vez de gravar algo ingerenciável.
+      const { data: existente } = await supabaseAdmin
+        .from('subscriptions')
+        .select('id')
+        .eq('asaas_subscription_id', asaasSubId)
+        .maybeSingle();
+      if (!existente) {
+        throw new Error('subscription não resolvível no gateway (fetch falhou) — retry');
+      }
+    }
   }
 
   // Valor REAL pago (reais decimais → centavos). Fallback pro value da cobrança.
@@ -377,6 +400,53 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     });
     await checkAchievements(userId); // conquistas de tempo de casa best-effort
   }
+}
+
+// =============================================================================
+// FALHA de cobrança de assinatura (PAYMENT_OVERDUE/DELETED/REFUNDED/CHARGEBACK).
+// Sem isso, uma RENOVAÇÃO que o cartão recusa deixaria a linha travada em 'ativa'
+// com current_period_end no passado — e getEffectiveSubscription concede benefício
+// pra QUALQUER linha 'ativa' (a checagem de período só vale pra 'pausada'). Ou
+// seja: renovação falha = plano de graça pra sempre. (Ver auditoria, Raiz B.)
+//
+// Correção: ao falhar, pausa a assinatura no BANCO (status='pausada', SEM mexer no
+// período — que já está vencido, então não concede). Se o cartão for recuperado
+// depois (o Asaas continua tentando), o PAYMENT_CONFIRMED reativa via
+// handleSubscriptionPayment. Self-heal do profiles.tier_slug via
+// getEffectiveSubscription (limpa se nenhuma assinatura concede mais).
+//
+// NÃO tocamos no gateway aqui (o Asaas já sabe do overdue e gerencia a retentativa
+// dele). Só refletimos o estado no nosso banco. Ignora pagamentos de LOJA/avulsos.
+async function handleSubscriptionPaymentFailure(payment: any): Promise<void> {
+  const asaasSubId = idOf(payment?.subscription);
+  const parsed = parseSubRef(payment?.externalReference);
+  if (!asaasSubId && !parsed) return; // cobrança de loja/avulsa não recorre → ignora
+
+  let userId: string | null = null;
+
+  if (asaasSubId) {
+    const { data: subRow } = await supabaseAdmin
+      .from('subscriptions')
+      .select('id, user_id, status')
+      .eq('asaas_subscription_id', asaasSubId)
+      .maybeSingle();
+    if (subRow) {
+      userId = subRow.user_id;
+      // Só rebaixa se estava 'ativa' (não sobrescreve uma 'cancelada'/'pausada'
+      // já decidida por outro fluxo). Mantém current_period_end (vencido → sem grant).
+      if (subRow.status === 'ativa') {
+        const { error: uErr } = await supabaseAdmin
+          .from('subscriptions')
+          .update({ status: 'pausada', updated_at: new Date().toISOString() })
+          .eq('id', subRow.id);
+        if (uErr) throw uErr;
+      }
+    }
+  }
+  if (!userId && parsed) userId = parsed.userId;
+
+  // Self-heal do tier: se NENHUMA assinatura concede mais, limpa profiles.tier_slug.
+  if (userId) await getEffectiveSubscription(userId);
 }
 
 Deno.serve(async (req) => {
@@ -441,6 +511,17 @@ Deno.serve(async (req) => {
       case 'PAYMENT_CONFIRMED':
       case 'PAYMENT_RECEIVED': {
         await handleSubscriptionPayment(evt.payment ?? {});
+        break;
+      }
+
+      // ---- Falha de cobrança de assinatura (renovação recusada / estorno) ----
+      // Rebaixa a assinatura pra 'pausada' pra o benefício não persistir de graça.
+      case 'PAYMENT_OVERDUE':
+      case 'PAYMENT_DELETED':
+      case 'PAYMENT_REFUNDED':
+      case 'PAYMENT_CHARGEBACK_REQUESTED':
+      case 'PAYMENT_CHARGEBACK_DISPUTE': {
+        await handleSubscriptionPaymentFailure(evt.payment ?? {});
         break;
       }
 

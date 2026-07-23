@@ -2181,8 +2181,15 @@ async function initPerfilPage() {
         mostrarMsg('não deu pra retomar agora. tenta de novo daqui a pouco? 💛', 'erro');
         return;
       }
-      mostrarMsg('que bom te ver de volta — plano retomado. 💛', 'ok');
-      setTimeout(() => window.location.reload(), 1500);
+      // Vencido: a cobrança foi disparada mas ainda não confirmou — o benefício
+      // volta quando o pagamento cair (o webhook reativa). No período pago, já valeu.
+      mostrarMsg(
+        data.cobranca_em_processamento
+          ? 'tô reativando teu plano — a cobrança tá sendo processada. assim que cair, teus benefícios voltam. 💛'
+          : 'que bom te ver de volta — plano retomado. 💛',
+        'ok',
+      );
+      setTimeout(() => window.location.reload(), 2200);
     } catch {
       mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
     } finally {
