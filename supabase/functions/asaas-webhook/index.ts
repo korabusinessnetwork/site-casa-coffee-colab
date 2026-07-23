@@ -46,6 +46,23 @@ const WEBHOOK_TOKEN = requireEnv('ASAAS_WEBHOOK_TOKEN');
 
 // --- helpers -----------------------------------------------------------------
 
+// Compara o token recebido com o secret em TEMPO CONSTANTE (defesa contra timing
+// side-channel — um `!==` de string curto-circuita no 1º char diferente, vazando
+// prefixo/comprimento por timing). Compara os digests SHA-256 (32 bytes fixos), o
+// que também esconde a diferença de comprimento. É barato e roda a cada webhook.
+async function tokenConfere(recebido: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(recebido)),
+    crypto.subtle.digest('SHA-256', enc.encode(WEBHOOK_TOKEN)),
+  ]);
+  const va = new Uint8Array(a);
+  const vb = new Uint8Array(b);
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+  return diff === 0;
+}
+
 // externalReference da assinatura → { userId, tierSlug }. Formato:
 // `sub:<user_id>:<tier_slug>:<nonce>`. Retorna null se não for de assinatura.
 function parseSubRef(ref: unknown): { userId: string; tierSlug: string } | null {
@@ -453,8 +470,9 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('método não permitido', { status: 405 });
 
   // 1) Autenticação do webhook (token compartilhado no header do Asaas).
+  // Comparação em tempo constante (ver tokenConfere) — não usar `!==` direto.
   const token = req.headers.get('asaas-access-token') ?? '';
-  if (token !== WEBHOOK_TOKEN) {
+  if (!(await tokenConfere(token))) {
     console.warn('[asaas-webhook] token inválido/ausente no header asaas-access-token');
     return new Response('não autorizado', { status: 401 });
   }

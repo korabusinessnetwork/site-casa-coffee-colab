@@ -7,8 +7,8 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
     />
-    <title>Assinatura confirmada — Casa Coffee Colab</title>
-    <meta name="description" content="Tua assinatura no Casa Coffee Colab foi confirmada. Bem-vindo à turma do Casa." />
+    <title>Pagamento confirmado — Casa Coffee Colab</title>
+    <meta name="description" content="Teu pagamento no Casa Coffee Colab foi confirmado." />
     <meta name="robots" content="noindex" />
   </head>
   <body class="min-h-screen">
@@ -22,11 +22,12 @@
           <span class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-verde/10 text-verde">
             <i data-lucide="heart" class="h-8 w-8"></i>
           </span>
-          <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">bem-vindo à turma do Casa 💛</h1>
-          <p class="mt-3 text-cafe/70">
-            teu pagamento tá confirmado. a gente já tá preparando teu cantinho —
-            teu pedido e teu plano aparecem na tua conta em instantes, assim que o
-            pagamento termina de conversar com a gente.
+          <!-- Copy neutra (serve loja E assinatura). O app.js especializa por fluxo
+               (assinatura=1 → boas-vindas ao plano; ref → pedido; upgrade=1 → turbinado). -->
+          <h1 class="mt-5 font-titulo text-3xl sm:text-4xl" data-sucesso-titulo>pagamento confirmado 💛</h1>
+          <p class="mt-3 text-cafe/70" data-sucesso-texto>
+            deu tudo certo por aqui. o que tu comprou aparece na tua conta em
+            instantes, assim que o pagamento termina de conversar com a gente.
           </p>
           <!-- Pontos creditados (preenchido pelo app.js quando o webhook processar). -->
           <p class="mt-4 hidden rounded-full bg-verde/10 px-4 py-2 text-sm font-medium text-verde" data-pontos-credito></p>
@@ -34,7 +35,7 @@
             obrigado por chegar mais perto. fica um pouco, a casa é tua.
           </p>
           <div class="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <a href="/pages/conta/perfil.html" class="btn-primary">ver meus pedidos</a>
+            <a href="/pages/conta/perfil.html" class="btn-primary">ver minha conta</a>
             <a href="/pages/home.html" class="btn-ghost">voltar pra casa</a>
           </div>
         </div>

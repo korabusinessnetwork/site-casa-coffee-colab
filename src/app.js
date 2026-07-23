@@ -1406,22 +1406,47 @@ async function initCheckoutSucessoPage() {
 
   const params = new URLSearchParams(window.location.search);
 
+  // A copy do HTML é NEUTRA; aqui a gente especializa por fluxo. textContent em
+  // tudo → sem risco de XSS. Fonte da verdade continua sendo o banco (webhook).
+  const tituloEl = wrap.querySelector('[data-sucesso-titulo]') ?? wrap.querySelector('h1');
+  const textoEl = wrap.querySelector('[data-sucesso-texto]') ?? wrap.querySelector('p');
+  const setCopy = (titulo, texto) => {
+    if (tituloEl) tituloEl.textContent = titulo;
+    if (textoEl) textoEl.textContent = texto;
+  };
+
+  const ref = params.get('ref');
+
   // Upgrade (?upgrade=1): a volta é da diferença proporcional, não de uma compra
-  // nova — deixa a copy coerente (sem "pedido"). textContent → sem risco de XSS.
+  // nova — deixa a copy coerente (sem "pedido").
   if (params.get('upgrade') === '1') {
-    const h1 = wrap.querySelector('h1');
-    const sub = wrap.querySelector('p');
-    if (h1) h1.textContent = 'plano turbinado 💛';
-    if (sub)
-      sub.textContent =
-        'teu upgrade tá confirmado. o novo plano já vale a partir de agora — a diferença de hoje foi só pelos dias que faltavam do ciclo.';
+    setCopy(
+      'plano turbinado 💛',
+      'teu upgrade tá confirmado. o novo plano já vale a partir de agora — a diferença de hoje foi só pelos dias que faltavam do ciclo.',
+    );
     return; // sem pontos a sondar aqui (upgrade é ajuste, não compra)
+  }
+
+  // Assinatura (?assinatura=1, sem ref): boas-vindas ao plano.
+  if (params.get('assinatura') === '1') {
+    setCopy(
+      'bem-vindo à turma do Casa 💛',
+      'tua assinatura tá confirmada. a gente já tá preparando teu cantinho — teu plano aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
+    );
+    return; // pontos da assinatura vêm por payment.id (o client não conhece) → não sonda
+  }
+
+  // Loja (?ref=<order.id>): copy de PEDIDO, não de plano.
+  if (ref) {
+    setCopy(
+      'pedido confirmado 💛',
+      'teu pagamento tá confirmado. a gente já tá cuidando do teu pedido — ele aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
+    );
   }
 
   const slot = wrap.querySelector('[data-pontos-credito]');
   if (!slot || !supabase) return;
 
-  const ref = params.get('ref');
   if (!ref) return; // assinatura (?assinatura=1) ou sem ref → nada a sondar
 
   const session = await getSession();
