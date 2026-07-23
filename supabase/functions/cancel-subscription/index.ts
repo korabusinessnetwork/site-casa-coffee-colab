@@ -1,18 +1,27 @@
 // =============================================================================
 // Casa Coffee Colab — cancel-subscription (Edge Function, Deno)
 // O Asaas NÃO tem portal de cobrança hospedado (como o Billing Portal do Stripe),
-// então a gente tem a NOSSA tela de "cancelar assinatura". Esta function cancela
-// a assinatura ativa do usuário logado no Asaas e reflete no banco.
+// então a gente tem a NOSSA tela. Aqui "cancelar" = PAUSAR: a pessoa para de ser
+// cobrada, MAS mantém o benefício até o fim do período já pago
+// (current_period_end). Depois é só "retomar" (resume-subscription) — sem pagar
+// de novo, reativando a MESMA assinatura no Asaas.
+//
+// Por que pausar em vez de deletar: o checkout hospedado do Asaas cobra na hora
+// que a pessoa digita o cartão. Se a gente deletasse, "retomar" viraria um novo
+// checkout cobrando do zero. Pausar (PUT status=INACTIVE) para as próximas
+// cobranças sem perder a assinatura — reativar (status=ACTIVE) não gera cobrança
+// nova enquanto o nextDueDate estiver no futuro.
 //
 // SEGURANÇA (ver CLAUDE.md › Segurança):
-//   • Exige JWT válido (getUserFromRequest). Só o DONO cancela a PRÓPRIA
+//   • Exige JWT válido (getUserFromRequest). Só o DONO pausa a PRÓPRIA
 //     assinatura — a gente lê a linha de subscriptions DELE (nunca um id vindo
-//     do client) e é essa que mandamos cancelar no Asaas.
-//   • Escrita via service_role (o trigger prevent_points_tamper deixa passar
-//     escrita server-side; ver 0005). Espelha profiles.tier_slug = null.
+//     do client) e é essa que mandamos pausar no Asaas.
+//   • Escrita via service_role (auth.uid()=null → passa pelo prevent_points_tamper).
+//     Em pausa, MANTÉM profiles.tier_slug (o benefício segue até o vencimento).
 //   • Comportamento idêntico em sandbox e prod — muda só a chave (secrets).
 //
-// Retorna: { ok: true, proxima_cobranca } — ou erro gentil.
+// Retorna: { ok: true, pausada: true, ativo_ate } — ou { ok, cancelada: true } se
+// o Asaas já não tiver a assinatura — ou erro gentil.
 // =============================================================================
 
 import {
@@ -20,7 +29,7 @@ import {
   handleCors,
   jsonResponse,
   getUserFromRequest,
-  asaasDelete,
+  asaasPut,
   AsaasError,
 } from '../_shared/lib.ts';
 
@@ -53,41 +62,43 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 3) Cancela no Asaas (DELETE /subscriptions/{id}). Se não tiver id do Asaas
-    // (caso raro/legado), pula a chamada e só reflete no banco.
+    // 3) Pausa no Asaas (PUT /subscriptions/{id} status=INACTIVE). Se não tiver id
+    // do Asaas (caso raro/legado), pula a chamada e só reflete no banco.
     if (sub.asaas_subscription_id) {
-      await asaasDelete(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`);
+      await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
+        status: 'INACTIVE',
+      });
     }
 
-    // 4) Reflete no banco: assinatura 'cancelada' + tira o tier do profile.
+    // 4) Reflete no banco: assinatura 'pausada'. MANTÉM tier_slug no profile e o
+    // current_period_end — o benefício segue vivo até o fim do período pago.
     const { error: uErr } = await supabaseAdmin
       .from('subscriptions')
-      .update({ status: 'cancelada', updated_at: new Date().toISOString() })
+      .update({ status: 'pausada', updated_at: new Date().toISOString() })
       .eq('id', sub.id);
     if (uErr) throw uErr;
 
-    const { error: pErr } = await supabaseAdmin
-      .from('profiles')
-      .update({ tier_slug: null })
-      .eq('id', user.id);
-    if (pErr) throw pErr;
-
-    return jsonResponse({ ok: true, proxima_cobranca: sub.current_period_end ?? null });
+    return jsonResponse({
+      ok: true,
+      pausada: true,
+      ativo_ate: sub.current_period_end ?? null,
+    });
   } catch (err) {
     if (err instanceof AsaasError) {
-      // Se o Asaas já não tem a assinatura (404), trata como já cancelada e reflete.
+      // Asaas já não tem a assinatura (404) → trata como encerrada de vez: marca
+      // 'cancelada' e tira o tier (não há período a preservar).
       if (err.status === 404) {
         await supabaseAdmin
           .from('subscriptions')
           .update({ status: 'cancelada', updated_at: new Date().toISOString() })
           .eq('id', sub.id);
         await supabaseAdmin.from('profiles').update({ tier_slug: null }).eq('id', user.id);
-        return jsonResponse({ ok: true, proxima_cobranca: null });
+        return jsonResponse({ ok: true, cancelada: true, ativo_ate: null });
       }
       console.error('[cancel-subscription] Asaas', err.status, err.payload);
-      return jsonResponse({ error: 'não deu pra cancelar no gateway agora' }, 502);
+      return jsonResponse({ error: 'não deu pra pausar no gateway agora' }, 502);
     }
     console.error('[cancel-subscription]', err);
-    return jsonResponse({ error: 'não deu pra cancelar agora' }, 500);
+    return jsonResponse({ error: 'não deu pra pausar agora' }, 500);
   }
 });

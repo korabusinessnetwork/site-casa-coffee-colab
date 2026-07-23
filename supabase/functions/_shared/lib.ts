@@ -82,6 +82,8 @@ export async function asaasFetch(path: string, init: RequestInit = {}): Promise<
 export const asaasPost = (path: string, body: unknown) =>
   asaasFetch(path, { method: 'POST', body: JSON.stringify(body) });
 export const asaasGet = (path: string) => asaasFetch(path, { method: 'GET' });
+export const asaasPut = (path: string, body: unknown) =>
+  asaasFetch(path, { method: 'PUT', body: JSON.stringify(body) });
 export const asaasDelete = (path: string) => asaasFetch(path, { method: 'DELETE' });
 
 // Centavos (inteiro, como guardamos no banco) → reais decimais que o Asaas
@@ -225,17 +227,64 @@ export async function computeCartFromDb(
   return { lines, subtotal_cents: subtotal };
 }
 
-// Desconto do tier ATIVO do usuário (profiles.tier_slug → tiers.discount_percent).
-// Sem assinatura ativa = 0%. Nunca vem do client.
+// =============================================================================
+// ESTADO DA ASSINATURA — benefício vigente AGORA.
+// Uma assinatura concede benefício (desconto + multiplicador de pontos) quando:
+//   • status = 'ativa'  (cobrando normalmente), OU
+//   • status = 'pausada' E current_period_end ainda no futuro (período já pago —
+//     o "cancelar" hoje é PAUSAR: o benefício segue até o fim do ciclo).
+// Uma 'pausada' cujo período já venceu NÃO concede nada.
+//
+// Efeito colateral (self-heal, sem cron): se não há benefício vigente mas o
+// profiles.tier_slug ainda aponta pra um tier, limpa (lazy) — assim o desconto
+// da loja e o multiplicador de pontos zeram sozinhos quando a graça expira.
+// Escrita via service_role (auth.uid()=null) → passa pelo prevent_points_tamper.
+// =============================================================================
+export interface EffectiveSubscription {
+  id: string;
+  tier_slug: string;
+  status: string;
+  current_period_end: string | null;
+  asaas_subscription_id: string | null;
+}
+
+export async function getEffectiveSubscription(
+  userId: string,
+): Promise<EffectiveSubscription | null> {
+  if (!userId) return null;
+  const { data: subs } = await supabaseAdmin
+    .from('subscriptions')
+    .select('id, tier_slug, status, current_period_end, asaas_subscription_id')
+    .eq('user_id', userId)
+    .in('status', ['ativa', 'pausada'])
+    .order('current_period_end', { ascending: false, nullsFirst: false });
+
+  const rows = (subs ?? []) as EffectiveSubscription[];
+  const now = Date.now();
+  const granting =
+    rows.find(
+      (r) =>
+        r.status === 'ativa' ||
+        (r.status === 'pausada' &&
+          !!r.current_period_end &&
+          Date.parse(r.current_period_end) > now),
+    ) ?? null;
+
+  if (!granting) {
+    // Nenhum benefício vigente → garante profiles.tier_slug limpo (idempotente).
+    await supabaseAdmin.from('profiles').update({ tier_slug: null }).eq('id', userId);
+  }
+  return granting;
+}
+
+// Desconto do tier com benefício VIGENTE (via getEffectiveSubscription → gating
+// por status/período, não confia no profiles.tier_slug cru). Sem benefício = 0%.
+// Nunca vem do client.
 export async function getUserTierDiscount(
   userId: string,
 ): Promise<{ tier_slug: string | null; discount_percent: number }> {
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('tier_slug')
-    .eq('id', userId)
-    .maybeSingle();
-  const slug = profile?.tier_slug ?? null;
+  const sub = await getEffectiveSubscription(userId);
+  const slug = sub?.tier_slug ?? null;
   if (!slug) return { tier_slug: null, discount_percent: 0 };
 
   const { data: tier } = await supabaseAdmin

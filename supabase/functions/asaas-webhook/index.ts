@@ -36,6 +36,8 @@ import {
   creditPoints,
   checkAchievements,
   asaasGet,
+  asaasPut,
+  reaisFromCentavos,
   centavosFromReais,
 } from '../_shared/lib.ts';
 
@@ -52,6 +54,20 @@ function parseSubRef(ref: unknown): { userId: string; tierSlug: string } | null 
   const tierSlug = parts[2];
   if (!userId || !tierSlug) return null;
   return { userId, tierSlug };
+}
+
+// externalReference de upgrade → { userId, toTier, asaasSubId }. Formato:
+// `upg:<user_id>:<to_tier>:<asaas_subscription_id>:<nonce>`. Null se não for upgrade.
+function parseUpgRef(
+  ref: unknown,
+): { userId: string; toTier: string; asaasSubId: string } | null {
+  if (typeof ref !== 'string' || !ref.startsWith('upg:')) return null;
+  const parts = ref.split(':');
+  const userId = parts[1];
+  const toTier = parts[2];
+  const asaasSubId = parts[3];
+  if (!userId || !toTier || !asaasSubId) return null;
+  return { userId, toTier, asaasSubId };
 }
 
 // Aceita string ('cus_…') ou objeto ({ id }) — o Asaas varia por endpoint.
@@ -251,6 +267,57 @@ async function activateSubscription(checkout: any): Promise<void> {
 }
 
 // =============================================================================
+// UPGRADE — em CHECKOUT_PAID de um checkout `upg:`: a diferença proporcional foi
+// paga. Sobe o value recorrente da assinatura no Asaas pro preço CHEIO do tier
+// novo (vale do próximo vencimento em diante), atualiza a linha de subscriptions
+// e espelha o tier no profile. Se estava pausada em graça, reativa. SEM pontos
+// aqui — o delta é ajuste proporcional, não uma compra. Idempotente: reprocessar
+// deixa tudo no mesmo estado.
+// =============================================================================
+async function applyUpgrade(checkout: any): Promise<void> {
+  const parsed = parseUpgRef(checkout?.externalReference);
+  if (!parsed) {
+    console.warn('[asaas-webhook] checkout de upgrade com externalReference inválido');
+    return;
+  }
+  const { userId, toTier, asaasSubId } = parsed;
+
+  // Preço cheio do tier novo (do banco) → novo value da recorrência.
+  const { data: tier } = await supabaseAdmin
+    .from('tiers')
+    .select('slug, preco_centavos, ativo')
+    .eq('slug', toTier)
+    .maybeSingle();
+  if (!tier || !tier.ativo || !tier.preco_centavos) {
+    console.warn('[asaas-webhook] upgrade pra tier inválido:', toTier);
+    return;
+  }
+
+  // Sobe o value da assinatura recorrente no Asaas e garante ACTIVE. Best-effort
+  // no Asaas — a fonte do benefício é o banco (subscriptions/profiles).
+  try {
+    await asaasPut(`/subscriptions/${encodeURIComponent(asaasSubId)}`, {
+      status: 'ACTIVE',
+      value: reaisFromCentavos(tier.preco_centavos),
+    });
+  } catch (err) {
+    console.error('[asaas-webhook] falha ao subir value no upgrade:', (err as Error).message);
+  }
+
+  // Reflete no banco: tier novo + ativa (por asaas_subscription_id).
+  const { error: uErr } = await supabaseAdmin
+    .from('subscriptions')
+    .update({ tier_slug: toTier, status: 'ativa', updated_at: new Date().toISOString() })
+    .eq('asaas_subscription_id', asaasSubId);
+  if (uErr) throw uErr;
+
+  // Espelha o tier no profile (customerId=null: não mexe no asaas_customer_id, que
+  // é o da assinatura, não o desta cobrança avulsa).
+  await mirrorProfile(userId, toTier, null);
+  await checkAchievements(userId); // best-effort
+}
+
+// =============================================================================
 // PAGAMENTO de assinatura (PAYMENT_CONFIRMED/RECEIVED) — credita os pontos e
 // mantém subscriptions em dia. Ignora pagamentos de LOJA (tratados em
 // CHECKOUT_PAID). Idempotente por (ref_type='subscription', ref_id=payment.id).
@@ -356,8 +423,11 @@ Deno.serve(async (req) => {
       // ---- Checkout ----
       case 'CHECKOUT_PAID': {
         const checkout = evt.checkout ?? {};
-        if (typeof checkout.externalReference === 'string' && checkout.externalReference.startsWith('sub:')) {
+        const ref = typeof checkout.externalReference === 'string' ? checkout.externalReference : '';
+        if (ref.startsWith('sub:')) {
           await activateSubscription(checkout);
+        } else if (ref.startsWith('upg:')) {
+          await applyUpgrade(checkout);
         } else {
           await finalizeStoreOrder(checkout, 'pago');
         }
@@ -366,8 +436,10 @@ Deno.serve(async (req) => {
       case 'CHECKOUT_EXPIRED':
       case 'CHECKOUT_CANCELED': {
         const checkout = evt.checkout ?? {};
-        // Só a LOJA tem pedido pendente pra cancelar (assinatura não pré-cria linha).
-        if (!(typeof checkout.externalReference === 'string' && checkout.externalReference.startsWith('sub:'))) {
+        const ref = typeof checkout.externalReference === 'string' ? checkout.externalReference : '';
+        // Só a LOJA tem pedido pendente pra cancelar. Assinatura (sub:) e upgrade
+        // (upg:) não pré-criam linha, então não há nada a reverter aqui.
+        if (!ref.startsWith('sub:') && !ref.startsWith('upg:')) {
           await finalizeStoreOrder(checkout, 'cancelado');
         }
         break;

@@ -34,7 +34,9 @@ import {
   getSiteUrl,
   computeCartFromDb,
   getUserTierDiscount,
+  getEffectiveSubscription,
   asaasPost,
+  asaasPut,
   reaisFromCentavos,
   AsaasError,
   type CartInputItem,
@@ -59,7 +61,7 @@ Deno.serve(async (req) => {
   if (!user) return jsonResponse({ error: 'não autenticado' }, 401);
 
   // 2) Body.
-  let body: { tier_slug?: unknown; items?: unknown };
+  let body: { tier_slug?: unknown; items?: unknown; upgrade_to_tier?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -70,6 +72,107 @@ Deno.serve(async (req) => {
   const cancel_url = `${site}/pages/checkout-cancelado.html`;
 
   try {
+    // -------------------------------------------------------------------------
+    // MODO UPGRADE (proporcional) — quando vem `upgrade_to_tier`.
+    // A pessoa tem assinatura VIGENTE (ativa ou pausada em graça) e quer subir de
+    // tier. Cobra AGORA só a diferença proporcional aos dias que faltam do ciclo:
+    //   delta = floor((precoNovo − precoAtual) × diasRestantes / 30)
+    // A mensalidade recorrente vira o preço CHEIO do tier novo no próximo
+    // vencimento — o webhook (upg:) faz o PUT do value quando o delta é pago.
+    // Tudo calculado server-side (nunca confia no client). Só upgrade (preço
+    // maior); downgrade fica fora de escopo por ora.
+    // -------------------------------------------------------------------------
+    if (typeof body.upgrade_to_tier === 'string' && body.upgrade_to_tier) {
+      const toSlug = body.upgrade_to_tier;
+
+      // Assinatura vigente do PRÓPRIO usuário (gating por status/período; nunca id
+      // vindo do client).
+      const sub = await getEffectiveSubscription(user.id);
+      if (!sub || !sub.asaas_subscription_id) {
+        return jsonResponse({ error: 'você não tem uma assinatura vigente pra dar upgrade' }, 400);
+      }
+      if (sub.tier_slug === toSlug) {
+        return jsonResponse({ error: 'você já está nesse plano' }, 400);
+      }
+
+      // Preços dos DOIS tiers, do BANCO.
+      const { data: tiersData, error: tErr } = await supabaseAdmin
+        .from('tiers')
+        .select('slug, nome, preco_centavos, ativo')
+        .in('slug', [sub.tier_slug, toSlug]);
+      if (tErr) return jsonResponse({ error: 'erro ao buscar os planos' }, 500);
+      const atual = (tiersData ?? []).find((t) => t.slug === sub.tier_slug);
+      const novo = (tiersData ?? []).find((t) => t.slug === toSlug);
+      if (!novo || !novo.ativo || !novo.preco_centavos || novo.preco_centavos <= 0) {
+        return jsonResponse({ error: 'plano de destino indisponível' }, 400);
+      }
+      if (!atual || !atual.preco_centavos || atual.preco_centavos <= 0) {
+        return jsonResponse({ error: 'plano atual indisponível' }, 400);
+      }
+      if (novo.preco_centavos <= atual.preco_centavos) {
+        return jsonResponse({ error: 'esse plano não é um upgrade do teu atual' }, 400);
+      }
+
+      // Dias restantes do ciclo (0..30). Sem período conhecido → assume ciclo cheio.
+      const CICLO_DIAS = 30;
+      const now = Date.now();
+      const endMs = sub.current_period_end ? Date.parse(sub.current_period_end) : NaN;
+      let diasRestantes = CICLO_DIAS;
+      if (Number.isFinite(endMs)) {
+        diasRestantes = Math.ceil((endMs - now) / 86_400_000);
+      }
+      diasRestantes = Math.max(0, Math.min(CICLO_DIAS, diasRestantes));
+
+      // Diferença proporcional, em centavos (floor, nunca negativo).
+      const diffCentavos = novo.preco_centavos - atual.preco_centavos;
+      const delta_centavos = Math.max(
+        0,
+        Math.floor((diffCentavos * diasRestantes) / CICLO_DIAS),
+      );
+
+      // Delta abaixo do mínimo do Asaas (~R$5) → aplica o upgrade na hora, sem
+      // cobrar (são centavos): sobe o value recorrente e o tier já.
+      const ASAAS_MIN_CENTAVOS = 500;
+      if (delta_centavos < ASAAS_MIN_CENTAVOS) {
+        await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
+          value: reaisFromCentavos(novo.preco_centavos),
+        });
+        await supabaseAdmin
+          .from('subscriptions')
+          .update({ tier_slug: toSlug, updated_at: new Date().toISOString() })
+          .eq('id', sub.id);
+        await supabaseAdmin.from('profiles').update({ tier_slug: toSlug }).eq('id', user.id);
+        return jsonResponse({ applied: true, valor_delta_centavos: delta_centavos });
+      }
+
+      // Cobrança única (DETACHED) da diferença. PIX + Cartão (é avulsa, não recorre).
+      // externalReference = `upg:<user_id>:<toTier>:<asaas_subscription_id>:<nonce>`.
+      // O webhook aplica o upgrade quando ESTE checkout for pago.
+      const upgradeRef = `upg:${user.id}:${toSlug}:${sub.asaas_subscription_id}:${crypto.randomUUID()}`;
+      const checkout: any = await asaasPost('/checkouts', {
+        billingTypes: ['PIX', 'CREDIT_CARD'],
+        chargeTypes: ['DETACHED'],
+        minutesToExpire: CHECKOUT_EXPIRA_MIN,
+        externalReference: upgradeRef,
+        callback: {
+          successUrl: `${site}/pages/checkout-sucesso.html?upgrade=1`,
+          cancelUrl: cancel_url,
+          expiredUrl: cancel_url,
+          autoRedirect: true,
+        },
+        items: [
+          {
+            name: `Upgrade pro Plano ${novo.nome}`,
+            description: `diferença proporcional · ${diasRestantes} ${diasRestantes === 1 ? 'dia restante' : 'dias restantes'} do ciclo`,
+            quantity: 1,
+            value: reaisFromCentavos(delta_centavos),
+          },
+        ],
+      });
+
+      return jsonResponse({ url: checkout.link, valor_delta_centavos: delta_centavos });
+    }
+
     // -------------------------------------------------------------------------
     // MODO LOJA (DETACHED) — quando vem `items`.
     // -------------------------------------------------------------------------

@@ -236,7 +236,23 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 > `create-portal-session/` e o `scripts/stripe-seed.mjs` foram **removidos**. As
 > colunas `stripe_*` continuam no banco (migrations são imutáveis) mas não são mais
 > usadas. O Asaas **não tem seed de preços** (o valor vai no corpo do checkout) nem
-> **portal de cobrança hospedado** (por isso a tela de cancelar é NOSSA).
+> **portal de cobrança hospedado** (por isso as telas de pausar/retomar/upgrade são NOSSAS).
+
+> **Cancelar = pausar (não deletar).** "Cancelar assinatura" faz `PUT status=INACTIVE`
+> no Asaas (pausa, não `DELETE`): a pessoa **mantém o benefício até o fim do período já
+> pago** (`current_period_end`) e a assinatura vira `status='pausada'` **guardando o
+> tier**. "Retomar plano" reativa a MESMA assinatura (`PUT status=ACTIVE`) — dentro do
+> período pago, **sem cobrar de novo**; se o período já venceu, reativa cobrando a
+> partir de hoje. Assim ninguém "paga do zero" ao voltar. Só quando o Asaas responde
+> 404 (assinatura sumiu do gateway) é que tratamos como `cancelada` de fato e limpamos
+> o tier.
+
+> **Upgrade = só a diferença proporcional.** Ao subir de tier, cobramos **apenas**
+> `floor((preço_novo − preço_atual) × diasRestantes / 30)` agora (os dias já usados do
+> ciclo NÃO são cobrados de novo); no próximo vencimento a assinatura já renova pelo
+> preço cheio do tier novo. Se a diferença proporcional ficar abaixo do mínimo do Asaas
+> (R$5,00 / 500 centavos), a gente **não cobra** — aplica o upgrade na hora de graça e
+> só ajusta o `value` da assinatura pro preço novo.
 
 - **Redirect 100% hospedado:** NÃO existe chave pública de pagamento no bundle. O
   client só chama a function e redireciona pro `link` que ela devolve.
@@ -251,11 +267,15 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   (auth via header `access_token`), `reaisFromCentavos`/`centavosFromReais` (o Asaas fala
   em REAIS decimais; o banco em centavos). Helpers agnósticos de gateway (reusados):
   `computeCartFromDb()` (SOMA o subtotal pelo **BANCO** — products/product_variants, nunca
-  do client), `getUserTierDiscount()` (desconto do tier ATIVO via `profiles.tier_slug →
-  tiers.discount_percent`; sem assinatura = 0%), `getTierMultiplier()`, `creditPoints()`
-  (idempotente por `(ref_type,ref_id)`), `checkAchievements()`, `getUserFromRequest()`,
-  CORS, `jsonResponse()`, `getSiteUrl()`.
-- **`create-checkout-session`** — dois modos, ambos exigem JWT:
+  do client), `getEffectiveSubscription(userId)` (assinatura que CONCEDE benefício agora:
+  status em `['ativa','pausada']`, mais recente por `current_period_end`; a `pausada` só
+  vale enquanto o período pago não venceu — se nenhuma concede, **auto-cura** limpando
+  `profiles.tier_slug`), `getUserTierDiscount()` (desconto do tier vigente via
+  `getEffectiveSubscription` → `tiers.discount_percent`; sem assinatura = 0%),
+  `getTierMultiplier()`, `asaasPut()` (`PUT /subscriptions/{id}` — muda status/value/
+  nextDueDate), `creditPoints()` (idempotente por `(ref_type,ref_id)`), `checkAchievements()`,
+  `getUserFromRequest()`, CORS, `jsonResponse()`, `getSiteUrl()`.
+- **`create-checkout-session`** — três modos, todos exigem JWT:
   - **assinatura** (`{ tier_slug }` → `chargeTypes:["RECURRENT"]`): lê `preco_centavos` do
     tier no BANCO, `subscription:{ cycle:"MONTHLY", nextDueDate: hoje }`. `externalReference`
     = `sub:<userId>:<tierSlug>:<nonce>` (o nonce garante 1 match ao resolver a assinatura
@@ -266,14 +286,32 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
     com desconto (a discriminação real fica em `order_items`). **Pré-cria a `orders`
     como `pendente` + `order_items`**; `externalReference` = `order.id` (UUID); em falha
     do Asaas, apaga a order. `successUrl` → `checkout-sucesso.html?ref=<order.id>`.
-  - `billingTypes`: **loja** `["PIX","CREDIT_CARD"]`; **assinatura** `["CREDIT_CARD"]`
+  - **upgrade** (`{ upgrade_to_tier }` → `chargeTypes:["DETACHED"]`): valida a assinatura
+    vigente via `getEffectiveSubscription`, lê os dois preços no BANCO, **exige que o tier
+    novo seja mais caro**. Calcula `diasRestantes = clamp(ceil((fimPeríodo−agora)/dia),
+    0..30)` e `delta = max(0, floor((preçoNovo−preçoAtual) × diasRestantes / 30))` —
+    **só a diferença proporcional aos dias que faltam**. Se `delta < 500` (mínimo do
+    Asaas), aplica o upgrade **na hora e de graça** (`asaasPut` o `value` da assinatura
+    pro preço novo + atualiza `subscriptions.tier_slug`/`profiles.tier_slug`) e retorna
+    `{ applied:true, valor_delta_centavos }`. Senão, gera um checkout DETACHED só do delta,
+    `externalReference` = `upg:<userId>:<toTier>:<asaas_subscription_id>:<nonce>`,
+    `successUrl` → `checkout-sucesso.html?upgrade=1`, retorna `{ url, valor_delta_centavos }`.
+  - `billingTypes`: **loja/upgrade** `["PIX","CREDIT_CARD"]`; **assinatura** `["CREDIT_CARD"]`
     (o Asaas recusa `RECURRENT` com PIX — só cartão renova sozinho). **Sem `customerData`**
     (mandar parcial faria o Asaas exigir CPF+endereço completo; a página hospedada coleta
-    tudo). Ambos: `callback` com `successUrl`/`cancelUrl`/`expiredUrl` via `getSiteUrl()`.
+    tudo). Todos: `callback` com `successUrl`/`cancelUrl`/`expiredUrl` via `getSiteUrl()`.
 - **`cancel-subscription`** (a NOSSA tela substitui o portal): exige JWT, lê a assinatura
-  ATIVA do **próprio** usuário (nunca id vindo do client), faz `DELETE /subscriptions/{id}`
-  no Asaas, marca `subscriptions.status='cancelada'` e limpa `profiles.tier_slug`. Asaas
-  404 → trata como já cancelada e reflete no banco. Retorna `{ ok, proxima_cobranca }`.
+  ATIVA do **próprio** usuário (nunca id vindo do client), faz `PUT /subscriptions/{id}`
+  com `status=INACTIVE` (**pausa, não deleta**), marca `subscriptions.status='pausada'`
+  **mantendo o `tier_slug` e o período** — o benefício segue até `current_period_end`.
+  Retorna `{ ok, pausada:true, ativo_ate }`. Asaas 404 (assinatura sumiu do gateway) →
+  trata como `cancelada` de fato, limpa o tier, retorna `{ ok, cancelada:true }`.
+- **`resume-subscription`** (contrapartida do cancel): exige JWT, lê a assinatura
+  **`pausada`** do próprio usuário, faz `PUT /subscriptions/{id}` com `status=ACTIVE`.
+  Dentro do período pago → mantém o `nextDueDate` original (**sem cobrar agora**); período
+  vencido → `nextDueDate = hoje` (o Asaas cobra o cartão salvo e recomeça o ciclo).
+  Marca `subscriptions.status='ativa'` + garante `profiles.tier_slug`. Retorna
+  `{ ok, retomada:true, proxima_cobranca }`.
 - **`asaas-webhook`** (deploy com `--no-verify-jwt`): auth = **token compartilhado** no
   header `asaas-access-token` (comparado com `ASAAS_WEBHOOK_TOKEN`; NÃO é HMAC).
   Idempotência via `asaas_events` (PK = `id` do evento, `evt_…`). Em erro → 500 sem gravar
@@ -289,6 +327,11 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
     'subscription'`, `ref_id=payment.id`, motivo `'assinatura'`) — 1ª cobrança E renovações,
     sem duplicar (idempotente por `payment.id`). O handler de pagamento **se auto-cura**
     (cria a linha de subscription se o evento de pagamento chegar antes do checkout).
+  - **upgrade** (`externalReference` começa com `upg:`): `CHECKOUT_PAID` do delta aplica o
+    upgrade — `asaasPut` o `value` da assinatura (id vem no próprio ref) pro preço cheio do
+    tier novo, atualiza `subscriptions.tier_slug`/`profiles.tier_slug` e roda
+    `checkAchievements` — **sem creditar pontos pelo delta**. `CHECKOUT_EXPIRED`/
+    `CHECKOUT_CANCELED` ignoram refs `sub:`/`upg:` (só cancelam pedidos de loja pendentes).
 - **Migration `0011_asaas`**: `profiles.asaas_customer_id`; `subscriptions.asaas_customer_id`
   + `asaas_subscription_id` (UNIQUE); `orders.asaas_checkout_id` (UNIQUE) + `asaas_payment_id`;
   tabela `asaas_events(id text pk, event, processed_at)` com RLS (SELECT só do owner).
@@ -297,9 +340,19 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier; `checkout-
   sucesso.html` limpa o carrinho e — na loja — sonda `points_ledger` por `?ref=` pra mostrar
   "+X pontos"; na assinatura (`?assinatura=1`) não sonda (os pontos vêm por `payment.id`,
-  desconhecido do client). O perfil mostra a **próxima cobrança** (de
-  `subscriptions.current_period_end`) e tem "cancelar assinatura" (confirma → chama a
-  `cancel-subscription`).
+  desconhecido do client); no upgrade (`?upgrade=1`) troca o texto pra "plano turbinado 💛"
+  e também não sonda.
+- **Front — "gerenciar assinatura" (perfil)**: `initPerfilPage` carrega a assinatura
+  (`status` em `['ativa','pausada']`) + a lista de `tiers` em paralelo e deriva o estado da
+  UI. A célula "teu plano" mostra o nome + um selo de status (ativa → ponto verde "ativo";
+  pausada dentro do período → "pausado · ativo até {data}"; pausada vencida → "pausado").
+  A seção `[data-gerenciar]` só aparece com assinatura ativa/pausada e traz:
+  - **ativa** → "fazer upgrade" (abre painel `[data-upgrade-painel]` só com os tiers de
+    `ordem` maior, cada botão explicando que cobra **só a diferença dos dias que faltam**;
+    ao escolher, chama `create-checkout-session {upgrade_to_tier}` → se `data.url` redireciona
+    pro checkout do delta, se `data.applied` mostra "a diferença ficou por nossa conta" e
+    recarrega) **e** "pausar assinatura" (confirma → `cancel-subscription`).
+  - **pausada** → "retomar plano" (`resume-subscription`; dentro do período não cobra nada).
 - **Setup/deploy**: ver `supabase/functions/README.md`. Teste em sandbox com cartão de
   teste (doc do Asaas) ou Pix simulado no painel sandbox.
 
@@ -308,7 +361,7 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 >   `$aact_prod_…`.
 > - Trocar os secrets das functions: `supabase secrets set` de `ASAAS_API_KEY`
 >   (`$aact_prod_…`), um `ASAAS_WEBHOOK_TOKEN` novo e `SITE_URL` (domínio de prod).
->   Re-deploy das **quatro** functions.
+>   Re-deploy das **cinco** functions.
 > - **Cadastrar o webhook na conta LIVE** (o token/endpoint de sandbox não vale em
 >   prod), com os eventos de checkout (`CHECKOUT_PAID`/`EXPIRED`/`CANCELED`) e de
 >   pagamento (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`).

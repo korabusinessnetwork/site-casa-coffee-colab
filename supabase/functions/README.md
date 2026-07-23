@@ -1,18 +1,39 @@
 # Edge Functions — Casa Coffee Colab (ASAAS · Pontos Fase 3)
 
 Gateway de pagamento: **Asaas** (Checkout hospedado — loja: Pix + Cartão;
-assinatura: cartão-só). Quatro functions (Supabase, Deno) + a lib compartilhada:
+assinatura: cartão-só). Cinco functions (Supabase, Deno) + a lib compartilhada:
 
 ```
 supabase/functions/
-├── _shared/lib.ts             # Asaas (fetch + access_token), Supabase service_role, CORS,
-│                              # JWT, getSiteUrl(), computeCartFromDb, getUserTierDiscount,
-│                              # getTierMultiplier, creditPoints, checkAchievements
-├── create-checkout-session/   # Checkout Asaas: assinatura {tier_slug} OU loja {items}; exige JWT
-├── cancel-subscription/       # cancela a assinatura ativa do usuário (DELETE /subscriptions); exige JWT
+├── _shared/lib.ts             # Asaas (fetch + access_token: Post/Get/Put/Delete), Supabase
+│                              # service_role, CORS, JWT, getSiteUrl(), computeCartFromDb,
+│                              # getEffectiveSubscription (benefício vigente: ativa OU pausada
+│                              # em graça), getUserTierDiscount, getTierMultiplier, creditPoints,
+│                              # checkAchievements
+├── create-checkout-session/   # Checkout Asaas: assinatura {tier_slug}, loja {items} OU
+│                              # upgrade {upgrade_to_tier} (diferença proporcional); exige JWT
+├── cancel-subscription/       # PAUSA a assinatura (PUT status=INACTIVE): mantém o benefício
+│                              # até current_period_end. Nunca deleta; exige JWT
+├── resume-subscription/       # RETOMA a assinatura pausada (PUT status=ACTIVE): reativa a MESMA
+│                              # assinatura sem cobrar do zero na graça; exige JWT
 ├── redeem-reward/             # resgata recompensa por pontos (rpc redeem_reward); exige JWT
 └── asaas-webhook/             # eventos do Asaas; token no header + idempotência + pontos
 ```
+
+> **Cancelar = pausar (não deletar).** O Checkout hospedado do Asaas cobra na hora
+> que a pessoa digita o cartão — então "retomar" via novo checkout cobraria do
+> zero. Por isso `cancel-subscription` **pausa** (`PUT status=INACTIVE`,
+> mantém o benefício até o fim do período pago) e `resume-subscription`
+> **reativa a MESMA assinatura** (`PUT status=ACTIVE`): dentro do período pago não
+> gera cobrança nova; se o período já venceu, cobra a partir de hoje reusando o
+> cartão salvo.
+>
+> **Upgrade = só a diferença proporcional.** Com assinatura vigente,
+> `{ upgrade_to_tier }` cobra AGORA `floor((precoNovo − precoAtual) ×
+> diasRestantes / 30)` (checkout DETACHED, Pix+Cartão) e o webhook (`upg:`) sobe o
+> `value` recorrente pro preço cheio do tier novo no próximo vencimento. Se a
+> diferença ficar abaixo do mínimo cobrável do Asaas (~R$5), aplica na hora sem
+> cobrar (retorna `{ applied: true }`). Tudo server-side (nunca confia no client).
 
 > **SANDBOX primeiro.** A chave de sandbox (`$aact_hmlg_…`) é de homologação. O
 > código é **agnóstico de ambiente** — no go-live troca só os secrets
@@ -74,6 +95,7 @@ supabase secrets list
 ```bash
 supabase functions deploy create-checkout-session
 supabase functions deploy cancel-subscription
+supabase functions deploy resume-subscription
 supabase functions deploy redeem-reward
 # o webhook NÃO usa JWT (quem chama é o Asaas, autenticado pelo token no header):
 supabase functions deploy asaas-webhook --no-verify-jwt
@@ -113,6 +135,7 @@ só param de ser usadas).
 ```bash
 supabase functions logs create-checkout-session
 supabase functions logs cancel-subscription
+supabase functions logs resume-subscription
 supabase functions logs redeem-reward
 supabase functions logs asaas-webhook
 ```
@@ -123,7 +146,7 @@ supabase functions logs asaas-webhook
    escolhe um `ASAAS_WEBHOOK_TOKEN` (passo 0).
 2. Roda a **`0011_asaas.sql`** no SQL Editor (passo 4).
 3. `supabase secrets set` de `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` e `SITE_URL`.
-4. `supabase functions deploy` das **quatro** functions (webhook com `--no-verify-jwt`).
+4. `supabase functions deploy` das **cinco** functions (webhook com `--no-verify-jwt`).
 5. Cadastra o webhook no Asaas (sandbox) com o token e os eventos de checkout +
    pagamento (passo 3).
 6. No client: `.env` com o Supabase (sem nenhuma chave de pagamento).
@@ -149,10 +172,29 @@ os pontos entram no `PAYMENT_CONFIRMED/RECEIVED`. Confere no banco.
   vira UM item consolidado cujo valor = total já com desconto; a discriminação real
   fica em `order_items`). Sem assinatura = 0%.
 
-**Cancelar assinatura:** no perfil, "cancelar assinatura" → confirma → a function
-`cancel-subscription` faz `DELETE /subscriptions/{id}` no Asaas, marca
-`subscriptions.status='cancelada'` e limpa `profiles.tier_slug`. (O Asaas não tem
-portal de cobrança hospedado — por isso a tela é nossa.)
+**Pausar assinatura (o "cancelar"):** no perfil → "gerenciar assinatura" →
+"pausar assinatura" → confirma → a function `cancel-subscription` faz
+`PUT /subscriptions/{id}` com `status=INACTIVE` no Asaas, marca
+`subscriptions.status='pausada'` e **mantém** `profiles.tier_slug` — o benefício
+segue até `current_period_end`. (Se o Asaas responder 404, aí sim trata como
+encerrada: `cancelada` + limpa o tier.) O Asaas não tem portal hospedado — a tela
+é nossa.
+
+**Retomar assinatura:** com o plano pausado, o perfil mostra "retomar plano" →
+`resume-subscription` faz `PUT status=ACTIVE`. Ainda no período pago
+(`current_period_end` no futuro) → mantém o `nextDueDate`, **sem cobrar agora**.
+Período já vencido → reativa com `nextDueDate=hoje` (cobra o cartão salvo). Volta
+`subscriptions.status='ativa'` e garante `profiles.tier_slug`.
+
+**Upgrade de plano:** com assinatura ATIVA, o perfil lista os tiers acima do atual
+→ ao escolher, o client chama `create-checkout-session { upgrade_to_tier }`. A
+function calcula a diferença proporcional server-side:
+- Diferença ≥ mínimo do Asaas (~R$5) → devolve `{ url }` do checkout DETACHED
+  (Pix+Cartão) da diferença; ao pagar, o webhook `upg:` sobe o `value` recorrente
+  pro preço cheio e espelha o tier. Volta pra `checkout-sucesso.html?upgrade=1`.
+- Diferença < mínimo → aplica na hora (`PUT value` + tier), retorna `{ applied: true }`.
+Sem crédito de pontos no upgrade (é ajuste, não compra). Só upgrade (preço maior);
+downgrade fica fora de escopo por ora.
 
 **Pontos (Fase 3):**
 - Após uma compra/assinatura paga, os pontos = `floor(valor × points_multiplier)`
@@ -179,7 +221,7 @@ portal de cobrança hospedado — por isso a tela é nossa.)
    cadastro/KYC, e gera a chave de produção (`$aact_prod_…`).
 2. Troca os secrets: `supabase secrets set ASAAS_API_KEY='$aact_prod_…'`,
    um `ASAAS_WEBHOOK_TOKEN` novo, e `SITE_URL=https://<teu-domínio>`. Re-deploy das
-   **quatro** functions.
+   **cinco** functions.
 3. Cadastra o webhook na conta de **produção** (mesmos eventos), com o token novo.
 4. Habilita Pix e Cartão na conta de produção (se ainda não estiverem).
 5. O client não muda (não tem chave de pagamento).

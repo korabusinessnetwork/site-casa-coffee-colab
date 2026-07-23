@@ -41,6 +41,9 @@ import {
   ChevronDown,
   CreditCard,
   KeyRound,
+  Settings2,
+  ArrowUpCircle,
+  PlayCircle,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -78,6 +81,9 @@ const LUCIDE_ICONS = {
   ChevronDown,
   CreditCard,
   KeyRound,
+  Settings2,
+  ArrowUpCircle,
+  PlayCircle,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -1345,13 +1351,28 @@ function initPlanosPage() {
 // assinatura são creditados no evento de pagamento (ref = payment.id, que o client
 // não conhece), então aqui a gente só esvazia o carrinho e deixa o aviso da página.
 async function initCheckoutSucessoPage() {
-  if (!document.querySelector('[data-checkout-sucesso]')) return;
+  const wrap = document.querySelector('[data-checkout-sucesso]');
+  if (!wrap) return;
   Cart.clearCart();
 
-  const slot = document.querySelector('[data-pontos-credito]');
+  const params = new URLSearchParams(window.location.search);
+
+  // Upgrade (?upgrade=1): a volta é da diferença proporcional, não de uma compra
+  // nova — deixa a copy coerente (sem "pedido"). textContent → sem risco de XSS.
+  if (params.get('upgrade') === '1') {
+    const h1 = wrap.querySelector('h1');
+    const sub = wrap.querySelector('p');
+    if (h1) h1.textContent = 'plano turbinado 💛';
+    if (sub)
+      sub.textContent =
+        'teu upgrade tá confirmado. o novo plano já vale a partir de agora — a diferença de hoje foi só pelos dias que faltavam do ciclo.';
+    return; // sem pontos a sondar aqui (upgrade é ajuste, não compra)
+  }
+
+  const slot = wrap.querySelector('[data-pontos-credito]');
   if (!slot || !supabase) return;
 
-  const ref = new URLSearchParams(window.location.search).get('ref');
+  const ref = params.get('ref');
   if (!ref) return; // assinatura (?assinatura=1) ou sem ref → nada a sondar
 
   const session = await getSession();
@@ -1843,32 +1864,59 @@ async function initPerfilPage() {
   const telefone = escapeHtml(profile?.telefone || '');
   const pontos = Number(profile?.points_balance || 0).toLocaleString('pt-BR');
 
-  // Nome do plano (tiers é leitura pública). Sem plano ainda → texto gentil.
+  // ── Estado da assinatura (pra "gerenciar assinatura") ─────────────────────
+  // Lê a linha MAIS RECENTE do próprio usuário em ('ativa','pausada') — RLS
+  // garante que só vem a dele. E a lista de tiers (leitura pública) pra montar
+  // as opções de upgrade e o nome/preço do plano. Nada disso confia no client:
+  // preço e cálculo do upgrade são refeitos server-side na Edge Function.
   let plano = 'ainda sem plano';
-  const temPlano = Boolean(profile?.tier_slug);
-  if (temPlano && supabase) {
-    const { data: t } = await supabase.from('tiers').select('nome').eq('slug', profile.tier_slug).single();
-    plano = escapeHtml(t?.nome || profile.tier_slug);
+  let planoSlug = profile?.tier_slug || null;
+  let subStatus = null; // 'ativa' | 'pausada' | null
+  let periodEndMs = NaN;
+  let ativoAte = ''; // DD/MM (current_period_end formatado)
+  let tiers = []; // [{ slug, nome, preco_centavos, ordem }]
+
+  if (supabase) {
+    const [subRes, tiersRes] = await Promise.all([
+      supabase
+        .from('subscriptions')
+        .select('tier_slug, status, current_period_end')
+        .eq('user_id', session.user.id)
+        .in('status', ['ativa', 'pausada'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from('tiers').select('slug, nome, preco_centavos, ordem').order('ordem'),
+    ]);
+    tiers = Array.isArray(tiersRes.data) ? tiersRes.data : [];
+    const sub = subRes.data;
+    if (sub) {
+      subStatus = sub.status;
+      planoSlug = sub.tier_slug || planoSlug;
+      if (sub.current_period_end) {
+        const d = new Date(sub.current_period_end);
+        if (!Number.isNaN(d.getTime())) {
+          periodEndMs = d.getTime();
+          ativoAte = d.toLocaleDateString('pt-BR');
+        }
+      }
+    }
+    const tierAtual = tiers.find((t) => t.slug === planoSlug);
+    if (tierAtual) plano = escapeHtml(tierAtual.nome);
+    else if (planoSlug) plano = escapeHtml(planoSlug);
   }
 
-  // Próxima cobrança da assinatura ativa (subscriptions é RLS: só a própria linha).
-  // O Asaas não tem portal hospedado — a data vem do current_period_end que o
-  // webhook mantém a partir do nextDueDate da assinatura no Asaas.
-  let proximaCobranca = '';
-  if (temPlano && supabase) {
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('current_period_end')
-      .eq('user_id', session.user.id)
-      .eq('status', 'ativa')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (sub?.current_period_end) {
-      const d = new Date(sub.current_period_end);
-      if (!Number.isNaN(d.getTime())) proximaCobranca = d.toLocaleDateString('pt-BR');
-    }
-  }
+  // Estados derivados (a UI decide o que mostrar a partir daqui).
+  const agora = Date.now();
+  const ativa = subStatus === 'ativa';
+  const emGraca = subStatus === 'pausada' && Number.isFinite(periodEndMs) && periodEndMs > agora;
+  const pausada = subStatus === 'pausada'; // em graça OU vencida — dá pra retomar dos dois
+  const temGerenciar = ativa || pausada; // tem assinatura pra gerenciar
+  const temPlano = temGerenciar || Boolean(profile?.tier_slug);
+  const proximaCobranca = ativoAte;
+  // Upgrade só faz sentido com assinatura ATIVA e tiers acima do atual.
+  const ordemAtual = tiers.find((t) => t.slug === planoSlug)?.ordem ?? 0;
+  const tiersUpgrade = ativa ? tiers.filter((t) => (t.ordem ?? 0) > ordemAtual) : [];
 
   root.innerHTML = `
     <div class="mx-auto max-w-2xl">
@@ -1885,18 +1933,13 @@ async function initPerfilPage() {
           <dt class="text-xs uppercase tracking-wide text-cafe/50">teu plano</dt>
           <dd class="mt-1 font-titulo text-lg">${plano}</dd>
           ${
-            temPlano
-              ? `${proximaCobranca ? `<p class="mt-1 text-xs text-cafe/60">próxima cobrança em ${proximaCobranca}</p>` : ''}
-                 <button type="button" data-cancelar-assinatura class="mt-2 text-xs font-medium text-terracota hover:underline">cancelar assinatura</button>
-                 <div class="mt-2 hidden rounded-lg bg-terracota/5 p-2 text-xs text-cafe" data-cancelar-confirm>
-                   <p>tem certeza que quer cancelar? tu perde os benefícios do plano.</p>
-                   <div class="mt-2 flex gap-2">
-                     <button type="button" data-cancelar-sim class="font-medium text-terracota hover:underline">sim, cancelar</button>
-                     <button type="button" data-cancelar-nao class="text-cafe/60 hover:underline">deixa quieto</button>
-                   </div>
-                 </div>
-                 <p class="mt-1 hidden text-xs text-cafe/60" data-assinatura-msg aria-live="polite"></p>`
-              : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-terracota hover:underline">ver os planos</a>`
+            ativa
+              ? `<p class="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-verde"><span class="h-1.5 w-1.5 rounded-full bg-verde"></span>ativo</p>`
+              : emGraca
+                ? `<p class="mt-1 text-xs font-medium text-caramelo">pausado · ativo até ${ativoAte}</p>`
+                : pausada
+                  ? `<p class="mt-1 text-xs font-medium text-cafe/60">pausado</p>`
+                  : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-terracota hover:underline">ver os planos</a>`
           }
         </div>
         <div class="rounded-2xl bg-branco/60 p-4 ring-1 ring-cafe/10">
@@ -1904,6 +1947,72 @@ async function initPerfilPage() {
           <dd class="mt-1 truncate text-sm text-cafe" title="${email}">${email}</dd>
         </div>
       </dl>
+
+      ${
+        temGerenciar
+          ? `<section class="mt-8 rounded-2xl bg-branco/70 p-5 ring-1 ring-cafe/10" data-gerenciar>
+              <div class="flex items-center gap-2">
+                <i data-lucide="settings-2" class="h-5 w-5 text-terracota"></i>
+                <h2 class="font-titulo text-xl">gerenciar assinatura</h2>
+              </div>
+              ${
+                ativa
+                  ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá ativo.${
+                      proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-cafe">${proximaCobranca}</strong>.` : ''
+                    }</p>`
+                  : emGraca
+                    ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-cafe">${ativoAte}</strong> — e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
+                    : `<p class="mt-2 text-sm text-cafe/70">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser — reativando a mesma assinatura.</p>`
+              }
+
+              <div class="mt-4 flex flex-wrap gap-3">
+                ${
+                  ativa && tiersUpgrade.length
+                    ? `<button type="button" data-upgrade-abrir class="btn-primary text-sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
+                    : ''
+                }
+                ${
+                  ativa
+                    ? `<button type="button" data-cancelar-assinatura class="btn-ghost text-sm">pausar assinatura</button>`
+                    : `<button type="button" data-retomar class="btn-primary text-sm"><i data-lucide="play-circle" class="h-4 w-4"></i>retomar plano</button>`
+                }
+              </div>
+
+              ${
+                ativa && tiersUpgrade.length
+                  ? `<div class="mt-4 hidden rounded-xl bg-bege/40 p-4 ring-1 ring-caramelo/20" data-upgrade-painel>
+                       <p class="text-sm text-cafe/70">tu paga só a <strong class="font-semibold text-cafe">diferença proporcional</strong> pelos dias que faltam${
+                         proximaCobranca ? ` até ${proximaCobranca}` : ''
+                       }. no próximo ciclo, o valor cheio do novo plano.</p>
+                       <div class="mt-3 grid gap-2">
+                         ${tiersUpgrade
+                           .map(
+                             (t) =>
+                               `<button type="button" data-upgrade-tier="${escapeHtml(t.slug)}" class="flex items-center justify-between rounded-lg bg-branco/70 px-4 py-2.5 text-left ring-1 ring-cafe/10 transition hover:ring-terracota/40 disabled:opacity-50">
+                                  <span class="text-sm font-medium text-cafe">${escapeHtml(t.nome)}</span>
+                                  <span class="text-sm text-terracota">${formatBRL(t.preco_centavos)}/mês</span>
+                                </button>`,
+                           )
+                           .join('')}
+                       </div>
+                     </div>`
+                  : ''
+              }
+
+              <div class="mt-3 hidden rounded-lg bg-terracota/5 p-3 text-sm text-cafe" data-cancelar-confirm>
+                <p>tem certeza? tu para de ser cobrado, mas <strong class="font-semibold">mantém os benefícios até ${
+                  proximaCobranca || 'o fim do período'
+                }</strong>. depois é só retomar — sem pagar de novo.</p>
+                <div class="mt-2 flex gap-3">
+                  <button type="button" data-cancelar-sim class="font-medium text-terracota hover:underline">sim, pausar</button>
+                  <button type="button" data-cancelar-nao class="text-cafe/60 hover:underline">deixa quieto</button>
+                </div>
+              </div>
+
+              <p class="mt-3 hidden text-sm text-cafe/70" data-assinatura-msg aria-live="polite"></p>
+            </section>`
+          : ''
+      }
 
       <div class="mt-4">
         <a href="/pages/conta/conquistas.html" class="inline-flex items-center gap-2 text-sm font-medium text-terracota hover:underline">
@@ -1940,14 +2049,24 @@ async function initPerfilPage() {
 
   renderIcons();
 
-  // "cancelar assinatura" → nossa própria tela (o Asaas não tem portal hospedado).
-  // Pede confirmação e chama a Edge Function cancel-subscription (que cancela no
-  // Asaas e reflete no banco). Sucesso → atualiza o card sem recarregar.
+  // ── Gerenciar assinatura: pausar / retomar / upgrade ──────────────────────
+  // A NOSSA tela (o Asaas não tem portal hospedado). Toda a lógica sensível (o
+  // que pode pausar/retomar/quanto custa o upgrade) é refeita nas Edge Functions;
+  // aqui o client só dispara e reflete o resultado.
+  const assinaturaMsg = root.querySelector('[data-assinatura-msg]');
+  const mostrarMsg = (txt, tom = 'neutro') => {
+    if (!assinaturaMsg) return;
+    assinaturaMsg.textContent = txt; // textContent → sem risco de XSS
+    assinaturaMsg.className =
+      'mt-3 text-sm ' +
+      (tom === 'erro' ? 'text-terracota' : tom === 'ok' ? 'text-verde' : 'text-cafe/70');
+  };
+
+  // Pausar (o antigo "cancelar" agora PAUSA até o fim do período pago).
   const cancelarBtn = root.querySelector('[data-cancelar-assinatura]');
   const cancelarConfirm = root.querySelector('[data-cancelar-confirm]');
   const cancelarNao = root.querySelector('[data-cancelar-nao]');
   const cancelarSim = root.querySelector('[data-cancelar-sim]');
-  const assinaturaMsg = root.querySelector('[data-assinatura-msg]');
 
   cancelarBtn?.addEventListener('click', () => {
     assinaturaMsg?.classList.add('hidden');
@@ -1958,37 +2077,97 @@ async function initPerfilPage() {
     cancelarConfirm?.classList.add('hidden');
     cancelarBtn?.classList.remove('hidden');
   });
-
   cancelarSim?.addEventListener('click', async () => {
     if (!supabase) return;
     cancelarSim.disabled = true;
-    cancelarSim.textContent = 'cancelando…';
+    cancelarSim.textContent = 'pausando…';
     try {
       const { data, error } = await supabase.functions.invoke('cancel-subscription', { body: {} });
       cancelarConfirm?.classList.add('hidden');
       if (error || !data?.ok) {
-        if (assinaturaMsg) {
-          assinaturaMsg.textContent = 'não deu pra cancelar agora. tenta de novo daqui a pouco? 💛';
-          assinaturaMsg.classList.remove('hidden');
-        }
+        mostrarMsg('não deu pra pausar agora. tenta de novo daqui a pouco? 💛', 'erro');
         cancelarBtn?.classList.remove('hidden');
         return;
       }
-      if (assinaturaMsg) {
-        assinaturaMsg.textContent = 'assinatura cancelada. vai fazer falta — mas a porta fica aberta. 💛';
-        assinaturaMsg.classList.remove('hidden');
-      }
+      const ate = data?.ativo_ate ? new Date(data.ativo_ate) : null;
+      const ateStr = ate && !Number.isNaN(ate.getTime()) ? ate.toLocaleDateString('pt-BR') : '';
+      mostrarMsg(
+        data?.cancelada
+          ? 'assinatura encerrada. a porta fica sempre aberta. 💛'
+          : `plano pausado. teus benefícios seguem${ateStr ? ` até ${ateStr}` : ''} — depois é só retomar. 💛`,
+        'ok',
+      );
+      setTimeout(() => window.location.reload(), 1800);
     } catch {
       cancelarConfirm?.classList.add('hidden');
-      if (assinaturaMsg) {
-        assinaturaMsg.textContent = 'a gente não conseguiu falar com o servidor agora.';
-        assinaturaMsg.classList.remove('hidden');
-      }
+      mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
       cancelarBtn?.classList.remove('hidden');
     } finally {
       cancelarSim.disabled = false;
-      cancelarSim.textContent = 'sim, cancelar';
+      cancelarSim.textContent = 'sim, pausar';
     }
+  });
+
+  // Retomar (reativa a MESMA assinatura pausada — sem cobrar do zero na graça).
+  const retomarBtn = root.querySelector('[data-retomar]');
+  retomarBtn?.addEventListener('click', async () => {
+    if (!supabase) return;
+    const txt = retomarBtn.textContent;
+    retomarBtn.disabled = true;
+    retomarBtn.textContent = 'retomando…';
+    try {
+      const { data, error } = await supabase.functions.invoke('resume-subscription', { body: {} });
+      if (error || !data?.ok) {
+        mostrarMsg('não deu pra retomar agora. tenta de novo daqui a pouco? 💛', 'erro');
+        return;
+      }
+      mostrarMsg('que bom te ver de volta — plano retomado. 💛', 'ok');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+    } finally {
+      retomarBtn.disabled = false;
+      retomarBtn.textContent = txt;
+    }
+  });
+
+  // Upgrade (só a diferença proporcional). A function decide: se a diferença for
+  // menor que o mínimo cobrável, aplica na hora ({applied}); senão devolve o
+  // {url} do checkout hospedado pra pagar a diferença.
+  const upgradeAbrir = root.querySelector('[data-upgrade-abrir]');
+  const upgradePainel = root.querySelector('[data-upgrade-painel]');
+  upgradeAbrir?.addEventListener('click', () => upgradePainel?.classList.toggle('hidden'));
+
+  const upgradeBtns = root.querySelectorAll('[data-upgrade-tier]');
+  const travarUpgrade = (v) => upgradeBtns.forEach((b) => (b.disabled = v));
+  upgradeBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!supabase) return;
+      const toTier = btn.dataset.upgradeTier;
+      if (!toTier) return;
+      travarUpgrade(true);
+      assinaturaMsg?.classList.add('hidden');
+      try {
+        const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+          body: { upgrade_to_tier: toTier },
+        });
+        if (error || (!data?.url && !data?.applied)) {
+          mostrarMsg('não deu pra fazer o upgrade agora. tenta de novo daqui a pouco? 💛', 'erro');
+          travarUpgrade(false);
+          return;
+        }
+        if (data.url) {
+          window.location.href = data.url; // paga só a diferença no checkout hospedado
+          return;
+        }
+        // Diferença abaixo do mínimo cobrável → foi por nossa conta, já aplicado.
+        mostrarMsg('pronto! teu plano já subiu — a diferença ficou por nossa conta. 💛', 'ok');
+        setTimeout(() => window.location.reload(), 1800);
+      } catch {
+        mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+        travarUpgrade(false);
+      }
+    });
   });
 
   // Editar nome/telefone — update na PRÓPRIA linha (RLS garante id = auth.uid()).
