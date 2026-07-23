@@ -187,6 +187,42 @@ async function resolveAsaasSubByRef(ref: string): Promise<any | null> {
   return null;
 }
 
+// Relê o checkout no Asaas (GET /checkouts/{id}). Depois de PAGO, o checkout de
+// assinatura costuma trazer a subscription vinculada — é a forma que a própria doc
+// do Asaas recomenda pra correlacionar (a cobrança/assinatura nasce DEPOIS do
+// checkout, então não dá pra confiar em índice por externalReference). Best-effort.
+async function fetchCheckout(checkoutId: string): Promise<any | null> {
+  try {
+    return await asaasGet(`/checkouts/${encodeURIComponent(checkoutId)}`);
+  } catch (err) {
+    console.warn('[asaas-webhook] falha ao buscar checkout', checkoutId, (err as Error).message);
+    return null;
+  }
+}
+
+// FALLBACK robusto: a assinatura recém-criada deste customer. O Asaas cria a
+// subscription no ato do pagamento do checkout, então listar as do cliente e pegar a
+// MAIS RECENTE resolve o id mesmo quando o externalReference não está indexável.
+// Seguro no nosso modelo (trava anti-duplicação → 1 assinatura vigente por usuário;
+// customer↔user é 1:1). Prefere a que casa com o externalReference, se houver.
+async function resolveAsaasSubByCustomer(customerId: string, ref?: string): Promise<any | null> {
+  try {
+    const list = await asaasGet(`/subscriptions?customer=${encodeURIComponent(customerId)}`);
+    const arr: any[] = list?.data ?? [];
+    if (!arr.length) return null;
+    if (ref) {
+      const match = arr.find((s) => s?.externalReference === ref);
+      if (match) return match;
+    }
+    // Mais recente por dateCreated (a que este checkout acabou de criar).
+    arr.sort((a, b) => String(b?.dateCreated ?? '').localeCompare(String(a?.dateCreated ?? '')));
+    return arr[0];
+  } catch (err) {
+    console.warn('[asaas-webhook] falha ao listar subscriptions por customer:', (err as Error).message);
+    return null;
+  }
+}
+
 // Existe profile pra esse user? Usado pra DESCARTAR (200, sem retry) eventos
 // órfãos — ex.: um CHECKOUT_PAID/pagamento de um usuário que foi APAGADO (conta
 // deletada). Sem isso, o upsert/creditPoints bateria na FK de profiles, o webhook
@@ -269,9 +305,28 @@ async function finalizeStoreOrder(checkout: any, alvo: 'pago' | 'cancelado'): Pr
   }
 }
 
+// Extrai o id da subscription de um objeto de checkout, cobrindo os formatos
+// possíveis do payload (evento ou GET /checkouts). Só devolve id de verdade — o
+// objeto de config da assinatura no CHECKOUT_CREATED ({cycle,nextDueDate}) NÃO tem
+// id, então idOf() volta null e a gente não confunde config com assinatura criada.
+function subIdFromCheckout(co: any): string | null {
+  return (
+    idOf(co?.subscription) ??
+    idOf(co?.subscriptionId) ??
+    (Array.isArray(co?.subscriptions) ? idOf(co.subscriptions[0]) : null)
+  );
+}
+
 // =============================================================================
 // ASSINATURA — em CHECKOUT_PAID: resolve a Subscription criada e grava a linha +
 // espelha o tier. NÃO credita pontos aqui (isso é nos eventos de pagamento).
+//
+// O CHECKOUT_PAID é o ÚNICO evento que carrega o nosso userId+tierSlug (via
+// externalReference `sub:`), então ele é o vinculador confiável. O problema: o
+// Asaas cria a assinatura DEPOIS do checkout e NÃO garante indexá-la pelo nosso
+// externalReference — a doc manda correlacionar pelo id do checkout. Por isso a
+// resolução do asaas_subscription_id vai por CASCATA, da fonte mais confiável
+// (o próprio checkout) pra mais defensiva.
 // =============================================================================
 async function activateSubscription(checkout: any): Promise<void> {
   const parsed = parseSubRef(checkout?.externalReference);
@@ -280,7 +335,6 @@ async function activateSubscription(checkout: any): Promise<void> {
     return;
   }
   const { userId, tierSlug } = parsed;
-  const customerId = idOf(checkout?.customer);
 
   // Usuário apagado (conta deletada) → descarta o evento (200, sem retry). Sem isso,
   // o upsert bateria na FK de profiles e daria 500 pra sempre, travando a fila.
@@ -289,19 +343,43 @@ async function activateSubscription(checkout: any): Promise<void> {
     return;
   }
 
-  // Resolve a Subscription criada. O nonce no externalReference garante 1 só. NÃO
-  // usamos fallback por customer: pegar "a mais recente do cliente" (arr[0]) pode
-  // agarrar a assinatura ERRADA (outra recorrência do mesmo cliente) e gravar o
-  // asaas_subscription_id trocado. O retry curto (resolveAsaasSubByRef) absorve o
-  // lag de indexação do Asaas — resolve já na 1ª entrega do webhook. Se AINDA assim
-  // não resolver, a gente prefere LANÇAR e deixar o Asaas reenviar — na retentativa
-  // a subscription já aparece. (Ver auditoria, Raiz B — B1.)
-  const asaasSub = await resolveAsaasSubByRef(checkout.externalReference);
+  // (1) id inline no payload do CHECKOUT_PAID, se vier.
+  let asaasSubId: string | null = subIdFromCheckout(checkout);
+  let customerId = idOf(checkout?.customer);
 
-  const asaasSubId = idOf(asaasSub?.id) ?? (asaasSub?.id ? String(asaasSub.id) : null);
+  // (2) Relê GET /checkouts/{id} — devolve a assinatura vinculada a ESTE checkout
+  // (INEQUÍVOCA: é a assinatura deste checkout, não "a mais recente do cliente") e
+  // o customer, caso o evento não os traga. É o método recomendado pela doc do Asaas.
+  if ((!asaasSubId || !customerId) && checkout?.id) {
+    const full = await fetchCheckout(String(checkout.id));
+    if (full) {
+      console.log('[asaas-webhook] GET /checkouts campos:', Object.keys(full).join(','));
+      asaasSubId = asaasSubId ?? subIdFromCheckout(full);
+      customerId = customerId ?? idOf(full?.customer);
+    }
+  }
+
+  // Objeto completo da subscription (status/período). Se ainda não temos id, cai pra
+  // (3) externalReference (retry curto p/ lag de indexação) e (4) customer, nessa
+  // ordem de confiança. O fallback por customer prefere o match por externalReference
+  // e, no resto, a MAIS RECENTE por dateCreated (a que este checkout acabou de criar)
+  // — nunca o arr[0] cru que o fix anterior removeu por pegar a assinatura errada.
+  let asaasSub: any = asaasSubId ? await fetchAsaasSubscription(asaasSubId) : null;
+  if (!asaasSub) asaasSub = await resolveAsaasSubByRef(checkout.externalReference); // (3)
+  if (!asaasSub && customerId) {
+    asaasSub = await resolveAsaasSubByCustomer(customerId, checkout.externalReference); // (4)
+  }
+
+  asaasSubId = asaasSubId ?? idOf(asaasSub);
   if (!asaasSubId) {
     // Sem id resolvível → não grava linha-fantasma (A4). Lança pra reprocessar.
-    throw new Error('subscription do Asaas ainda não resolvível por externalReference — retry');
+    throw new Error('subscription do Asaas ainda não resolvível — retry');
+  }
+  // Garante o objeto pra status/período CONFIÁVEIS (nunca chuta — ver Raiz B). Se o
+  // fetch falhar aqui, lança pra retry em vez de gravar status/período adivinhados.
+  if (!asaasSub) asaasSub = await fetchAsaasSubscription(asaasSubId);
+  if (!asaasSub) {
+    throw new Error('subscription resolvida por id mas fetch do objeto falhou — retry');
   }
   const status = mapSubStatus(asaasSub.status);
   const periodEndIso = dueDateToIso(asaasSub?.nextDueDate);
@@ -395,6 +473,17 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
   if (!userId && parsed) {
     userId = parsed.userId;
     tierSlug = parsed.tierSlug;
+  }
+  // Fallback: o pagamento nem sempre carrega o nosso externalReference `sub:`, mas a
+  // SUBSCRIPTION pode. Só busca quando ainda não resolvemos (zero custo no happy path,
+  // onde a linha de subscriptions — gravada no CHECKOUT_PAID — já resolveu tudo).
+  if ((!userId || !tierSlug) && asaasSubId) {
+    const asaasSub = await fetchAsaasSubscription(asaasSubId);
+    const p2 = parseSubRef(asaasSub?.externalReference);
+    if (p2) {
+      userId = userId ?? p2.userId;
+      tierSlug = tierSlug ?? p2.tierSlug;
+    }
   }
   if (!userId || !tierSlug) {
     console.warn('[asaas-webhook] pagamento de assinatura sem user resolvível:', payment?.id);
