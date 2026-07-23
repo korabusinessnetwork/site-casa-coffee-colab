@@ -615,13 +615,17 @@ Deno.serve(async (req) => {
     return new Response('JSON inválido', { status: 400 });
   }
 
-  // O id do evento vem como `evt_<hash>&<sequencia>`; o sufixo `&<sequencia>` MUDA a
-  // cada REENVIO do MESMO evento lógico (at-least-once delivery). Se a chave de
-  // idempotência fosse o id inteiro, cada reentrega teria chave nova e reprocessaria
-  // o mesmo evento (chamadas extras ao Asaas, checkAchievements redundante etc.). A
-  // chave é só a parte ESTÁVEL antes do `&`. (Se um dia não vier `&`, split é no-op.)
-  const rawEventId: string | null = evt?.id ?? null;
-  const eventId: string | null = rawEventId ? rawEventId.split('&')[0] : null;
+  // O id do evento vem como `evt_<hash>&<sequencia>`. A chave de idempotência é o id
+  // INTEIRO (com o sufixo). Já tentamos usar só a parte antes do `&` pra deduplicar
+  // reenvios do mesmo evento — mas o sandbox do Asaas REUTILIZA o mesmo `<hash>` base
+  // entre eventos GENUINAMENTE distintos (checkouts/pagamentos diferentes, dias
+  // diferentes). Com a chave base, o 1º CHECKOUT_PAID gravava `evt_<hash>` e TODO
+  // pagamento seguinte (mesmo hash) era descartado como "duplicado" → a assinatura
+  // NUNCA vinculava. Usar o id inteiro é seguro: os handlers já são idempotentes por
+  // objeto de negócio (creditPoints por payment.id; order por id; subscription por
+  // asaas_subscription_id via upsert), então, no pior caso, um reenvio só refaz um
+  // upsert inócuo — nunca duplica pontos nem pula um evento legítimo.
+  const eventId: string | null = evt?.id ?? null;
   const eventType: string = evt?.event ?? '';
   if (!eventId || !eventType) return new Response('payload sem id/event', { status: 400 });
 
