@@ -166,6 +166,27 @@ async function fetchAsaasSubscription(subId: string): Promise<any | null> {
   }
 }
 
+// Resolve a Subscription do Asaas por externalReference, com algumas tentativas
+// curtas (backoff). O Asaas leva alguns segundos pra indexar uma subscription
+// recém-criada por externalReference; sem esse retry a 1ª entrega do CHECKOUT_PAID
+// quase sempre falhava e a gente dependia do REENVIO do webhook — que na prática
+// levou de minutos a DIAS (bug do "plano não vincula"). O nonce no ref garante que a
+// lista tenha 1 só. Retorna a subscription ou null se não resolver dentro da janela.
+async function resolveAsaasSubByRef(ref: string): Promise<any | null> {
+  const esperasMs = [0, 1500, 3000]; // 3 tentativas; ≤ ~4.5s de espera no pior caso
+  for (let i = 0; i < esperasMs.length; i++) {
+    if (esperasMs[i] > 0) await new Promise((r) => setTimeout(r, esperasMs[i]));
+    try {
+      const list = await asaasGet(`/subscriptions?externalReference=${encodeURIComponent(ref)}`);
+      const arr: any[] = list?.data ?? [];
+      if (arr.length) return arr[arr.length - 1]; // mais recente com ESTE ref (nonce → 1 só)
+    } catch (err) {
+      console.warn('[asaas-webhook] falha ao listar subscriptions por externalReference:', (err as Error).message);
+    }
+  }
+  return null;
+}
+
 // Espelha o tier ativo no profiles + persiste o customer do Asaas (best-effort).
 async function mirrorProfile(userId: string, tierSlug: string | null, customerId: string | null): Promise<void> {
   const patch: Record<string, unknown> = { tier_slug: tierSlug };
@@ -250,19 +271,11 @@ async function activateSubscription(checkout: any): Promise<void> {
   // Resolve a Subscription criada. O nonce no externalReference garante 1 só. NÃO
   // usamos fallback por customer: pegar "a mais recente do cliente" (arr[0]) pode
   // agarrar a assinatura ERRADA (outra recorrência do mesmo cliente) e gravar o
-  // asaas_subscription_id trocado. Se o externalReference ainda não resolve (lag de
-  // propagação), a gente prefere LANÇAR e deixar o Asaas reenviar — na retentativa
+  // asaas_subscription_id trocado. O retry curto (resolveAsaasSubByRef) absorve o
+  // lag de indexação do Asaas — resolve já na 1ª entrega do webhook. Se AINDA assim
+  // não resolver, a gente prefere LANÇAR e deixar o Asaas reenviar — na retentativa
   // a subscription já aparece. (Ver auditoria, Raiz B — B1.)
-  let asaasSub: any = null;
-  try {
-    const list = await asaasGet(
-      `/subscriptions?externalReference=${encodeURIComponent(checkout.externalReference)}`,
-    );
-    const arr: any[] = list?.data ?? [];
-    if (arr.length) asaasSub = arr[arr.length - 1]; // mais recente com ESTE ref (nonce → 1 só)
-  } catch (err) {
-    console.warn('[asaas-webhook] falha ao listar subscriptions por externalReference:', (err as Error).message);
-  }
+  const asaasSub = await resolveAsaasSubByRef(checkout.externalReference);
 
   const asaasSubId = idOf(asaasSub?.id) ?? (asaasSub?.id ? String(asaasSub.id) : null);
   if (!asaasSubId) {
@@ -485,7 +498,13 @@ Deno.serve(async (req) => {
     return new Response('JSON inválido', { status: 400 });
   }
 
-  const eventId: string | null = evt?.id ?? null;
+  // O id do evento vem como `evt_<hash>&<sequencia>`; o sufixo `&<sequencia>` MUDA a
+  // cada REENVIO do MESMO evento lógico (at-least-once delivery). Se a chave de
+  // idempotência fosse o id inteiro, cada reentrega teria chave nova e reprocessaria
+  // o mesmo evento (chamadas extras ao Asaas, checkAchievements redundante etc.). A
+  // chave é só a parte ESTÁVEL antes do `&`. (Se um dia não vier `&`, split é no-op.)
+  const rawEventId: string | null = evt?.id ?? null;
+  const eventId: string | null = rawEventId ? rawEventId.split('&')[0] : null;
   const eventType: string = evt?.event ?? '';
   if (!eventId || !eventType) return new Response('payload sem id/event', { status: 400 });
 
