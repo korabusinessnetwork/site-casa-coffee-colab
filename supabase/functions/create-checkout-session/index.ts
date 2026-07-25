@@ -327,6 +327,18 @@ Deno.serve(async (req) => {
       subscription: {
         cycle: 'MONTHLY',
         nextDueDate: hoje,
+        // CRÍTICO p/ vincular a assinatura no webhook: carimba o NOSSO
+        // externalReference NA ASSINATURA criada — não só no checkout. O Asaas NÃO
+        // copia o externalReference do checkout pra subscription nem pros pagamentos
+        // dela; sem isto, `GET /subscriptions?externalReference` volta vazio no
+        // CHECKOUT_PAID e o PAYMENT_CONFIRMED não consegue resolver user/tier (a
+        // assinatura não tem o nosso ref). Com isto, tanto o resolveAsaasSubByRef
+        // (CHECKOUT_PAID) quanto o fallback do handleSubscriptionPayment (que lê o
+        // externalReference da subscription via GET /subscriptions/{id}) passam a
+        // achar o `sub:<user>:<tier>:<nonce>`. Campo desconhecido é ignorado pelo
+        // Asaas (não dá 400), então é seguro mesmo se o gateway não o honrar.
+        externalReference: `sub:${user.id}:${tier.slug}:${nonce}`,
+        description: `Assinatura ${tier.nome} · Casa Coffee Colab`,
       },
       items: [
         {
