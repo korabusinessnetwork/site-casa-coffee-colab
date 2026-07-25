@@ -104,6 +104,17 @@ function idOf(v: unknown): string | null {
   return null;
 }
 
+// UUID v-qualquer. Usado pra BLINDAR as queries `.eq('id'|'user_id', …)` em colunas
+// uuid: um externalReference forjado/externo (checkout criado fora do nosso fluxo na
+// MESMA conta Asaas) com id não-UUID faria o Postgres levantar 22P02 (invalid input
+// syntax for uuid) — um erro PERMANENTE que, com o throw-on-error, viraria 500 eterno
+// (poison event travando a fila). Filtrando ANTES, o não-UUID é descartado como órfão
+// (200) e o throw fica reservado a erros REALMENTE transitórios.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v: unknown): v is string {
+  return typeof v === 'string' && UUID_RE.test(v);
+}
+
 // Status da Subscription do Asaas → enum do banco (trial|ativa|pausada|cancelada).
 function mapSubStatus(s: unknown): string {
   switch (String(s ?? '').toUpperCase()) {
@@ -189,11 +200,19 @@ async function fetchAsaasSubscription(subId: string): Promise<any | null> {
 // daria 500 e o Asaas reenviaria pra sempre — podendo INTERROMPER a fila e travar
 // os eventos novos que estão ATRÁS do órfão. Órfão não é erro nosso: é nada-a-fazer.
 async function profileExists(userId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
+  // Não-UUID nunca existe em profiles (coluna uuid) e ainda dispararia 22P02 na
+  // query: trata como ausência (órfão) sem tocar o banco. Blinda o throw abaixo.
+  if (!isUuid(userId)) return false;
+  const { data, error } = await supabaseAdmin
     .from('profiles')
     .select('id')
     .eq('id', userId)
     .maybeSingle();
+  // Erro de consulta (rede/DB) NÃO é ausência de profile: propaga pra virar 500 e
+  // o Asaas reenviar. `false` fica reservado pra ausência REAL (usuário apagado) —
+  // senão um soluço transitório descartaria como órfão um evento legítimo (perde-se
+  // a vinculação da assinatura pra sempre, sem retry).
+  if (error) throw error;
   return !!data;
 }
 
@@ -216,12 +235,22 @@ async function finalizeStoreOrder(checkout: any, alvo: 'pago' | 'cancelado'): Pr
     console.warn('[asaas-webhook] checkout de loja sem externalReference (order id)');
     return;
   }
+  // Nossos pedidos usam SEMPRE order.id (uuid) como externalReference. Um id não-UUID
+  // é de um checkout externo/forjado na mesma conta Asaas — descarta gracioso (200) em
+  // vez de deixar o `.eq('id', <texto>)` estourar 22P02 e virar 500 eterno (poison).
+  if (!isUuid(orderId)) {
+    console.warn('[asaas-webhook] externalReference de loja não é UUID (checkout externo?), ignorando:', orderId);
+    return;
+  }
 
-  const { data: order } = await supabaseAdmin
+  const { data: order, error: orderErr } = await supabaseAdmin
     .from('orders')
     .select('id, user_id, status, total_centavos, tier_slug_aplicado')
     .eq('id', orderId)
     .maybeSingle();
+  // Falha de consulta ≠ pedido inexistente: propaga (→ 500 → Asaas reenvia). Só o
+  // `!order` limpo (sem erro) é ausência real — um pedido de outro fluxo/órfão.
+  if (orderErr) throw orderErr;
   if (!order) {
     console.warn('[asaas-webhook] pedido não encontrado pra checkout:', orderId);
     return;

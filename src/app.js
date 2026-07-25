@@ -1763,10 +1763,28 @@ async function requireAuth() {
   return session;
 }
 
-// Só aceita redirect interno (começa com "/" e não "//") — anti open-redirect.
+// Só aceita redirect INTERNO — anti open-redirect (defesa em camadas). Precisa começar
+// com "/" seguido de char que NÃO seja "/" nem "\": o navegador normaliza "\"→"/" em
+// schemes especiais, então tanto "//evil.com" quanto "/\evil.com" virariam host externo.
+// Também rejeita barra invertida e chars de controle em qualquer posição e, por fim,
+// resolve via URL confirmando que a origem é a NOSSA — devolvendo só o caminho normalizado.
 function sanitizeRedirect(valor) {
-  if (valor && /^\/(?!\/)/.test(valor)) return valor;
-  return null;
+  if (typeof valor !== 'string' || !valor) return null;
+  if (!/^\/(?![/\\])/.test(valor)) return null;          // bloqueia "//" e "/\"
+  if (/[\x00-\x1f\x7f\\]/.test(valor)) return null;      // sem chars de controle nem "\"
+  try {
+    const url = new URL(valor, window.location.origin);
+    if (url.origin !== window.location.origin) return null;
+    // Re-valida a SAÍDA: o parser WHATWG colapsa segmentos ("/.//evil" → "//evil";
+    // "/..//evil" → "//evil"), e um pathname que volte a começar com "//" ou "/\"
+    // vira protocol-relative (host externo) no window.location.href. Reaplica o mesmo
+    // gate de entrada sobre o caminho final antes de devolver.
+    const out = url.pathname + url.search + url.hash;
+    if (!/^\/(?![/\\])/.test(out)) return null;
+    return out;
+  } catch {
+    return null;
+  }
 }
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;

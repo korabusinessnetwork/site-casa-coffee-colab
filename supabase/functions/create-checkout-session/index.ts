@@ -134,14 +134,45 @@ Deno.serve(async (req) => {
       // cobrar (são centavos): sobe o value recorrente e o tier já.
       const ASAAS_MIN_CENTAVOS = 500;
       if (delta_centavos < ASAAS_MIN_CENTAVOS) {
+        // 1) Sobe o value recorrente no Asaas.
         await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
           value: reaisFromCentavos(novo.preco_centavos),
         });
-        await supabaseAdmin
+        // 2) Espelha o tier novo no banco: subscriptions PRIMEIRO (é dela que
+        // getEffectiveSubscription/getUserTierDiscount leem o tier), profiles depois.
+        const { error: subErr } = await supabaseAdmin
           .from('subscriptions')
           .update({ tier_slug: toSlug, updated_at: new Date().toISOString() })
           .eq('id', sub.id);
-        await supabaseAdmin.from('profiles').update({ tier_slug: toSlug }).eq('id', user.id);
+        const { error: profErr } = subErr
+          ? { error: null }
+          : await supabaseAdmin.from('profiles').update({ tier_slug: toSlug }).eq('id', user.id);
+        // Se QUALQUER passo falhar, DESFAZ tudo que pôde ter sido aplicado — senão
+        // sobra divergência silenciosa: ou "pagaria mais sem receber o tier", ou (pior)
+        // subscriptions já no tier novo enquanto o Asaas volta ao preço antigo →
+        // benefício sem pagamento. Reverte na ordem inversa (banco → Asaas), best-effort,
+        // e devolve 500 pra pessoa retentar, em vez de fingir que aplicou.
+        if (subErr || profErr) {
+          // subscriptions.tier_slug só precisa voltar se ELE foi de fato gravado
+          // (subErr nulo). Volta pro tier atual (sub.tier_slug), não pro novo.
+          if (!subErr) {
+            const { error: revSubErr } = await supabaseAdmin
+              .from('subscriptions')
+              .update({ tier_slug: sub.tier_slug, updated_at: new Date().toISOString() })
+              .eq('id', sub.id);
+            if (revSubErr) {
+              console.error('[create-checkout] falha ao reverter tier_slug da subscription:', revSubErr);
+            }
+          }
+          try {
+            await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
+              value: reaisFromCentavos(atual.preco_centavos),
+            });
+          } catch (revErr) {
+            console.error('[create-checkout] falha ao reverter value no Asaas:', revErr);
+          }
+          throw subErr || profErr;
+        }
         return jsonResponse({ applied: true, valor_delta_centavos: delta_centavos });
       }
 
