@@ -2145,8 +2145,8 @@ async function initPerfilPage() {
                     <h3 id="modal-titulo" class="font-titulo text-xl text-cafe" data-modal-titulo>tem certeza?</h3>
                     <p class="mt-2 text-sm text-cafe/70" data-modal-texto></p>
                     <div class="mt-5 flex justify-end gap-3">
-                      <button type="button" data-modal-nao class="btn-ghost text-sm">deixa quieto</button>
-                      <button type="button" data-modal-sim class="btn-primary text-sm">sim, pausar</button>
+                      <button type="button" data-modal-nao class="btn-primary text-sm">deixa quieto</button>
+                      <button type="button" data-modal-sim class="btn-ghost text-sm">sim, pausar</button>
                     </div>
                   </div>
                   <div data-modal-loading class="hidden flex-col items-center py-4 text-center">
