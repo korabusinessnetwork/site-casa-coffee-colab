@@ -2189,6 +2189,20 @@ async function initPerfilPage() {
                         : ''
                     }
                   </div>
+                  ${
+                    tiersDowngrade.length
+                      ? `<!-- Passo intermediário: confirma a descida de plano (evita missclick
+                               no botão do plano leve). Só é alcançável pelo off-ramp acima. -->
+                         <div data-modal-downgrade-confirm class="hidden">
+                           <h3 class="font-titulo text-xl text-cafe">descer pro plano <span data-dg-nome></span>?</h3>
+                           <p class="mt-2 text-sm text-cafe/70" data-dg-texto></p>
+                           <div class="mt-5 flex justify-end gap-3">
+                             <button type="button" data-dg-voltar class="btn-primary text-sm">voltar</button>
+                             <button type="button" data-dg-sim class="btn-ghost text-sm">sim, quero o mais leve</button>
+                           </div>
+                         </div>`
+                      : ''
+                  }
                   <div data-modal-loading class="hidden flex-col items-center py-4 text-center">
                     <span class="inline-block h-8 w-8 rounded-full border-2 border-cafe/20 border-t-terracota motion-safe:animate-spin" aria-hidden="true"></span>
                     <p class="mt-3 text-sm text-cafe/70" data-modal-loading-texto aria-live="polite">só um instante… 💛</p>
@@ -2260,6 +2274,11 @@ async function initPerfilPage() {
   const modalNao = root.querySelector('[data-modal-nao]');
   const modalLoadingTexto = root.querySelector('[data-modal-loading-texto]');
   const modalDowngrade = root.querySelector('[data-modal-downgrade]'); // desvio gentil (só no pausar)
+  const modalDgConfirm = root.querySelector('[data-modal-downgrade-confirm]'); // passo de confirmar o downgrade
+  const dgNome = root.querySelector('[data-dg-nome]');
+  const dgTexto = root.querySelector('[data-dg-texto]');
+  const dgVoltar = root.querySelector('[data-dg-voltar]');
+  const dgSim = root.querySelector('[data-dg-sim]');
   let modalTravado = false;
 
   const abrirModal = () => {
@@ -2278,6 +2297,7 @@ async function initPerfilPage() {
     modalTravado = true;
     if (modalLoadingTexto) modalLoadingTexto.textContent = txt;
     modalConfirm?.classList.add('hidden');
+    modalDgConfirm?.classList.add('hidden');
     modalLoading?.classList.remove('hidden');
     modalLoading?.classList.add('flex');
   };
@@ -2289,6 +2309,7 @@ async function initPerfilPage() {
     if (modalTexto) modalTexto.textContent = texto;
     if (modalSim) modalSim.textContent = sim;
     modalConfirm?.classList.remove('hidden');
+    modalDgConfirm?.classList.add('hidden'); // reseta o passo de confirmar downgrade
     // Desvio gentil de retenção: a confirmação só é usada no fluxo de pausar, então
     // revelar aqui mantém o "plano mais leve" restrito a esse momento (nunca na tela).
     modalDowngrade?.classList.remove('hidden');
@@ -2459,37 +2480,70 @@ async function initPerfilPage() {
   // Desvio de retenção (dentro do modal de pausar): em vez de pausar, AGENDA a descida
   // pro plano mais leve. A pessoa mantém o plano atual até o fim do período já pago; a
   // renovação vem no valor menor. A function refaz preço/validação server-side.
-  const downgradeBtns = root.querySelectorAll('[data-downgrade-tier]');
-  downgradeBtns.forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!supabase) return;
-      const toTier = btn.dataset.downgradeTier;
-      if (!toTier) return;
-      downgradeBtns.forEach((b) => (b.disabled = true));
-      modalParaCarregando('ajustando teu plano… 💛');
-      try {
-        const { data, error } = await supabase.functions.invoke('downgrade-subscription', {
-          body: { tier_slug: toTier },
-        });
-        if (error || !data?.ok) {
-          modalTravado = false;
-          fecharModal();
-          mostrarMsg('não deu pra ajustar teu plano agora. tenta de novo daqui a pouco? 💛', 'erro');
-          return;
-        }
-        const efet = data?.efetivo_em ? new Date(data.efetivo_em) : null;
-        const efetStr = efet && !Number.isNaN(efet.getTime()) ? efet.toLocaleDateString('pt-BR') : '';
-        if (modalLoadingTexto) {
-          modalLoadingTexto.textContent = `pronto — segue tudo igual${
-            efetStr ? ` até ${efetStr}` : ''
-          }, e depois teu plano fica mais leve. dá pra voltar atrás quando quiser. 💛`;
-        }
-        setTimeout(() => window.location.reload(), 2200);
-      } catch {
+  //
+  // Trava anti-missclick: clique no plano leve → passo de CONFIRMAÇÃO →
+  // "sim, quero o mais leve" → carregando → back. "voltar" retorna pro passo de pausar.
+  const planoNomeRaw = tiers.find((t) => t.slug === planoSlug)?.nome || planoSlug || 'teu plano';
+
+  // Executa o downgrade de fato (só depois da confirmação).
+  const executarDowngrade = async (toTier) => {
+    if (!supabase) return;
+    modalParaCarregando('ajustando teu plano… 💛');
+    try {
+      const { data, error } = await supabase.functions.invoke('downgrade-subscription', {
+        body: { tier_slug: toTier },
+      });
+      if (error || !data?.ok) {
         modalTravado = false;
         fecharModal();
-        mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+        mostrarMsg('não deu pra ajustar teu plano agora. tenta de novo daqui a pouco? 💛', 'erro');
+        return;
       }
+      const efet = data?.efetivo_em ? new Date(data.efetivo_em) : null;
+      const efetStr = efet && !Number.isNaN(efet.getTime()) ? efet.toLocaleDateString('pt-BR') : '';
+      if (modalLoadingTexto) {
+        modalLoadingTexto.textContent = `pronto — segue tudo igual${
+          efetStr ? ` até ${efetStr}` : ''
+        }, e depois teu plano fica mais leve. dá pra voltar atrás quando quiser. 💛`;
+      }
+      setTimeout(() => window.location.reload(), 2200);
+    } catch {
+      modalTravado = false;
+      fecharModal();
+      mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+    }
+  };
+
+  // Passo intermediário: mostra a confirmação do downgrade com os dados do plano
+  // escolhido (nome + preço), pra evitar missclick. textContent = sem risco de XSS.
+  const abrirDowngradeConfirm = (toTier) => {
+    const alvo = tiersDowngrade.find((t) => t.slug === toTier);
+    if (!alvo) { executarDowngrade(toTier); return; } // sem dados do tier: segue direto
+    if (dgNome) dgNome.textContent = alvo.nome;
+    if (dgTexto) {
+      dgTexto.textContent = `tu mantém o ${planoNomeRaw}${
+        proximaCobranca ? ` até ${proximaCobranca}` : ''
+      } e, a partir daí, renova no ${alvo.nome} por ${formatBRL(alvo.preco_centavos)}/mês — sem pagar do zero.`;
+    }
+    if (dgSim) dgSim.onclick = () => executarDowngrade(toTier); // handler fresco a cada abertura
+    modalConfirm?.classList.add('hidden');
+    modalDgConfirm?.classList.remove('hidden');
+    dgSim?.focus();
+  };
+
+  // "voltar" no passo de confirmação → retorna pro passo de pausar (com o off-ramp).
+  dgVoltar?.addEventListener('click', () => {
+    modalDgConfirm?.classList.add('hidden');
+    modalConfirm?.classList.remove('hidden');
+    modalSim?.focus();
+  });
+
+  const downgradeBtns = root.querySelectorAll('[data-downgrade-tier]');
+  downgradeBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const toTier = btn.dataset.downgradeTier;
+      if (!toTier) return;
+      abrirDowngradeConfirm(toTier);
     });
   });
 
