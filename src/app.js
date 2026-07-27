@@ -1,6 +1,6 @@
 // =============================================================================
-// Casa Coffee Colab — app.js
-// Camada de interface (JS vanilla). Um arquivo por camada — ver CLAUDE.md.
+// Casa Coffee Colab, app.js
+// Camada de interface (JS vanilla). Um arquivo por camada, ver CLAUDE.md.
 //
 // Header, footer e menu são funções que injetam HTML nos placeholders da página:
 //   <div id="site-header"></div>  /  <div id="site-footer"></div>
@@ -114,7 +114,7 @@ const MARCA = {
   bio: 'O Casa é café, afeto e comida boa',
   cta: 'Entra, senta, fica um pouco',
   contato: {
-    endereco: 'R. Victor Hugo Kunz, 411 — Hamburgo Velho, Novo Hamburgo/RS',
+    endereco: 'R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS',
     email: 'casacoffeecolab@gmail.com',
     telefone: '(51) 99360-5262',
     telefoneHref: '+5551993605262',
@@ -150,7 +150,7 @@ function activeNavHref() {
 
 // =============================================================================
 // AUTH (Supabase Auth)
-// Só a ANON key no client — a RLS do banco é quem protege os dados (ver CLAUDE.md).
+// Só a ANON key no client, a RLS do banco é quem protege os dados (ver CLAUDE.md).
 // O papel (role) do usuário vem SEMPRE do profiles (banco), nunca do client.
 // Sessão persiste no localStorage (padrão do supabase-js) e sobrevive à navegação.
 // =============================================================================
@@ -160,13 +160,13 @@ const supabaseConfigurado =
   Boolean(SUPABASE_URL && SUPABASE_ANON_KEY) &&
   !/placeholder/i.test(SUPABASE_URL);
 
-// Client único (ou null se ainda não configurado — as telas degradam com aviso gentil).
+// Client único (ou null se ainda não configurado, as telas degradam com aviso gentil).
 export const supabase = supabaseConfigurado
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
 if (!supabaseConfigurado) {
-  // Aviso só no console — nada de segredo, nada de quebrar a página.
+  // Aviso só no console, nada de segredo, nada de quebrar a página.
   console.warn(
     '[Casa] Supabase não configurado. Preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.'
   );
@@ -243,7 +243,7 @@ function mensagemDeErroAuth(error) {
 }
 
 // =============================================================================
-// CATÁLOGO (MOCK — virá do Supabase na Fase 2)
+// CATÁLOGO (MOCK, virá do Supabase na Fase 2)
 // TODO: substituir este array pela tabela `products` do Supabase (ver CLAUDE.md).
 // Cada produto: id, nome, slug, categoria, preco_centavos, descricao,
 // imagemPlaceholder (classe .photo-*), variantes (opcional).
@@ -262,7 +262,7 @@ const PRODUTOS = [
     categoria: 'cafe_grao',
     preco_centavos: 4990,
     descricao:
-      'Nosso blend autoral — encorpado, de final doce. Torrado em micro-lote pra chegar fresquinho na tua xícara.',
+      'Nosso blend autoral, encorpado, de final doce. Torrado em micro-lote pra chegar fresquinho na tua xícara.',
     imagemPlaceholder: 'photo-warm',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
   },
@@ -284,7 +284,7 @@ const PRODUTOS = [
     categoria: 'cafe_grao',
     preco_centavos: 5290,
     descricao:
-      'Pra ficar um pouco mais sem perder o sono. Descafeinado suave, doce e redondo — no teu ritmo.',
+      'Pra ficar um pouco mais sem perder o sono. Descafeinado suave, doce e redondo, no teu ritmo.',
     imagemPlaceholder: 'photo-bege',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
   },
@@ -380,7 +380,7 @@ function formatBRL(centavos) {
 
 // =============================================================================
 // CARRINHO
-// Estado persistido em localStorage (chave "casa_cart") — o site é multi-página,
+// Estado persistido em localStorage (chave "casa_cart"), o site é multi-página,
 // então o carrinho PRECISA sobreviver a reloads/navegação.
 // Item guardado: { key, produtoId, variante, qtd }. `key` = produtoId::variante,
 // pra somar o mesmo produto+variante e separar variantes diferentes.
@@ -401,7 +401,7 @@ const Cart = {
     try {
       localStorage.setItem(CART_KEY, JSON.stringify(items));
     } catch {
-      /* localStorage indisponível (modo privado) — segue em memória da sessão */
+      /* localStorage indisponível (modo privado), segue em memória da sessão */
     }
     cartListeners.forEach((fn) => fn(items));
   },
@@ -479,7 +479,7 @@ function renderHeader() {
         <!-- CTA desktop -->
         <a href="/pages/cardapio.html" class="btn-primary hidden lg:inline-flex">${MARCA.cta}</a>
 
-        <!-- Auth (desktop) — preenchido por updateAuthUI conforme a sessão -->
+        <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
         <div class="hidden items-center lg:flex" data-auth-slot></div>
 
         <!-- Carrinho -->
@@ -522,7 +522,7 @@ function renderHeader() {
         <nav class="mx-auto max-w-7xl px-4 py-4 sm:px-6" aria-label="Navegação mobile">
           ${linksMobile}
           <a href="/pages/cardapio.html" class="btn-primary mt-4 w-full" data-menu-link>${MARCA.cta}</a>
-          <!-- Auth (mobile) — preenchido por updateAuthUI conforme a sessão -->
+          <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
           <div class="mt-4 border-t border-cafe/10 pt-4" data-auth-slot-mobile></div>
         </nav>
       </div>
@@ -645,7 +645,7 @@ function renderFooter() {
 }
 
 // =============================================================================
-// DRAWER DO CARRINHO — painel lateral reutilizável (qualquer página).
+// DRAWER DO CARRINHO, painel lateral reutilizável (qualquer página).
 // Injetado uma vez no <body>. Fecha por X, Esc e clique no backdrop.
 // Anima com transições CSS (zeradas por prefers-reduced-motion no styles.css).
 // =============================================================================
@@ -745,7 +745,7 @@ function updateCartUI() {
   const subtotalEl = footer.querySelector('[data-cart-subtotal]');
   if (subtotalEl) subtotalEl.textContent = formatBRL(Cart.getSubtotalCentavos());
 
-  // Aviso do desconto do tier (informativo — o valor real entra no checkout).
+  // Aviso do desconto do tier (informativo, o valor real entra no checkout).
   const descEl = footer.querySelector('[data-cart-discount]');
   if (descEl) {
     if (cartDiscountPct > 0) {
@@ -814,12 +814,12 @@ function initCart() {
       else if (e.target.closest('[data-cart-remove]')) Cart.removeItem(key);
     });
 
-    // Checkout — chama a Edge Function create-checkout-session (mode 'payment').
+    // Checkout, chama a Edge Function create-checkout-session (mode 'payment').
     const checkoutBtn = root.querySelector('[data-checkout]');
     const checkoutNote = root.querySelector('[data-checkout-note]');
     const avisarCheckout = (msg) => {
       if (!checkoutNote) return;
-      checkoutNote.textContent = msg; // textContent (nunca innerHTML) — anti-XSS
+      checkoutNote.textContent = msg; // textContent (nunca innerHTML), anti-XSS
       checkoutNote.classList.remove('hidden');
     };
     checkoutBtn?.addEventListener('click', async () => {
@@ -886,7 +886,7 @@ function initCart() {
 }
 
 // Busca o desconto do tier ATIVO do usuário e mostra o aviso gentil no drawer.
-// É só informativo — o desconto REAL é aplicado server-side no checkout.
+// É só informativo, o desconto REAL é aplicado server-side no checkout.
 let cartDiscountPct = 0;
 async function loadCartDiscount() {
   if (!supabase) return;
@@ -903,14 +903,14 @@ async function loadCartDiscount() {
 }
 
 // =============================================================================
-// Carrossel reutilizável (scroll-snap) — serve pros 3 tracks da home.
+// Carrossel reutilizável (scroll-snap), serve pros 3 tracks da home.
 //
 // Contrato de DOM:
 //   <div data-carousel="hero|cards">
 //     <div data-carousel-track class="carousel-track">…slides…</div>
-//     <div data-dots></div>                 (opcional — bolinhas)
-//     <button data-carousel-prev>…</button> (opcional — desktop)
-//     <button data-carousel-next>…</button> (opcional — desktop)
+//     <div data-dots></div>                 (opcional, bolinhas)
+//     <button data-carousel-prev>…</button> (opcional, desktop)
+//     <button data-carousel-next>…</button> (opcional, desktop)
 //   </div>
 //
 // setupCarousel(trackEl, { dots, autoplay, interval })
@@ -1053,7 +1053,7 @@ function setupCarousel(trackEl, { dots = false, autoplay = false, interval = 550
 }
 
 // =============================================================================
-// PÁGINA DE CATÁLOGO (loja.html) — grid + filtro por categoria.
+// PÁGINA DE CATÁLOGO (loja.html), grid + filtro por categoria.
 // DOM: [data-catalog-grid] pro grid; [data-filter="all|<categoria>"] nos botões.
 // =============================================================================
 function cardProdutoHTML(p) {
@@ -1122,7 +1122,7 @@ function initCatalogPage() {
 }
 
 // =============================================================================
-// PÁGINA DE PRODUTO (produto.html) — lê ?slug=, renderiza o detalhe.
+// PÁGINA DE PRODUTO (produto.html), lê ?slug=, renderiza o detalhe.
 // DOM: [data-product-root] recebe o markup (ou o estado vazio gentil).
 // =============================================================================
 function initProductPage() {
@@ -1143,7 +1143,7 @@ function initProductPage() {
     return;
   }
 
-  document.title = `${p.nome} — Casa Coffee Colab`;
+  document.title = `${p.nome}, Casa Coffee Colab`;
 
   let variante = p.variantes ? p.variantes.opcoes[0] : null;
   let qtd = 1;
@@ -1230,9 +1230,9 @@ function initProductPage() {
 }
 
 // =============================================================================
-// BOTÕES "assinar" ([data-assinar][data-tier]) — leva DIRETO pro Checkout do Asaas.
+// BOTÕES "assinar" ([data-assinar][data-tier]), leva DIRETO pro Checkout do Asaas.
 // Liga tanto a página de planos (planos.html) quanto o teaser "Faz parte do Casa"
-// da home — o mesmo contrato de DOM. A Edge Function create-checkout-session (modo
+// da home, o mesmo contrato de DOM. A Edge Function create-checkout-session (modo
 // assinatura) monta o link; aqui a gente só redireciona. Deslogado → login e volta
 // pra origem. Sem supabase configurado, degrada com aviso gentil.
 // =============================================================================
@@ -1243,7 +1243,7 @@ function initPlanosPage() {
 
   const avisar = (msg) => {
     if (!nota) return;
-    nota.textContent = msg; // textContent (nunca innerHTML) — sem risco de XSS
+    nota.textContent = msg; // textContent (nunca innerHTML), sem risco de XSS
     nota.classList.remove('hidden');
     nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
@@ -1257,7 +1257,7 @@ function initPlanosPage() {
   };
 
   // Abre o Checkout hospedado do Asaas (modo assinatura). O preço vem do BANCO na
-  // Edge Function — o client só manda o tier_slug; functions.invoke já envia o JWT
+  // Edge Function, o client só manda o tier_slug; functions.invoke já envia o JWT
   // da sessão no Authorization (a function valida e vincula a assinatura ao user.id).
   const irProPagamento = async (tier, btn) => {
     const textoBtn = btn.textContent;
@@ -1284,7 +1284,7 @@ function initPlanosPage() {
   // Lê a própria linha de subscriptions (RLS: só o dono lê) e aplica o MESMO gating
   // do getEffectiveSubscription: 'ativa' concede sempre; 'pausada' só enquanto o
   // período pago não venceu; 'ativa' ganha de 'pausada' no desempate. Retorna a que
-  // concede benefício agora, ou null. É só UX — o backend (409) é a trava de verdade.
+  // concede benefício agora, ou null. É só UX, o backend (409) é a trava de verdade.
   const assinaturaVigente = async (userId) => {
     if (!userId) return null;
     const { data: subs, error } = await supabase
@@ -1307,7 +1307,7 @@ function initPlanosPage() {
 
   // Confirmação de conta ANTES de pagar: mostra com qual conta (a sessão em cache) a
   // pessoa vai assinar e deixa TROCAR de conta. Assim ninguém assina numa conta em
-  // cache sem querer — dá pra escolher outra. Montado via DOM (o e-mail entra por
+  // cache sem querer, dá pra escolher outra. Montado via DOM (o e-mail entra por
   // textContent, nunca innerHTML) → sem risco de XSS.
   const pedirConfirmacao = (tier, btn, email) => {
     if (!nota) return irProPagamento(tier, btn); // página sem a nota → comportamento antigo
@@ -1367,7 +1367,7 @@ function initPlanosPage() {
       if (!session) return irProLogin();
 
       // Já assina? Abrir um novo checkout criaria uma 2ª recorrência (cobrança
-      // dobrada) — o backend recusa (409), mas a gente avisa gentil aqui antes,
+      // dobrada), o backend recusa (409), mas a gente avisa gentil aqui antes,
       // apontando pro upgrade no perfil (troca de plano sem pagar do zero).
       const original = btn.textContent;
       btn.disabled = true;
@@ -1381,7 +1381,7 @@ function initPlanosPage() {
       }
       if (vigente) {
         avisar(
-          'você já tem uma assinatura vigente por aqui 💛 pra trocar de plano, usa o "fazer upgrade" na tua conta — a gente cobra só a diferença dos dias que faltam.',
+          'você já tem uma assinatura vigente por aqui 💛 pra trocar de plano, usa o "fazer upgrade" na tua conta, a gente cobra só a diferença dos dias que faltam.',
         );
         return;
       }
@@ -1394,7 +1394,7 @@ function initPlanosPage() {
 // Página de sucesso do checkout: compra concluída → esvazia o carrinho local.
 // (A fonte da verdade do pedido é o banco, gravado pelo webhook; o carrinho é só UI.)
 // Também mostra "+X pontos" quando o webhook terminar de creditar (é assíncrono,
-// então a gente sonda o ledger algumas vezes pelo `ref` da URL — o orders.id que a
+// então a gente sonda o ledger algumas vezes pelo `ref` da URL, o orders.id que a
 // gente passou como externalReference/successUrl no checkout da LOJA).
 // Na volta da ASSINATURA a successUrl é `?assinatura=1` (sem ref): os pontos da
 // assinatura são creditados no evento de pagamento (ref = payment.id, que o client
@@ -1418,11 +1418,11 @@ async function initCheckoutSucessoPage() {
   const ref = params.get('ref');
 
   // Upgrade (?upgrade=1): a volta é da diferença proporcional, não de uma compra
-  // nova — deixa a copy coerente (sem "pedido").
+  // nova, deixa a copy coerente (sem "pedido").
   if (params.get('upgrade') === '1') {
     setCopy(
       'plano turbinado 💛',
-      'teu upgrade tá confirmado. o novo plano já vale a partir de agora — a diferença de hoje foi só pelos dias que faltavam do ciclo.',
+      'teu upgrade tá confirmado. o novo plano já vale a partir de agora, a diferença de hoje foi só pelos dias que faltavam do ciclo.',
     );
     return; // sem pontos a sondar aqui (upgrade é ajuste, não compra)
   }
@@ -1431,7 +1431,7 @@ async function initCheckoutSucessoPage() {
   if (params.get('assinatura') === '1') {
     setCopy(
       'bem-vindo à turma do Casa 💛',
-      'tua assinatura tá confirmada. a gente já tá preparando teu cantinho — teu plano aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
+      'tua assinatura tá confirmada. a gente já tá preparando teu cantinho, teu plano aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
     );
     return; // pontos da assinatura vêm por payment.id (o client não conhece) → não sonda
   }
@@ -1440,7 +1440,7 @@ async function initCheckoutSucessoPage() {
   if (ref) {
     setCopy(
       'pedido confirmado 💛',
-      'teu pagamento tá confirmado. a gente já tá cuidando do teu pedido — ele aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
+      'teu pagamento tá confirmado. a gente já tá cuidando do teu pedido, ele aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
     );
   }
 
@@ -1471,7 +1471,7 @@ async function initCheckoutSucessoPage() {
 }
 
 // =============================================================================
-// AUTH — UI do header, guard de rota e páginas (cadastro/login/perfil).
+// AUTH, UI do header, guard de rota e páginas (cadastro/login/perfil).
 // =============================================================================
 
 // Sai da conta e volta pra home.
@@ -1582,7 +1582,7 @@ function authMobileLogado(nome) {
     </button>`;
 }
 
-// Fecha o painel por Esc e por clique fora — ligado UMA vez (evita empilhar
+// Fecha o painel por Esc e por clique fora, ligado UMA vez (evita empilhar
 // listeners a cada updateAuthUI). Consulta o painel vivo no momento do evento.
 let userPanelGlobalWired = false;
 function initUserPanelGlobal() {
@@ -1683,7 +1683,7 @@ async function renderUserPanel(panel) {
     .map((a) => {
       const icone = iconeConquista(a.icone);
       const on = desbloq.has(a.slug);
-      const dicaTip = a.dica ? ` — ${escapeHtml(a.dica)}` : '';
+      const dicaTip = a.dica ? `, ${escapeHtml(a.dica)}` : '';
       return on
         ? `<span title="${escapeHtml(a.nome)}" class="grid h-9 w-9 place-items-center rounded-full bg-terracota/10 text-terracota"><i data-lucide="${icone}" class="h-4 w-4"></i></span>`
         : `<span title="${escapeHtml(a.nome)}${dicaTip}" class="grid h-9 w-9 place-items-center rounded-full bg-cafe/5 text-cafe/30"><i data-lucide="lock" class="h-4 w-4"></i></span>`;
@@ -1783,7 +1783,7 @@ async function initAuth() {
 }
 
 // Guard: exige sessão. Sem sessão → manda pro login guardando o destino.
-// NUNCA confia em role do client — quem precisar de papel lê do profiles (banco).
+// NUNCA confia em role do client, quem precisar de papel lê do profiles (banco).
 async function requireAuth() {
   const session = await getSession();
   if (!session) {
@@ -1794,11 +1794,11 @@ async function requireAuth() {
   return session;
 }
 
-// Só aceita redirect INTERNO — anti open-redirect (defesa em camadas). Precisa começar
+// Só aceita redirect INTERNO, anti open-redirect (defesa em camadas). Precisa começar
 // com "/" seguido de char que NÃO seja "/" nem "\": o navegador normaliza "\"→"/" em
 // schemes especiais, então tanto "//evil.com" quanto "/\evil.com" virariam host externo.
 // Também rejeita barra invertida e chars de controle em qualquer posição e, por fim,
-// resolve via URL confirmando que a origem é a NOSSA — devolvendo só o caminho normalizado.
+// resolve via URL confirmando que a origem é a NOSSA, devolvendo só o caminho normalizado.
 function sanitizeRedirect(valor) {
   if (typeof valor !== 'string' || !valor) return null;
   if (!/^\/(?![/\\])/.test(valor)) return null;          // bloqueia "//" e "/\"
@@ -1885,7 +1885,7 @@ function initCadastroPage() {
       const sucesso = document.querySelector('[data-cadastro-sucesso]');
       if (sucesso) {
         const alvo = sucesso.querySelector('[data-email-alvo]');
-        if (alvo) alvo.textContent = email; // textContent (não innerHTML) — sem risco de XSS
+        if (alvo) alvo.textContent = email; // textContent (não innerHTML), sem risco de XSS
         sucesso.classList.remove('hidden');
       }
     } catch (err) {
@@ -1952,7 +1952,7 @@ function initLoginPage() {
     }
   });
 
-  // Esqueci a senha — envia o link de redefinição (Supabase resetPasswordForEmail).
+  // Esqueci a senha, envia o link de redefinição (Supabase resetPasswordForEmail).
   form.querySelector('[data-reset]')?.addEventListener('click', async () => {
     limparErro();
     const email = form.email.value.trim();
@@ -1964,7 +1964,7 @@ function initLoginPage() {
         redirectTo: `${siteBase()}/pages/login.html`,
       });
     } catch {
-      /* não revela se o e-mail existe — mensagem é sempre a mesma */
+      /* não revela se o e-mail existe, mensagem é sempre a mesma */
     }
     if (resetMsg) {
       resetMsg.textContent = 'se esse e-mail tiver conta, o link pra criar uma senha nova já tá a caminho. 💛';
@@ -1989,10 +1989,10 @@ async function initPerfilPage() {
 
   // ── Estado da assinatura (pra "gerenciar assinatura") ─────────────────────
   // Lê a linha MAIS RECENTE do próprio usuário em ('ativa','pausada','cancelada')
-  // — RLS garante que só vem a dele. E a lista de tiers (leitura pública) pra
+  //, RLS garante que só vem a dele. E a lista de tiers (leitura pública) pra
   // montar as opções de upgrade e o nome/preço do plano. Nada disso confia no
   // client: preço e cálculo do upgrade são refeitos server-side na Edge Function.
-  // ('cancelada' entra pra oferecer "voltar pro plano" — a assinatura sumiu do
+  // ('cancelada' entra pra oferecer "voltar pro plano", a assinatura sumiu do
   // Asaas, então é um checkout novo, não um "retomar".)
   let plano = 'ainda sem plano';
   let planoSlug = profile?.tier_slug || null;
@@ -2037,7 +2037,7 @@ async function initPerfilPage() {
   const agora = Date.now();
   const ativa = subStatus === 'ativa';
   const emGraca = subStatus === 'pausada' && Number.isFinite(periodEndMs) && periodEndMs > agora;
-  const pausada = subStatus === 'pausada'; // em graça OU vencida — dá pra retomar dos dois
+  const pausada = subStatus === 'pausada'; // em graça OU vencida, dá pra retomar dos dois
   // Encerrada de vez no Asaas (404): não dá pra "retomar", só re-assinar. Só vale
   // como estado gerenciável se ainda sabemos qual era o tier (pra oferecer a volta).
   const reassinavel = subStatus === 'cancelada' && Boolean(planoSlug);
@@ -2103,15 +2103,15 @@ async function initPerfilPage() {
                   ? temDowngradeAgendado
                     ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> segue ativo${
                         proximaCobranca ? ` até <strong class="font-semibold text-cafe">${proximaCobranca}</strong>` : ''
-                      } — e a partir daí vira <strong class="font-semibold text-cafe">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}.</p>`
+                      }, e a partir daí vira <strong class="font-semibold text-cafe">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}.</p>`
                     : `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá ativo.${
                         proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-cafe">${proximaCobranca}</strong>.` : ''
                       }</p>`
                   : emGraca
-                    ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-cafe">${ativoAte}</strong> — e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
+                    ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-cafe">${ativoAte}</strong>, e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
                     : reassinavel
-                      ? `<p class="mt-2 text-sm text-cafe/70">tua assinatura do <strong class="font-semibold text-cafe">${plano}</strong> foi encerrada. quando quiser voltar, a porta tá aberta — é uma assinatura nova, começando um ciclo do zero.</p>`
-                      : `<p class="mt-2 text-sm text-cafe/70">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser — reativando a mesma assinatura.</p>`
+                      ? `<p class="mt-2 text-sm text-cafe/70">tua assinatura do <strong class="font-semibold text-cafe">${plano}</strong> foi encerrada. quando quiser voltar, a porta tá aberta, é uma assinatura nova, começando um ciclo do zero.</p>`
+                      : `<p class="mt-2 text-sm text-cafe/70">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser, reativando a mesma assinatura.</p>`
               }
 
               <div class="mt-4 flex flex-wrap gap-3">
@@ -2173,7 +2173,7 @@ async function initPerfilPage() {
                              <p class="text-center text-xs uppercase tracking-wide text-cafe/40">ou, se preferir</p>
                              <p class="mt-2 text-sm text-cafe/70">dá pra continuar com a gente num plano mais leve. tu mantém o ${plano}${
                                proximaCobranca ? ` até ${proximaCobranca}` : ''
-                             } e, a partir daí, segue no novo — sem pagar do zero.</p>
+                             } e, a partir daí, segue no novo, sem pagar do zero.</p>
                              <div class="mt-3 grid gap-2">
                                ${tiersDowngrade
                                  .map(
@@ -2221,7 +2221,7 @@ async function initPerfilPage() {
 
       <form class="mt-10" data-perfil-form novalidate>
         <h2 class="font-titulo text-xl">teus dados</h2>
-        <p class="mt-1 text-sm text-cafe/60">atualiza quando quiser — é só teu.</p>
+        <p class="mt-1 text-sm text-cafe/60">atualiza quando quiser, é só teu.</p>
 
         <div class="mt-5">
           <label for="perfil-nome" class="block text-sm font-medium text-cafe">nome</label>
@@ -2264,7 +2264,7 @@ async function initPerfilPage() {
   // ── Modal (popup) reutilizável: confirmação + carregamento ────────────────
   // Passo 1 (só no pausar): confirmação. Passo 2 (pausar E retomar): carregando.
   // Fecha por Esc/backdrop/"deixa quieto" APENAS na confirmação; no carregando fica
-  // travado (`modalTravado`) — a pessoa aguarda a volta do back sem fechar sem querer.
+  // travado (`modalTravado`), a pessoa aguarda a volta do back sem fechar sem querer.
   const modal = root.querySelector('[data-modal]');
   const modalConfirm = root.querySelector('[data-modal-confirm]');
   const modalLoading = root.querySelector('[data-modal-loading]');
@@ -2319,7 +2319,7 @@ async function initPerfilPage() {
     abrirModal();
     modalSim?.focus();
   };
-  // Vai DIRETO pro carregando (usado no retomar — sem confirmação).
+  // Vai DIRETO pro carregando (usado no retomar, sem confirmação).
   const abrirCarregando = (txt) => {
     if (!modal) return;
     modalParaCarregando(txt);
@@ -2338,7 +2338,7 @@ async function initPerfilPage() {
       titulo: 'pausar teu plano?',
       texto: `tu para de ser cobrado, mas mantém os benefícios até ${
         proximaCobranca || 'o fim do período'
-      }. depois é só retomar — sem pagar de novo.`,
+      }. depois é só retomar, sem pagar de novo.`,
       sim: 'sim, pausar',
       onSim: async () => {
         if (!supabase) return;
@@ -2369,7 +2369,7 @@ async function initPerfilPage() {
     });
   });
 
-  // Retomar (reativa a MESMA assinatura pausada — sem cobrar do zero na graça).
+  // Retomar (reativa a MESMA assinatura pausada, sem cobrar do zero na graça).
   // Fluxo: clique → estado de carregando DIRETO (sem confirmação) → back.
   const retomarBtn = root.querySelector('[data-retomar]');
   retomarBtn?.addEventListener('click', async () => {
@@ -2386,7 +2386,7 @@ async function initPerfilPage() {
         }
         modalTravado = false;
         fecharModal();
-        // 409: a assinatura pausada perdeu o vínculo com o gateway — não dá pra
+        // 409: a assinatura pausada perdeu o vínculo com o gateway, não dá pra
         // "retomar", mas dá pra voltar pro mesmo plano numa assinatura nova.
         if (corpo?.precisa_reassinar) {
           mostrarMsg('essa assinatura perdeu o vínculo com o pagamento, então não dá pra retomar por aqui. atualiza a página pra voltar pro teu plano numa assinatura nova. 💛', 'erro');
@@ -2395,12 +2395,12 @@ async function initPerfilPage() {
         }
         return;
       }
-      // Vencido: a cobrança foi disparada mas ainda não confirmou — o benefício
+      // Vencido: a cobrança foi disparada mas ainda não confirmou, o benefício
       // volta quando o pagamento cair (o webhook reativa). No período pago, já valeu.
       if (modalLoadingTexto) {
         modalLoadingTexto.textContent = data.cobranca_em_processamento
-          ? 'tô reativando teu plano — a cobrança tá sendo processada. assim que cair, teus benefícios voltam. 💛'
-          : 'que bom te ver de volta — plano retomado. 💛';
+          ? 'tô reativando teu plano, a cobrança tá sendo processada. assim que cair, teus benefícios voltam. 💛'
+          : 'que bom te ver de volta, plano retomado. 💛';
       }
       setTimeout(() => window.location.reload(), 2200);
     } catch {
@@ -2411,7 +2411,7 @@ async function initPerfilPage() {
   });
 
   // Voltar pro plano (assinatura cancelada de vez no Asaas → não dá pra "retomar",
-  // então abre um checkout NOVO pro mesmo tier — assinatura nova, ciclo do zero).
+  // então abre um checkout NOVO pro mesmo tier, assinatura nova, ciclo do zero).
   const reassinarBtn = root.querySelector('[data-reassinar]');
   reassinarBtn?.addEventListener('click', async () => {
     if (!supabase) return;
@@ -2468,7 +2468,7 @@ async function initPerfilPage() {
           return;
         }
         // Diferença abaixo do mínimo cobrável → foi por nossa conta, já aplicado.
-        mostrarMsg('pronto! teu plano já subiu — a diferença ficou por nossa conta. 💛', 'ok');
+        mostrarMsg('pronto! teu plano já subiu, a diferença ficou por nossa conta. 💛', 'ok');
         setTimeout(() => window.location.reload(), 1800);
       } catch {
         mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
@@ -2502,7 +2502,7 @@ async function initPerfilPage() {
       const efet = data?.efetivo_em ? new Date(data.efetivo_em) : null;
       const efetStr = efet && !Number.isNaN(efet.getTime()) ? efet.toLocaleDateString('pt-BR') : '';
       if (modalLoadingTexto) {
-        modalLoadingTexto.textContent = `pronto — segue tudo igual${
+        modalLoadingTexto.textContent = `pronto, segue tudo igual${
           efetStr ? ` até ${efetStr}` : ''
         }, e depois teu plano fica mais leve. dá pra voltar atrás quando quiser. 💛`;
       }
@@ -2523,7 +2523,7 @@ async function initPerfilPage() {
     if (dgTexto) {
       dgTexto.textContent = `tu mantém o ${planoNomeRaw}${
         proximaCobranca ? ` até ${proximaCobranca}` : ''
-      } e, a partir daí, renova no ${alvo.nome} por ${formatBRL(alvo.preco_centavos)}/mês — sem pagar do zero.`;
+      } e, a partir daí, renova no ${alvo.nome} por ${formatBRL(alvo.preco_centavos)}/mês, sem pagar do zero.`;
     }
     if (dgSim) dgSim.onclick = () => executarDowngrade(toTier); // handler fresco a cada abertura
     modalConfirm?.classList.add('hidden');
@@ -2548,7 +2548,7 @@ async function initPerfilPage() {
   });
 
   // Manter o plano atual (desfaz um downgrade agendado). Volta a renovar no valor cheio
-  // do tier atual. Sem confirmação — é a ação "positiva" (a pessoa está ficando).
+  // do tier atual. Sem confirmação, é a ação "positiva" (a pessoa está ficando).
   const manterBtn = root.querySelector('[data-manter-plano]');
   manterBtn?.addEventListener('click', async () => {
     if (!supabase) return;
@@ -2564,7 +2564,7 @@ async function initPerfilPage() {
         mostrarMsg('não deu pra desfazer agora. tenta de novo daqui a pouco? 💛', 'erro');
         return;
       }
-      if (modalLoadingTexto) modalLoadingTexto.textContent = 'que bom que ficou — teu plano segue igual. 💛';
+      if (modalLoadingTexto) modalLoadingTexto.textContent = 'que bom que ficou, teu plano segue igual. 💛';
       setTimeout(() => window.location.reload(), 1800);
     } catch {
       modalTravado = false;
@@ -2573,7 +2573,7 @@ async function initPerfilPage() {
     }
   });
 
-  // Editar nome/telefone — update na PRÓPRIA linha (RLS garante id = auth.uid()).
+  // Editar nome/telefone, update na PRÓPRIA linha (RLS garante id = auth.uid()).
   const perfilForm = root.querySelector('[data-perfil-form]');
   const msg = root.querySelector('[data-perfil-msg]');
   const salvarBtn = perfilForm?.querySelector('[type="submit"]');
@@ -2743,7 +2743,7 @@ async function initPontosPage() {
             ${
               planoNome
                 ? `teu plano <span class="font-medium">${escapeHtml(planoNome)}</span> rende <span class="font-medium">${multTxt}x</span> pontos`
-                : `os pontos são um agrado de quem tem plano — <a href="/pages/planos.html" class="font-medium text-terracota underline decoration-terracota/40 underline-offset-2 hover:decoration-terracota">ativa um pra começar a pontuar</a>`
+                : `os pontos são um agrado de quem tem plano, <a href="/pages/planos.html" class="font-medium text-terracota underline decoration-terracota/40 underline-offset-2 hover:decoration-terracota">ativa um pra começar a pontuar</a>`
             }
           </p>
         </div>
@@ -2768,7 +2768,7 @@ async function initPontosPage() {
             <h2 class="font-titulo text-xl">como funciona</h2>
             <ul class="mt-3 space-y-2 text-sm text-cafe/75">
               <li>· os pontos são um mimo de quem tem plano ativo.</li>
-              <li>· com plano, 1 ponto a cada R$1 — e teu tier multiplica (Ouro rende 1,5x).</li>
+              <li>· com plano, 1 ponto a cada R$1, e teu tier multiplica (Ouro rende 1,5x).</li>
               <li>· na loja, contam sobre o valor já com teu desconto.</li>
               <li>· é só juntar e trocar por um agrado quando quiser.</li>
             </ul>
@@ -2836,7 +2836,7 @@ async function initPontosPage() {
           // …e só então mostra o resultado (busca o elemento fresco → sobrevive).
           mostrarResultado(
             `<p class="font-titulo text-lg">resgatado com carinho 💛</p>
-             <p class="mt-1 text-sm text-cafe/75">${escapeHtml(String(data.reward || nome))} — teu novo saldo é <span class="font-medium">${Number(data.saldo || 0).toLocaleString('pt-BR')}</span> pontos.</p>
+             <p class="mt-1 text-sm text-cafe/75">${escapeHtml(String(data.reward || nome))}, teu novo saldo é <span class="font-medium">${Number(data.saldo || 0).toLocaleString('pt-BR')}</span> pontos.</p>
              ${cupomHtml}`
           );
         } catch {
@@ -2859,7 +2859,7 @@ async function initPontosPage() {
           b.innerHTML = '<i data-lucide="check" class="h-4 w-4"></i>copiado';
           renderIcons();
         } catch {
-          /* clipboard indisponível — o código fica visível pra copiar à mão */
+          /* clipboard indisponível, o código fica visível pra copiar à mão */
         }
       })
     );
@@ -2872,7 +2872,7 @@ async function initPontosPage() {
 // Grid dos emblemas: desbloqueados coloridos com a data; bloqueados em silhueta
 // (cadeado) com uma dica gentil (a própria descrição da conquista). A engine de
 // desbloqueio é 100% server-side (check_achievements, chamada nos webhooks e no
-// resgate) — aqui a página só LÊ (RLS: achievements é público; user_achievements,
+// resgate), aqui a página só LÊ (RLS: achievements é público; user_achievements,
 // só o próprio). Ícone e textos do banco são escapados antes de ir pro DOM.
 
 // Só aceita nomes de ícone Lucide que a gente registrou (evita <i> vazio e não
@@ -2960,7 +2960,7 @@ async function initConquistasPage() {
       <p class="decor text-2xl sm:text-3xl">tuas conquistas</p>
       <div class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
         <p class="font-titulo text-5xl text-terracota">${conquistadas}<span class="text-2xl text-cafe/40">/${total}</span></p>
-        <p class="pb-1 text-cafe/70">emblemas desbloqueados — cada um do teu jeito, no teu tempo.</p>
+        <p class="pb-1 text-cafe/70">emblemas desbloqueados, cada um do teu jeito, no teu tempo.</p>
       </div>
 
       <section class="mt-10">
@@ -3149,7 +3149,7 @@ async function initAuthConfirmadoPage() {
            <i data-lucide="heart" class="h-8 w-8"></i>
          </span>
          <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">teu e-mail tá confirmado</h1>
-         <p class="mt-3 text-cafe/70">bem-vindo ao Casa. 💛 tua conta já tá pronta — chega mais.</p>
+         <p class="mt-3 text-cafe/70">bem-vindo ao Casa. 💛 tua conta já tá pronta, chega mais.</p>
          <a href="/pages/conta/perfil.html" class="btn-primary mt-7">ir pra minha conta</a>`
       : `<span class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-terracota/10 text-terracota">
            <i data-lucide="mail" class="h-8 w-8"></i>
