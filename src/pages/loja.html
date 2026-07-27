@@ -13,37 +13,64 @@
       content="Vestuário, acessórios e café em grão do Casa Coffee Colab. Leva junto um pedacinho da casa."
     />
   </head>
-  <body class="min-h-screen">
+  <body>
     <!-- Header injetado pelo app.js -->
     <div id="site-header"></div>
 
-    <main class="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 3xl:max-w-[1600px]">
-      <header class="max-w-2xl">
-        <p class="decor text-2xl sm:text-3xl">passa aqui?</p>
-        <h1 class="mt-1 font-titulo text-4xl sm:text-5xl">A loja do Casa</h1>
-        <p class="mt-3 text-cafe/70">
-          vestuário, acessórios e café em grão, feitos com afeto pra levar junto, no teu ritmo.
-        </p>
-      </header>
+    <main>
+      <!-- ===================================================================
+           CABEÇALHO — catálogo da loja (paper, sem hero — o header já entra
+           sólido aqui, mesmo mecanismo das páginas internas sem imagem).
+           =================================================================== -->
+      <section class="page-head">
+        <div class="wrap">
+          <div class="reveal">
+            <span class="eyebrow">Loja Casa</span>
+            <h1 class="title lg">A loja do Casa</h1>
+            <p class="lede">
+              Vestuário, acessórios e café em grão, feitos com afeto pra levar junto, no teu ritmo.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      <!-- Filtro por categoria -->
-      <div class="mt-8 flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoria">
-        <button type="button" class="filtro" data-filter="all" aria-pressed="true">Todos</button>
-        <button type="button" class="filtro" data-filter="vestuario" aria-pressed="false">Vestuário</button>
-        <button type="button" class="filtro" data-filter="acessorios" aria-pressed="false">Acessórios</button>
-        <button type="button" class="filtro" data-filter="cafe_grao" aria-pressed="false">Café em grão</button>
-      </div>
+      <!-- ===================================================================
+           FILTRO + GRID — o grid é preenchido pelo app.js (initCatalogPage)
+           dentro de [data-catalog-grid]; o estado vazio [data-catalog-empty]
+           some assim que há resultados visíveis.
+           =================================================================== -->
+      <section class="section tight">
+        <div class="wrap">
+          <div
+            class="reveal"
+            style="display: flex; flex-wrap: wrap; gap: 10px"
+            role="group"
+            aria-label="Filtrar por categoria"
+          >
+            <button type="button" class="filtro" data-filter="all" data-categoria="all" aria-pressed="true">
+              Todos
+            </button>
+            <button type="button" class="filtro" data-filter="vestuario" data-categoria="vestuario" aria-pressed="false">
+              Vestuário
+            </button>
+            <button type="button" class="filtro" data-filter="acessorios" data-categoria="acessorios" aria-pressed="false">
+              Acessórios
+            </button>
+            <button type="button" class="filtro" data-filter="cafe_grao" data-categoria="cafe_grao" aria-pressed="false">
+              Café em grão
+            </button>
+          </div>
 
-      <!-- Grid preenchido pelo app.js (initCatalogPage) -->
-      <div
-        data-catalog-grid
-        class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6"
-      ></div>
+          <!-- Grid preenchido pelo app.js (initCatalogPage) -->
+          <div data-catalog-grid class="card-grid cols-3 reveal" style="margin-top: 34px"></div>
 
-      <!-- Estado vazio (some quando há resultados) -->
-      <p data-catalog-empty class="hidden py-16 text-center text-cafe/60">
-        nada por aqui ainda, mas logo a gente traz novidade.
-      </p>
+          <!-- Estado vazio (some quando há resultados) -->
+          <div data-catalog-empty class="empty hidden">
+            <p class="e-title">nada por aqui ainda</p>
+            <p>mas fica tranquilo — logo a gente traz novidade pra vitrine.</p>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer injetado pelo app.js -->

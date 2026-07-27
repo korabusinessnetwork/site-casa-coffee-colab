@@ -263,7 +263,7 @@ const PRODUTOS = [
     preco_centavos: 4990,
     descricao:
       'Nosso blend autoral, encorpado, de final doce. Torrado em micro-lote pra chegar fresquinho na tua xícara.',
-    imagemPlaceholder: 'photo-warm',
+    imagemPlaceholder: 'ph-drink',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
   },
   {
@@ -274,7 +274,7 @@ const PRODUTOS = [
     preco_centavos: 5490,
     descricao:
       'Micro-lote de um produtor vizinho, com notas de castanha e caramelo. A gente serve por tempo limitado.',
-    imagemPlaceholder: 'photo-green',
+    imagemPlaceholder: 'ph-tote',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
   },
   {
@@ -285,7 +285,7 @@ const PRODUTOS = [
     preco_centavos: 5290,
     descricao:
       'Pra ficar um pouco mais sem perder o sono. Descafeinado suave, doce e redondo, no teu ritmo.',
-    imagemPlaceholder: 'photo-bege',
+    imagemPlaceholder: 'ph-tan light',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
   },
   {
@@ -296,7 +296,7 @@ const PRODUTOS = [
     preco_centavos: 19990,
     descricao:
       'Quentinho pra vestir nos dias de café e chuva. Algodão macio, bordado discreto do Casa no peito.',
-    imagemPlaceholder: 'photo-green',
+    imagemPlaceholder: 'ph-tote',
     variantes: { rotulo: 'Tamanho', opcoes: ['P', 'M', 'G', 'GG'] },
   },
   {
@@ -307,7 +307,7 @@ const PRODUTOS = [
     preco_centavos: 8990,
     descricao:
       'Leve, de algodão, com a nossa frase preferida estampada. Pra levar um pedacinho do Casa por aí.',
-    imagemPlaceholder: 'photo-warm',
+    imagemPlaceholder: 'ph-drink',
     variantes: { rotulo: 'Tamanho', opcoes: ['P', 'M', 'G', 'GG'] },
   },
   {
@@ -318,7 +318,7 @@ const PRODUTOS = [
     preco_centavos: 11990,
     descricao:
       'O mesmo avental que a gente usa na cozinha. Linho encorpado, bolso na frente, feito pra durar.',
-    imagemPlaceholder: 'photo-bege',
+    imagemPlaceholder: 'ph-tan light',
     variantes: { rotulo: 'Tamanho', opcoes: ['Único'] },
   },
   {
@@ -329,7 +329,7 @@ const PRODUTOS = [
     preco_centavos: 5990,
     descricao:
       'Cerâmica feita à mão pelo Ateliê Lomba Grande, em residência com a gente. Cada peça é única.',
-    imagemPlaceholder: 'photo-warm',
+    imagemPlaceholder: 'ph-drink',
     variantes: null,
   },
   {
@@ -340,7 +340,7 @@ const PRODUTOS = [
     preco_centavos: 7990,
     descricao:
       'Do tamanho certo pra um livro, o café e o resto do dia. Linho natural que envelhece bonito.',
-    imagemPlaceholder: 'photo-green',
+    imagemPlaceholder: 'ph-tote',
     variantes: null,
   },
   {
@@ -351,7 +351,7 @@ const PRODUTOS = [
     preco_centavos: 3990,
     descricao:
       'Nosso convite favorito, pra carregar junto. Algodão cru, alça reforçada, cabe a feira inteira.',
-    imagemPlaceholder: 'photo-bege',
+    imagemPlaceholder: 'ph-tan light',
     variantes: null,
   },
   {
@@ -362,7 +362,7 @@ const PRODUTOS = [
     preco_centavos: 6990,
     descricao:
       'Pra fazer em casa o café que tu toma aqui. Suporte de madeira e filtro de pano reutilizável.',
-    imagemPlaceholder: 'photo-warm',
+    imagemPlaceholder: 'ph-drink',
     variantes: null,
   },
 ];
@@ -449,81 +449,60 @@ function renderHeader() {
 
   const ativo = activeNavHref();
 
+  // Nav editorial (uppercase/letter-spacing vêm do CSS .mainnav a). aria-current
+  // marca a página atual; o CSS pinta em dourado.
   const linksDesktop = NAV.map((item) => {
-    const isAtivo = item.href === ativo;
-    return `<a href="${item.href}"${isAtivo ? ' aria-current="page"' : ''} class="transition-colors ${
-      isAtivo ? 'font-semibold text-terracota' : 'text-cafe/80 hover:text-terracota'
-    }">${item.rotulo}</a>`;
+    const on = item.href === ativo;
+    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''}>${item.rotulo}</a>`;
   }).join('');
 
   const linksMobile = NAV.map((item) => {
-    const isAtivo = item.href === ativo;
-    return `<a href="${item.href}"${isAtivo ? ' aria-current="page"' : ''} class="block py-3 text-lg transition-colors ${
-      isAtivo ? 'font-semibold text-terracota' : 'text-cafe hover:text-terracota'
-    }" data-menu-link>${item.rotulo}</a>`;
+    const on = item.href === ativo;
+    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''} data-menu-link>${item.rotulo}</a>`;
   }).join('');
 
   slot.innerHTML = `
-    <header id="topo" class="fixed inset-x-0 top-0 z-50 transition-colors duration-300" data-site-header>
-      <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 md:h-20 3xl:max-w-[1600px]">
-        <!-- Logo -->
-        <a href="#topo" class="flex items-center gap-2 shrink-0">
-          <span class="font-titulo text-lg font-semibold text-terracota sm:text-xl">Casa Coffee Colab</span>
+    <header id="topo" class="site-header" data-site-header>
+      <div class="wrap">
+        <!-- Marca -->
+        <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab — início">
+          <span class="big">CASA</span>
+          <span class="small">COFFEE COLAB</span>
         </a>
 
         <!-- Nav desktop -->
-        <nav class="hidden items-center gap-6 text-sm font-medium lg:flex" aria-label="Navegação principal">
-          ${linksDesktop}
-        </nav>
+        <nav class="mainnav" aria-label="Navegação principal">${linksDesktop}</nav>
 
-        <!-- CTA desktop -->
-        <a href="/pages/cardapio.html" class="btn-primary hidden lg:inline-flex">${MARCA.cta}</a>
+        <div class="header-right">
+          <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
+          <div class="auth-desktop" data-auth-slot></div>
 
-        <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
-        <div class="hidden items-center lg:flex" data-auth-slot></div>
+          <!-- Carrinho -->
+          <button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
+            <i data-lucide="shopping-bag"></i>
+            <span class="cart-badge hidden" data-cart-count aria-live="polite">0</span>
+          </button>
 
-        <!-- Carrinho -->
-        <button
-          type="button"
-          class="relative inline-flex items-center justify-center rounded-full p-2 text-cafe hover:bg-cafe/10"
-          aria-label="Abrir carrinho"
-          data-cart-toggle
-        >
-          <i data-lucide="shopping-bag" class="h-6 w-6"></i>
-          <span
-            class="absolute -right-0.5 -top-0.5 hidden min-w-[1.15rem] rounded-full bg-terracota px-1 text-center text-[0.7rem] font-semibold leading-[1.15rem] text-bege"
-            data-cart-count
-            aria-live="polite"
-          >0</span>
-        </button>
+          <!-- CTA -->
+          <a href="/pages/o-casa.html" class="btn-visit">Visite-nos</a>
 
-        <!-- Botão hambúrguer (mobile) -->
-        <button
-          type="button"
-          class="inline-flex items-center justify-center rounded-full p-2 text-cafe hover:bg-cafe/10 lg:hidden"
-          aria-label="Abrir menu"
-          aria-expanded="false"
-          aria-controls="menu-mobile"
-          data-menu-toggle
-        >
-          <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" data-icon-open />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M6 18L18 6" class="hidden" data-icon-close />
-          </svg>
-        </button>
+          <!-- Hambúrguer (mobile) -->
+          <button type="button" class="burger" aria-label="Abrir menu"
+            aria-expanded="false" aria-controls="menu-mobile" data-menu-toggle>
+            <span></span><span></span><span></span>
+          </button>
+        </div>
       </div>
 
-      <!-- Menu mobile (drawer) -->
-      <div
-        id="menu-mobile"
-        class="hidden border-t border-cafe/10 bg-bege/95 backdrop-blur-md lg:hidden"
-        data-menu-panel
-      >
-        <nav class="mx-auto max-w-7xl px-4 py-4 sm:px-6" aria-label="Navegação mobile">
+      <!-- Menu mobile (dropdown sob o header) -->
+      <div id="menu-mobile" class="menu-mobile hidden" data-menu-panel>
+        <nav class="menu-inner" aria-label="Navegação mobile">
           ${linksMobile}
-          <a href="/pages/cardapio.html" class="btn-primary mt-4 w-full" data-menu-link>${MARCA.cta}</a>
+          <div class="menu-cta">
+            <a href="/pages/o-casa.html" class="btn-visit" data-menu-link>Visite-nos</a>
+          </div>
           <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
-          <div class="mt-4 border-t border-cafe/10 pt-4" data-auth-slot-mobile></div>
+          <div data-auth-slot-mobile></div>
         </nav>
       </div>
     </header>
@@ -536,37 +515,35 @@ function initHeaderInteractions() {
   const header = document.querySelector('[data-site-header]');
   const toggle = document.querySelector('[data-menu-toggle]');
   const panel = document.querySelector('[data-menu-panel]');
-  const iconOpen = document.querySelector('[data-icon-open]');
-  const iconClose = document.querySelector('[data-icon-close]');
 
-  // Blur + fundo ao rolar
+  // Estado do header conforme a página:
+  // - home (tem [data-hero-transparent]): transparente sobre o hero escuro e vira
+  //   sólido (.scrolled) ao passar do hero;
+  // - páginas internas (sem hero escuro): já entra sólido desde o topo.
   if (header) {
-    const aplicarScroll = () => {
-      const rolou = window.scrollY > 8;
-      header.classList.toggle('bg-bege/80', rolou);
-      header.classList.toggle('backdrop-blur-md', rolou);
-      header.classList.toggle('shadow-sm', rolou);
-      header.classList.toggle('shadow-cafe/5', rolou);
-    };
-    aplicarScroll();
-    window.addEventListener('scroll', aplicarScroll, { passive: true });
+    const heroTransparente = !!document.querySelector('[data-hero-transparent]');
+    if (heroTransparente) {
+      const aplicar = () => {
+        header.classList.toggle('scrolled', window.scrollY > window.innerHeight * 0.72);
+      };
+      aplicar();
+      window.addEventListener('scroll', aplicar, { passive: true });
+    } else {
+      header.classList.add('scrolled');
+    }
   }
 
-  // Menu hambúrguer
+  // Menu hambúrguer (a animação em X vem do CSS via aria-expanded na .burger)
   if (toggle && panel) {
     const fechar = () => {
       panel.classList.add('hidden');
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-label', 'Abrir menu');
-      iconOpen?.classList.remove('hidden');
-      iconClose?.classList.add('hidden');
     };
     const abrir = () => {
       panel.classList.remove('hidden');
       toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-label', 'Fechar menu');
-      iconOpen?.classList.add('hidden');
-      iconClose?.classList.remove('hidden');
     };
     toggle.addEventListener('click', () => {
       const aberto = toggle.getAttribute('aria-expanded') === 'true';
@@ -590,58 +567,116 @@ function renderFooter() {
   const { contato, redes } = MARCA;
 
   const linksNav = NAV.map(
-    (item) =>
-      `<li><a href="${item.href}" class="text-bege/80 hover:text-bege transition-colors">${item.rotulo}</a></li>`
+    (item) => `<a href="${item.href}">${item.rotulo}</a>`
   ).join('');
 
   const linksRedes = redes
-    .map(
-      (r) =>
-        `<a href="${r.href}" class="text-bege/80 hover:text-bege transition-colors" aria-label="${r.nome}">${r.nome}</a>`
-    )
+    .map((r) => `<a href="${r.href}" aria-label="${r.nome}">${r.nome}</a>`)
     .join('');
 
   slot.innerHTML = `
-    <footer class="bg-cafe text-bege">
-      <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:py-16 3xl:max-w-[1600px]">
-        <!-- Bio -->
-        <div class="sm:col-span-2 lg:col-span-1">
-          <p class="font-titulo text-xl text-bege">Casa Coffee Colab</p>
-          <p class="mt-3 font-decor text-2xl text-caramelo">${MARCA.bio}</p>
+    <footer class="foot">
+      <div class="wrap">
+        <!-- Marca + bio -->
+        <div>
+          <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab — início">
+            <span class="big">CASA</span>
+            <span class="small">COFFEE COLAB</span>
+          </a>
+          <p class="decor">${MARCA.bio}</p>
         </div>
 
         <!-- Navegação -->
         <div>
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-bege/60">Por aqui</h3>
-          <ul class="mt-4 space-y-2 text-sm">${linksNav}</ul>
+          <p class="ft-label">Navegar</p>
+          <nav aria-label="Rodapé — navegação">${linksNav}</nav>
         </div>
 
-        <!-- Contato -->
+        <!-- A casa -->
         <div>
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-bege/60">A gente te espera</h3>
-          <address class="mt-4 space-y-2 text-sm not-italic text-bege/80">
+          <p class="ft-label">A casa</p>
+          <address>
             <p>${contato.endereco}</p>
-            <p><a href="mailto:${contato.email}" class="hover:text-bege transition-colors">${contato.email}</a></p>
-            <p><a href="tel:${contato.telefoneHref}" class="hover:text-bege transition-colors">${contato.telefone}</a></p>
+            <a href="mailto:${contato.email}">${contato.email}</a>
+            <a href="tel:${contato.telefoneHref}">${contato.telefone}</a>
             <p>${contato.horario}</p>
           </address>
         </div>
 
         <!-- Redes -->
         <div>
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-bege/60">Cola com a gente</h3>
-          <div class="mt-4 flex flex-col gap-2 text-sm">${linksRedes}</div>
+          <p class="ft-label">Redes</p>
+          <nav aria-label="Rodapé — redes sociais">${linksRedes}</nav>
         </div>
       </div>
 
-      <div class="border-t border-bege/10">
-        <div class="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-6 text-xs text-bege/50 sm:flex-row sm:items-center sm:justify-between sm:px-6 3xl:max-w-[1600px]">
-          <p>© ${new Date().getFullYear()} Casa Coffee Colab · feito com afeto em Novo Hamburgo/RS</p>
-          <p class="font-decor text-base text-caramelo">passa aqui?</p>
+      <div class="bottom">
+        <div class="wrap">
+          <p>© ${new Date().getFullYear()} Casa Coffee Colab · Novo Hamburgo/RS</p>
+          <p>Feito com afeto ☕</p>
         </div>
       </div>
     </footer>
   `;
+}
+
+// --- Tab bar (mobile) ----------------------------------------------------------
+// Barra fixa inferior que só aparece sob 820px (CSS .tabbar). Injetada uma vez no
+// <body>; espelha os principais destinos e marca o ativo com aria-current.
+function renderTabbar() {
+  if (document.querySelector('[data-tabbar]')) return; // injeta uma vez só
+
+  const ativo = activeNavHref();
+  const HOME = '/pages/home.html';
+  const on = (href) => (href === ativo ? ' aria-current="page"' : '');
+
+  const el = document.createElement('nav');
+  el.className = 'tabbar';
+  el.setAttribute('data-tabbar', '');
+  el.setAttribute('aria-label', 'Navegação rápida');
+  el.innerHTML = `
+    <a href="/pages/cardapio.html"${on('/pages/cardapio.html')}>
+      <i data-lucide="utensils"></i><span>Cardápio</span>
+    </a>
+    <a href="/pages/loja.html"${on('/pages/loja.html')}>
+      <i data-lucide="shopping-bag"></i><span>Loja</span>
+    </a>
+    <a href="${HOME}" class="center" aria-label="Início"${on(HOME)}>C</a>
+    <a href="/pages/planos.html"${on('/pages/planos.html')}>
+      <i data-lucide="sparkles"></i><span>Clube</span>
+    </a>
+    <a href="/pages/colab.html"${on('/pages/colab.html')}>
+      <i data-lucide="users"></i><span>Colab</span>
+    </a>
+  `;
+  document.body.appendChild(el);
+}
+
+// --- Reveal on scroll ----------------------------------------------------------
+// Revela elementos .reveal ao entrarem na viewport (adiciona .in). Respeita
+// prefers-reduced-motion (o CSS já deixa tudo visível nesse caso).
+function initReveal() {
+  const alvos = document.querySelectorAll('.reveal');
+  if (!alvos.length) return;
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (semMovimento || !('IntersectionObserver' in window)) {
+    alvos.forEach((el) => el.classList.add('in'));
+    return;
+  }
+
+  const obs = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          obs.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.12, rootMargin: '0px 0px -6% 0px' }
+  );
+  alvos.forEach((el) => obs.observe(el));
 }
 
 // =============================================================================
@@ -660,23 +695,24 @@ function renderDrawer() {
         role="dialog"
         aria-modal="true"
         aria-label="Teu carrinho"
-        class="absolute right-0 top-0 flex h-full w-full max-w-sm translate-x-full flex-col bg-bege shadow-2xl transition-transform duration-300"
+        class="absolute right-0 top-0 flex h-full w-full max-w-sm translate-x-full flex-col shadow-2xl transition-transform duration-300"
+        style="background:var(--paper)"
       >
-        <header class="flex items-center justify-between border-b border-cafe/10 px-5 py-4">
-          <p class="font-titulo text-lg">Teu carrinho</p>
-          <button type="button" data-drawer-close aria-label="Fechar carrinho" class="rounded-full p-1.5 text-cafe hover:bg-cafe/10">
+        <header class="flex items-center justify-between border-b border-line px-5 py-4">
+          <p class="title sm">Teu carrinho</p>
+          <button type="button" data-drawer-close aria-label="Fechar carrinho" class="rounded-full p-1.5 text-ink hover:bg-ink/10">
             <i data-lucide="x" class="h-5 w-5"></i>
           </button>
         </header>
         <div data-cart-items class="flex-1 overflow-y-auto px-5"></div>
-        <footer data-cart-footer class="hidden border-t border-cafe/10 px-5 py-4">
+        <footer data-cart-footer class="hidden border-t border-line px-5 py-4">
           <div class="flex items-center justify-between">
-            <span class="text-sm text-cafe/70">subtotal</span>
-            <span class="font-titulo text-lg" data-cart-subtotal>R$ 0,00</span>
+            <span class="text-sm text-muted">subtotal</span>
+            <span class="title sm" data-cart-subtotal>R$ 0,00</span>
           </div>
-          <p class="mt-2 hidden text-center text-xs text-verde" data-cart-discount></p>
-          <button type="button" data-checkout class="btn-primary mt-4 w-full">finalizar compra</button>
-          <p class="mt-3 hidden text-center text-xs text-terracota" data-checkout-note aria-live="polite"></p>
+          <p class="mt-2 hidden text-center text-xs" style="color:var(--green)" data-cart-discount></p>
+          <button type="button" data-checkout class="btn solid block mt-4">finalizar compra</button>
+          <p class="mt-3 hidden text-center text-xs text-coral" data-checkout-note aria-live="polite"></p>
         </footer>
       </aside>
     </div>
@@ -702,10 +738,10 @@ function updateCartUI() {
   const items = Cart.getCart();
   if (items.length === 0) {
     wrap.innerHTML = `
-      <div class="py-16 text-center">
-        <p class="decor text-2xl">teu carrinho tá vazio</p>
-        <p class="mx-auto mt-2 max-w-[16rem] text-sm text-cafe/60">passa na loja e leva junto o que te agradar, no teu ritmo.</p>
-        <a href="/pages/loja.html" class="btn-primary mt-6">ver a loja</a>
+      <div class="empty">
+        <p class="e-title">teu carrinho tá vazio</p>
+        <p class="mx-auto max-w-[16rem]">passa na loja e leva junto o que te agradar, no teu ritmo.</p>
+        <a href="/pages/loja.html" class="btn solid">ver a loja</a>
       </div>`;
     footer.classList.add('hidden');
     renderIcons();
@@ -717,25 +753,25 @@ function updateCartUI() {
       const p = getProdutoPorId(it.produtoId);
       if (!p) return '';
       return `
-      <div class="flex gap-3 border-b border-cafe/10 py-4" data-cart-row data-key="${it.key}">
-        <div class="${p.imagemPlaceholder} h-16 w-16 shrink-0 rounded-lg"></div>
+      <div class="flex gap-3 border-b border-line py-4" data-cart-row data-key="${it.key}">
+        <div class="ph ${p.imagemPlaceholder} h-16 w-16 shrink-0" style="border-radius:8px"></div>
         <div class="min-w-0 flex-1">
-          <p class="truncate font-medium text-cafe">${p.nome}</p>
-          ${it.variante ? `<p class="text-xs text-cafe/60">${it.variante}</p>` : ''}
+          <p class="truncate font-medium text-ink">${p.nome}</p>
+          ${it.variante ? `<p class="text-xs text-muted">${it.variante}</p>` : ''}
           <div class="mt-2 flex items-center justify-between gap-2">
-            <div class="inline-flex items-center rounded-full border border-cafe/20">
-              <button type="button" data-cart-dec aria-label="Diminuir quantidade" class="grid h-7 w-7 place-items-center text-cafe hover:text-terracota">
+            <div class="inline-flex items-center rounded-full border border-line">
+              <button type="button" data-cart-dec aria-label="Diminuir quantidade" class="grid h-7 w-7 place-items-center text-ink hover:text-coral">
                 <i data-lucide="minus" class="h-4 w-4"></i>
               </button>
               <span class="w-7 text-center text-sm" data-cart-qty>${it.qtd}</span>
-              <button type="button" data-cart-inc aria-label="Aumentar quantidade" class="grid h-7 w-7 place-items-center text-cafe hover:text-terracota">
+              <button type="button" data-cart-inc aria-label="Aumentar quantidade" class="grid h-7 w-7 place-items-center text-ink hover:text-coral">
                 <i data-lucide="plus" class="h-4 w-4"></i>
               </button>
             </div>
-            <span class="text-sm font-medium text-cafe">${formatBRL(p.preco_centavos * it.qtd)}</span>
+            <span class="text-sm font-medium text-ink">${formatBRL(p.preco_centavos * it.qtd)}</span>
           </div>
         </div>
-        <button type="button" data-cart-remove aria-label="Remover do carrinho" class="self-start p-1 text-cafe/40 hover:text-terracota">
+        <button type="button" data-cart-remove aria-label="Remover do carrinho" class="self-start p-1 text-muted hover:text-coral">
           <i data-lucide="trash-2" class="h-4 w-4"></i>
         </button>
       </div>`;
@@ -1058,21 +1094,21 @@ function setupCarousel(trackEl, { dots = false, autoplay = false, interval = 550
 // =============================================================================
 function cardProdutoHTML(p) {
   const acao = p.variantes
-    ? `<a href="/pages/produto.html?slug=${p.slug}" class="btn-primary flex-1">escolher</a>`
-    : `<button type="button" data-add="${p.id}" class="btn-primary flex-1">adicionar</button>`;
+    ? `<a href="/pages/produto.html?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
+    : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
   return `
-    <article class="flex flex-col overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10" data-produto data-categoria="${p.categoria}">
+    <article class="prod" data-produto data-categoria="${p.categoria}">
       <a href="/pages/produto.html?slug=${p.slug}" class="block" aria-label="${p.nome}">
-        <div class="${p.imagemPlaceholder} aspect-square w-full"></div>
+        <div class="ph ${p.imagemPlaceholder}"></div>
       </a>
-      <div class="flex flex-1 flex-col p-4">
-        <p class="text-xs uppercase tracking-wide text-cafe/50">${CATEGORIAS[p.categoria]}</p>
-        <h3 class="mt-1 font-titulo text-lg leading-tight">
-          <a href="/pages/produto.html?slug=${p.slug}" class="hover:text-terracota">${p.nome}</a>
+      <div class="prod-body">
+        <p class="prod-cat">${CATEGORIAS[p.categoria]}</p>
+        <h3 class="leading-tight">
+          <a href="/pages/produto.html?slug=${p.slug}" class="hover:text-coral">${p.nome}</a>
         </h3>
-        <p class="mt-2 font-medium text-cafe">${formatBRL(p.preco_centavos)}</p>
-        <div class="mt-4 flex gap-2">
-          <a href="/pages/produto.html?slug=${p.slug}" class="btn-ghost flex-1">ver</a>
+        <p class="price">${formatBRL(p.preco_centavos)}</p>
+        <div class="mt-2 flex gap-2">
+          <a href="/pages/produto.html?slug=${p.slug}" class="btn ghost sm" style="flex:1">ver</a>
           ${acao}
         </div>
       </div>
@@ -1099,9 +1135,6 @@ function initCatalogPage() {
     botoes.forEach((b) => {
       const ativo = b.getAttribute('data-filter') === cat;
       b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-      b.classList.toggle('bg-terracota', ativo);
-      b.classList.toggle('text-bege', ativo);
-      b.classList.toggle('border-terracota', ativo);
     });
   };
 
@@ -1134,10 +1167,10 @@ function initProductPage() {
 
   if (!p) {
     rootEl.innerHTML = `
-      <div class="py-20 text-center">
-        <p class="decor text-3xl">a gente não achou esse produto</p>
-        <p class="mx-auto mt-2 max-w-sm text-cafe/60">pode ser que ele tenha saído da vitrine. dá uma olhada no que tem por lá?</p>
-        <a href="/pages/loja.html" class="btn-primary mt-6">voltar pra loja</a>
+      <div class="empty">
+        <p class="e-title">a gente não achou esse produto</p>
+        <p class="mx-auto max-w-sm">pode ser que ele tenha saído da vitrine. dá uma olhada no que tem por lá?</p>
+        <a href="/pages/loja.html" class="btn solid">voltar pra loja</a>
       </div>`;
     renderIcons();
     return;
@@ -1151,13 +1184,13 @@ function initProductPage() {
   const variantesHTML = p.variantes
     ? `
       <div class="mt-6">
-        <span class="text-sm font-medium text-cafe">${p.variantes.rotulo}</span>
+        <span class="lbl">${p.variantes.rotulo}</span>
         <div class="mt-2 flex flex-wrap gap-2" data-variantes>
           ${p.variantes.opcoes
             .map(
               (o, i) =>
                 `<button type="button" data-variante="${o}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
-                  i === 0 ? 'border-terracota bg-terracota/10 text-terracota' : 'border-cafe/20 text-cafe hover:border-terracota'
+                  i === 0 ? 'border-coral bg-coral/10 text-coral' : 'border-line text-ink hover:border-coral'
                 }">${o}</button>`
             )
             .join('')}
@@ -1167,32 +1200,32 @@ function initProductPage() {
 
   rootEl.innerHTML = `
     <div class="grid gap-8 lg:grid-cols-2">
-      <div class="${p.imagemPlaceholder} aspect-square w-full rounded-2xl"></div>
+      <div class="ph ${p.imagemPlaceholder} aspect-square w-full"></div>
       <div>
-        <a href="/pages/loja.html" class="inline-flex items-center gap-1 text-sm text-cafe/60 hover:text-terracota">
+        <a href="/pages/loja.html" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
           <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
         </a>
-        <p class="mt-4 text-xs uppercase tracking-wide text-cafe/50">${CATEGORIAS[p.categoria]}</p>
-        <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">${p.nome}</h1>
-        <p class="mt-3 font-titulo text-2xl text-terracota">${formatBRL(p.preco_centavos)}</p>
-        <p class="mt-4 max-w-prose text-cafe/80">${p.descricao}</p>
+        <p class="mt-4 prod-cat">${CATEGORIAS[p.categoria]}</p>
+        <h1 class="title md mt-1">${p.nome}</h1>
+        <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
+        <p class="mt-4 max-w-prose text-ink-2">${p.descricao}</p>
         ${variantesHTML}
         <div class="mt-6">
-          <span class="text-sm font-medium text-cafe">Quantidade</span>
+          <span class="lbl">Quantidade</span>
           <div class="mt-2 flex flex-wrap items-center gap-4">
-            <div class="inline-flex items-center rounded-full border border-cafe/20">
-              <button type="button" data-qty-dec aria-label="Diminuir quantidade" class="grid h-10 w-10 place-items-center text-cafe hover:text-terracota">
+            <div class="inline-flex items-center rounded-full border border-line">
+              <button type="button" data-qty-dec aria-label="Diminuir quantidade" class="grid h-10 w-10 place-items-center text-ink hover:text-coral">
                 <i data-lucide="minus" class="h-4 w-4"></i>
               </button>
               <span class="w-10 text-center" data-qty>1</span>
-              <button type="button" data-qty-inc aria-label="Aumentar quantidade" class="grid h-10 w-10 place-items-center text-cafe hover:text-terracota">
+              <button type="button" data-qty-inc aria-label="Aumentar quantidade" class="grid h-10 w-10 place-items-center text-ink hover:text-coral">
                 <i data-lucide="plus" class="h-4 w-4"></i>
               </button>
             </div>
-            <button type="button" data-add-detail class="btn-primary">adicionar ao carrinho</button>
+            <button type="button" data-add-detail class="btn solid">adicionar ao carrinho</button>
           </div>
         </div>
-        <p class="mt-6 text-xs text-cafe/50">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
+        <p class="mt-6 text-xs text-muted">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
       </div>
     </div>`;
 
@@ -1203,10 +1236,10 @@ function initProductPage() {
       rootEl.querySelectorAll('[data-variante]').forEach((b) => {
         const ativo = b === btn;
         b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-        b.classList.toggle('border-terracota', ativo);
-        b.classList.toggle('bg-terracota/10', ativo);
-        b.classList.toggle('text-terracota', ativo);
-        b.classList.toggle('border-cafe/20', !ativo);
+        b.classList.toggle('border-coral', ativo);
+        b.classList.toggle('bg-coral/10', ativo);
+        b.classList.toggle('text-coral', ativo);
+        b.classList.toggle('border-line', !ativo);
       });
     })
   );
@@ -1315,7 +1348,9 @@ function initPlanosPage() {
     nota.classList.remove('hidden');
 
     const box = document.createElement('div');
-    box.className = 'rounded-2xl bg-terracota/5 p-4 text-sm text-cafe ring-1 ring-terracota/15';
+    box.className = 'notice info';
+    box.style.flexDirection = 'column';
+    box.style.alignItems = 'flex-start';
 
     const linha = document.createElement('p');
     linha.append('vais assinar como ');
@@ -1325,11 +1360,11 @@ function initPlanosPage() {
     linha.append(emailEl);
 
     const trocarLinha = document.createElement('p');
-    trocarLinha.className = 'mt-1 text-cafe/60';
+    trocarLinha.className = 'mt-1 text-muted';
     trocarLinha.append('não é você? ');
     const trocar = document.createElement('button');
     trocar.type = 'button';
-    trocar.className = 'font-medium text-terracota hover:underline';
+    trocar.className = 'font-medium text-coral hover:underline';
     trocar.textContent = 'trocar de conta';
     trocar.addEventListener('click', async () => {
       trocar.disabled = true;
@@ -1342,7 +1377,7 @@ function initPlanosPage() {
     const continuar = document.createElement('button');
     continuar.type = 'button';
     continuar.className =
-      'btn-primary mt-3 text-sm';
+      'btn solid sm mt-3';
     continuar.textContent = 'continuar pro pagamento';
     continuar.addEventListener('click', () => {
       continuar.disabled = true; // trava contra duplo-clique (evita abrir 2 checkouts)
@@ -1522,14 +1557,14 @@ function updateAuthUI(session) {
   if (slot) {
     slot.innerHTML = session
       ? authDesktopLogado(nome, inicial)
-      : `<a href="/pages/login.html" class="btn-ghost">entrar</a>`;
+      : `<a href="/pages/login.html" class="hdr-auth-link">entrar</a>`;
   }
 
   const slotM = document.querySelector('[data-auth-slot-mobile]');
   if (slotM) {
     slotM.innerHTML = session
       ? authMobileLogado(nome)
-      : `<a href="/pages/login.html" class="btn-ghost w-full" data-menu-link>entrar</a>`;
+      : `<a href="/pages/login.html" data-menu-link>entrar</a>`;
   }
 
   // Liga o "sair" dos botões do header (o painel liga o seu próprio ao renderizar).
@@ -1552,15 +1587,14 @@ function updateAuthUI(session) {
 function authDesktopLogado(nome, inicial) {
   return `
     <div class="relative" data-user-panel-wrap>
-      <button type="button" data-user-panel-trigger aria-haspopup="true" aria-expanded="false"
-        class="inline-flex items-center gap-2 rounded-full py-1 pl-1 pr-2 text-sm font-medium text-cafe transition-colors hover:bg-cafe/5">
-        <span class="grid h-8 w-8 place-items-center rounded-full bg-terracota font-titulo text-bege">${inicial}</span>
-        <span class="max-w-[9rem] truncate">${nome}</span>
-        <i data-lucide="chevron-down" class="h-4 w-4 text-cafe/50"></i>
+      <button type="button" data-user-panel-trigger aria-haspopup="true" aria-expanded="false" class="hdr-user-trigger">
+        <span class="hdr-user-avatar">${inicial}</span>
+        <span class="hdr-user-name">${nome}</span>
+        <i data-lucide="chevron-down" style="width:15px;height:15px;opacity:.55"></i>
       </button>
       <div data-user-panel data-aberto="false" role="menu" aria-hidden="true"
-        class="invisible absolute right-0 top-full z-50 mt-2 w-80 origin-top-right scale-95 rounded-2xl bg-branco/95 p-5 opacity-0 shadow-xl ring-1 ring-cafe/10 backdrop-blur-md transition duration-200">
-        <p class="text-center text-sm text-cafe/50">só um instante…</p>
+        class="invisible absolute right-0 top-full z-50 mt-2 w-80 origin-top-right scale-95 card opacity-0 shadow-xl backdrop-blur-md transition duration-200">
+        <p class="text-center text-sm text-muted">só um instante…</p>
       </div>
     </div>`;
 }
@@ -1568,16 +1602,16 @@ function authDesktopLogado(nome, inicial) {
 // Markup do usuário logado no drawer mobile: lista compacta (saldo + links).
 function authMobileLogado(nome) {
   return `
-    <div class="flex items-center gap-2 py-1 text-lg text-cafe">
-      <span class="grid h-8 w-8 place-items-center rounded-full bg-terracota/10 text-terracota"><i data-lucide="user" class="h-4 w-4"></i></span>
+    <div class="flex items-center gap-2 py-1 text-lg text-ink">
+      <span class="grid h-8 w-8 place-items-center rounded-full bg-coral/10 text-coral"><i data-lucide="user" class="h-4 w-4"></i></span>
       <span class="truncate">${nome}</span>
     </div>
-    <p class="pb-1 pl-10 text-sm text-cafe/60"><span data-auth-saldo>—</span> pontos</p>
-    <a href="/pages/conta/perfil.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="user" class="h-5 w-5 text-terracota"></i>meu perfil</a>
-    <a href="/pages/conta/pontos.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="gift" class="h-5 w-5 text-terracota"></i>meus pontos</a>
-    <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="award" class="h-5 w-5 text-terracota"></i>minhas conquistas</a>
-    <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="shopping-bag" class="h-5 w-5 text-terracota"></i>meus pedidos</a>
-    <button type="button" data-signout class="mt-2 inline-flex items-center gap-2 text-cafe/70 hover:text-terracota">
+    <p class="pb-1 pl-10 text-sm text-muted"><span data-auth-saldo>—</span> pontos</p>
+    <a href="/pages/conta/perfil.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="user" class="h-5 w-5 text-coral"></i>meu perfil</a>
+    <a href="/pages/conta/pontos.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="gift" class="h-5 w-5 text-coral"></i>meus pontos</a>
+    <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="award" class="h-5 w-5 text-coral"></i>minhas conquistas</a>
+    <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="shopping-bag" class="h-5 w-5 text-coral"></i>meus pedidos</a>
+    <button type="button" data-signout class="mt-2 inline-flex items-center gap-2 text-muted hover:text-coral">
       <i data-lucide="log-out" class="h-5 w-5"></i>sair da conta
     </button>`;
 }
@@ -1638,7 +1672,7 @@ function closeUserPanel() {
 // saldo (count-up), emblemas e links. Tudo do banco é escapado antes do DOM.
 async function renderUserPanel(panel) {
   if (!supabase) {
-    panel.innerHTML = `<p class="text-center text-sm text-cafe/60">tua conta ainda não está ligada por aqui (config pendente).</p>`;
+    panel.innerHTML = `<p class="text-center text-sm text-muted">tua conta ainda não está ligada por aqui (config pendente).</p>`;
     return;
   }
   const session = await getSession();
@@ -1685,8 +1719,8 @@ async function renderUserPanel(panel) {
       const on = desbloq.has(a.slug);
       const dicaTip = a.dica ? `, ${escapeHtml(a.dica)}` : '';
       return on
-        ? `<span title="${escapeHtml(a.nome)}" class="grid h-9 w-9 place-items-center rounded-full bg-terracota/10 text-terracota"><i data-lucide="${icone}" class="h-4 w-4"></i></span>`
-        : `<span title="${escapeHtml(a.nome)}${dicaTip}" class="grid h-9 w-9 place-items-center rounded-full bg-cafe/5 text-cafe/30"><i data-lucide="lock" class="h-4 w-4"></i></span>`;
+        ? `<span title="${escapeHtml(a.nome)}" class="grid h-9 w-9 place-items-center rounded-full bg-coral/10 text-coral"><i data-lucide="${icone}" class="h-4 w-4"></i></span>`
+        : `<span title="${escapeHtml(a.nome)}${dicaTip}" class="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-muted"><i data-lucide="lock" class="h-4 w-4"></i></span>`;
     })
     .join('');
 
@@ -1698,32 +1732,32 @@ async function renderUserPanel(panel) {
     <div class="flex items-center gap-3">
       <div class="relative h-20 w-20 shrink-0">
         <svg viewBox="0 0 80 80" class="h-20 w-20 -rotate-90">
-          <circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="6" class="text-cafe/10" />
+          <circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="6" class="text-line" />
           <circle data-ring cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"
-            class="text-terracota" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}"
+            class="text-coral" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}"
             style="transition: stroke-dashoffset 1.2s cubic-bezier(0.22, 1, 0.36, 1);" />
         </svg>
-        <span class="absolute inset-0 grid place-items-center font-titulo text-lg text-terracota" data-saldo-anim>0</span>
+        <span class="absolute inset-0 grid place-items-center font-titulo text-lg text-coral" data-saldo-anim>0</span>
       </div>
       <div class="min-w-0">
         <p class="font-titulo text-lg leading-tight">${planoNome ? escapeHtml(planoNome) : 'sem plano ainda'}</p>
-        <p class="mt-0.5 text-sm text-cafe/70">${faltamTxt}</p>
+        <p class="mt-0.5 text-sm text-muted">${faltamTxt}</p>
       </div>
     </div>
 
     ${emblemas ? `<div class="mt-4 flex flex-wrap gap-2">${emblemas}</div>` : ''}
 
-    <div class="mt-4 grid gap-0.5 border-t border-cafe/10 pt-3 text-sm">
-      <a href="/pages/conta/perfil.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="user" class="h-4 w-4 text-terracota"></i>meu perfil</a>
-      <a href="/pages/conta/pontos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="gift" class="h-4 w-4 text-terracota"></i>meus pontos</a>
-      <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="award" class="h-4 w-4 text-terracota"></i>minhas conquistas</a>
-      <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="shopping-bag" class="h-4 w-4 text-terracota"></i>meus pedidos</a>
+    <div class="mt-4 grid gap-0.5 border-t border-line pt-3 text-sm">
+      <a href="/pages/conta/perfil.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="user" class="h-4 w-4 text-coral"></i>meu perfil</a>
+      <a href="/pages/conta/pontos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="gift" class="h-4 w-4 text-coral"></i>meus pontos</a>
+      <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="award" class="h-4 w-4 text-coral"></i>minhas conquistas</a>
+      <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="shopping-bag" class="h-4 w-4 text-coral"></i>meus pedidos</a>
       ${
         planoNome
-          ? `<button type="button" data-panel-assinatura class="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="credit-card" class="h-4 w-4 text-terracota"></i>minha assinatura</button>`
-          : `<a href="/pages/planos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="credit-card" class="h-4 w-4 text-terracota"></i>conhecer os planos</a>`
+          ? `<button type="button" data-panel-assinatura class="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>minha assinatura</button>`
+          : `<a href="/pages/planos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>conhecer os planos</a>`
       }
-      <button type="button" data-signout class="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-left text-cafe/70 transition-colors hover:bg-cafe/5 hover:text-terracota"><i data-lucide="log-out" class="h-4 w-4"></i>sair da conta</button>
+      <button type="button" data-signout class="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-left text-muted transition-colors hover:bg-ink/5 hover:text-coral"><i data-lucide="log-out" class="h-4 w-4"></i>sair da conta</button>
     </div>`;
 
   renderIcons();
@@ -2067,95 +2101,95 @@ async function initPerfilPage() {
       <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">oi, ${nome}</h1>
 
       <dl class="mt-8 grid gap-4 sm:grid-cols-3">
-        <div class="rounded-2xl bg-branco/60 p-4 ring-1 ring-cafe/10">
-          <dt class="text-xs uppercase tracking-wide text-cafe/50">teus pontos</dt>
-          <dd class="mt-1 font-titulo text-2xl text-terracota">${pontos}</dd>
-          <a href="/pages/conta/pontos.html" class="mt-1 inline-block text-xs font-medium text-terracota hover:underline">ver extrato e resgatar</a>
+        <div class="card">
+          <dt class="lbl">teus pontos</dt>
+          <dd class="mt-1 font-titulo text-2xl text-coral">${pontos}</dd>
+          <a href="/pages/conta/pontos.html" class="mt-1 inline-block text-xs font-medium text-coral hover:underline">ver extrato e resgatar</a>
         </div>
-        <div class="rounded-2xl bg-branco/60 p-4 ring-1 ring-cafe/10">
-          <dt class="text-xs uppercase tracking-wide text-cafe/50">teu plano</dt>
+        <div class="card">
+          <dt class="lbl">teu plano</dt>
           <dd class="mt-1 font-titulo text-lg">${plano}</dd>
           ${
             ativa
-              ? `<p class="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-verde"><span class="h-1.5 w-1.5 rounded-full bg-verde"></span>ativo</p>`
+              ? `<p class="status mt-1"><span class="dot green"></span>ativo</p>`
               : emGraca
-                ? `<p class="mt-1 text-xs font-medium text-caramelo">pausado · ativo até ${ativoAte}</p>`
+                ? `<p class="status mt-1"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
                 : pausada
-                  ? `<p class="mt-1 text-xs font-medium text-cafe/60">pausado</p>`
+                  ? `<p class="status mt-1"><span class="dot muted"></span>pausado</p>`
                   : reassinavel
-                    ? `<p class="mt-1 text-xs font-medium text-cafe/60">encerrado</p>`
-                    : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-terracota hover:underline">ver os planos</a>`
+                    ? `<p class="status mt-1"><span class="dot muted"></span>encerrado</p>`
+                    : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-coral hover:underline">ver os planos</a>`
           }
         </div>
-        <div class="rounded-2xl bg-branco/60 p-4 ring-1 ring-cafe/10">
-          <dt class="text-xs uppercase tracking-wide text-cafe/50">e-mail</dt>
-          <dd class="mt-1 break-all text-sm text-cafe">${email}</dd>
+        <div class="card">
+          <dt class="lbl">e-mail</dt>
+          <dd class="mt-1 break-all text-sm text-ink">${email}</dd>
         </div>
       </dl>
 
       ${
         temGerenciar
-          ? `<section class="mt-8 rounded-2xl bg-branco/70 p-5 ring-1 ring-cafe/10" data-gerenciar>
+          ? `<section class="mt-8 card" data-gerenciar>
               <div class="flex items-center gap-2">
-                <i data-lucide="settings-2" class="h-5 w-5 text-terracota"></i>
+                <i data-lucide="settings-2" class="h-5 w-5 text-coral"></i>
                 <h2 class="font-titulo text-xl">gerenciar assinatura</h2>
               </div>
               ${
                 ativa
                   ? temDowngradeAgendado
-                    ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> segue ativo${
-                        proximaCobranca ? ` até <strong class="font-semibold text-cafe">${proximaCobranca}</strong>` : ''
-                      }, e a partir daí vira <strong class="font-semibold text-cafe">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}, ou subir pra um plano maior.</p>`
-                    : `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá ativo.${
-                        proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-cafe">${proximaCobranca}</strong>.` : ''
+                    ? `<p class="mt-2 text-sm text-ink-2">teu <strong class="font-semibold text-ink">${plano}</strong> segue ativo${
+                        proximaCobranca ? ` até <strong class="font-semibold text-ink">${proximaCobranca}</strong>` : ''
+                      }, e a partir daí vira <strong class="font-semibold text-ink">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}, ou subir pra um plano maior.</p>`
+                    : `<p class="mt-2 text-sm text-ink-2">teu <strong class="font-semibold text-ink">${plano}</strong> tá ativo.${
+                        proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-ink">${proximaCobranca}</strong>.` : ''
                       }</p>`
                   : emGraca
-                    ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-cafe">${ativoAte}</strong>, e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
+                    ? `<p class="mt-2 text-sm text-ink-2">teu <strong class="font-semibold text-ink">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-ink">${ativoAte}</strong>, e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
                     : reassinavel
-                      ? `<p class="mt-2 text-sm text-cafe/70">tua assinatura do <strong class="font-semibold text-cafe">${plano}</strong> foi encerrada. quando quiser voltar, a porta tá aberta, é uma assinatura nova, começando um ciclo do zero.</p>`
-                      : `<p class="mt-2 text-sm text-cafe/70">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser, reativando a mesma assinatura.</p>`
+                      ? `<p class="mt-2 text-sm text-ink-2">tua assinatura do <strong class="font-semibold text-ink">${plano}</strong> foi encerrada. quando quiser voltar, a porta tá aberta, é uma assinatura nova, começando um ciclo do zero.</p>`
+                      : `<p class="mt-2 text-sm text-ink-2">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser, reativando a mesma assinatura.</p>`
               }
 
               <div class="mt-4 flex flex-wrap gap-3">
                 ${
                   temDowngradeAgendado
-                    ? `<button type="button" data-manter-plano class="btn-primary text-sm"><i data-lucide="heart" class="h-4 w-4"></i>manter o ${plano}</button>`
+                    ? `<button type="button" data-manter-plano class="btn solid sm"><i data-lucide="heart" class="h-4 w-4"></i>manter o ${plano}</button>`
                     : ''
                 }
                 ${
                   ativa && tiersUpgrade.length
                     ? `<button type="button" data-upgrade-abrir class="${
-                        temDowngradeAgendado ? 'btn-ghost' : 'btn-primary'
-                      } text-sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
+                        temDowngradeAgendado ? 'btn ghost' : 'btn solid'
+                      } sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
                     : ''
                 }
                 ${
                   ativa
-                    ? `<button type="button" data-cancelar-assinatura class="btn-ghost text-sm">pausar assinatura</button>`
+                    ? `<button type="button" data-cancelar-assinatura class="btn ghost sm">pausar assinatura</button>`
                     : reassinavel
-                      ? `<button type="button" data-reassinar data-tier="${escapeHtml(planoSlug)}" class="btn-primary text-sm"><i data-lucide="play-circle" class="h-4 w-4"></i>voltar pro ${plano}</button>`
-                      : `<button type="button" data-retomar class="btn-primary text-sm"><i data-lucide="play-circle" class="h-4 w-4"></i>retomar plano</button>`
+                      ? `<button type="button" data-reassinar data-tier="${escapeHtml(planoSlug)}" class="btn solid sm"><i data-lucide="play-circle" class="h-4 w-4"></i>voltar pro ${plano}</button>`
+                      : `<button type="button" data-retomar class="btn solid sm"><i data-lucide="play-circle" class="h-4 w-4"></i>retomar plano</button>`
                 }
               </div>
 
               ${
                 ativa && tiersUpgrade.length
-                  ? `<div class="mt-4 hidden rounded-xl bg-bege/40 p-4 ring-1 ring-caramelo/20" data-upgrade-painel>
-                       <p class="text-sm text-cafe/70">tu paga só a <strong class="font-semibold text-cafe">diferença proporcional</strong> pelos dias que faltam${
+                  ? `<div class="mt-4 hidden card flat" style="border-color:var(--gold)" data-upgrade-painel>
+                       <p class="text-sm text-ink-2">tu paga só a <strong class="font-semibold text-ink">diferença proporcional</strong> pelos dias que faltam${
                          proximaCobranca ? ` até ${proximaCobranca}` : ''
                        }. no próximo ciclo, o valor cheio do novo plano.</p>
                        ${
                          temDowngradeAgendado
-                           ? `<p class="mt-2 text-sm text-cafe/70">e olha: subir de plano desfaz a descida pro <strong class="font-semibold text-cafe">${agendadoNome}</strong> que tava agendada, tu segue pra cima. 💛</p>`
+                           ? `<p class="mt-2 text-sm text-ink-2">e olha: subir de plano desfaz a descida pro <strong class="font-semibold text-ink">${agendadoNome}</strong> que tava agendada, tu segue pra cima. 💛</p>`
                            : ''
                        }
                        <div class="mt-3 grid gap-2">
                          ${tiersUpgrade
                            .map(
                              (t) =>
-                               `<button type="button" data-upgrade-tier="${escapeHtml(t.slug)}" class="flex items-center justify-between rounded-lg bg-branco/70 px-4 py-2.5 text-left ring-1 ring-cafe/10 transition hover:ring-terracota/40 disabled:opacity-50">
-                                  <span class="text-sm font-medium text-cafe">${escapeHtml(t.nome)}</span>
-                                  <span class="text-sm text-terracota">${formatBRL(t.preco_centavos)}/mês</span>
+                               `<button type="button" data-upgrade-tier="${escapeHtml(t.slug)}" class="flex items-center justify-between rounded-lg bg-card px-4 py-2.5 text-left ring-1 ring-line transition hover:ring-coral/40 disabled:opacity-50">
+                                  <span class="text-sm font-medium text-ink">${escapeHtml(t.nome)}</span>
+                                  <span class="text-sm text-coral">${formatBRL(t.preco_centavos)}/mês</span>
                                 </button>`,
                            )
                            .join('')}
@@ -2164,35 +2198,35 @@ async function initPerfilPage() {
                   : ''
               }
 
-              <p class="mt-3 hidden text-sm text-cafe/70" data-assinatura-msg aria-live="polite"></p>
+              <p class="mt-3 hidden text-sm text-ink-2" data-assinatura-msg aria-live="polite"></p>
 
               <!-- Modal reutilizável: passo 1 = confirmação (só no pausar); passo 2 =
                    carregando (pausar E retomar). Overlay fixo cobrindo a tela. Fecha por
                    Esc/backdrop só na confirmação; no carregando fica travado (a pessoa
                    aguarda o back). Spinner respeita prefers-reduced-motion (motion-safe). -->
               <div class="fixed inset-0 z-50 hidden items-center justify-center bg-preto/40 p-4 backdrop-blur-sm" data-modal aria-hidden="true">
-                <div class="w-full max-w-sm rounded-2xl bg-branco p-6 shadow-xl ring-1 ring-cafe/10" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+                <div class="w-full max-w-sm card shadow-xl" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
                   <div data-modal-confirm>
-                    <h3 id="modal-titulo" class="font-titulo text-xl text-cafe" data-modal-titulo>tem certeza?</h3>
-                    <p class="mt-2 text-sm text-cafe/70" data-modal-texto></p>
+                    <h3 id="modal-titulo" class="font-titulo text-xl text-ink" data-modal-titulo>tem certeza?</h3>
+                    <p class="mt-2 text-sm text-ink-2" data-modal-texto></p>
                     <div class="mt-5 flex justify-end gap-3">
-                      <button type="button" data-modal-nao class="btn-primary text-sm">deixa quieto</button>
-                      <button type="button" data-modal-sim class="btn-ghost text-sm">sim, pausar</button>
+                      <button type="button" data-modal-nao class="btn solid sm">deixa quieto</button>
+                      <button type="button" data-modal-sim class="btn ghost sm">sim, pausar</button>
                     </div>
                     ${
                       tiersDowngrade.length
-                        ? `<div class="mt-5 hidden border-t border-cafe/10 pt-4" data-modal-downgrade>
-                             <p class="text-center text-xs uppercase tracking-wide text-cafe/40">ou, se preferir</p>
-                             <p class="mt-2 text-sm text-cafe/70">dá pra continuar com a gente num plano mais leve. tu mantém o ${plano}${
+                        ? `<div class="mt-5 hidden border-t border-line pt-4" data-modal-downgrade>
+                             <p class="text-center lbl">ou, se preferir</p>
+                             <p class="mt-2 text-sm text-ink-2">dá pra continuar com a gente num plano mais leve. tu mantém o ${plano}${
                                proximaCobranca ? ` até ${proximaCobranca}` : ''
                              } e, a partir daí, segue no novo, sem pagar do zero.</p>
                              <div class="mt-3 grid gap-2">
                                ${tiersDowngrade
                                  .map(
                                    (t) =>
-                                     `<button type="button" data-downgrade-tier="${escapeHtml(t.slug)}" class="flex items-center justify-between rounded-lg bg-bege/40 px-4 py-2.5 text-left ring-1 ring-cafe/10 transition hover:ring-verde/40 disabled:opacity-50">
-                                        <span class="text-sm font-medium text-cafe">${escapeHtml(t.nome)}</span>
-                                        <span class="text-sm text-verde">${formatBRL(t.preco_centavos)}/mês</span>
+                                     `<button type="button" data-downgrade-tier="${escapeHtml(t.slug)}" class="flex items-center justify-between rounded-lg bg-paper-2 px-4 py-2.5 text-left ring-1 ring-line transition hover:ring-olive/40 disabled:opacity-50">
+                                        <span class="text-sm font-medium text-ink">${escapeHtml(t.nome)}</span>
+                                        <span class="text-sm text-olive">${formatBRL(t.preco_centavos)}/mês</span>
                                       </button>`,
                                  )
                                  .join('')}
@@ -2206,18 +2240,18 @@ async function initPerfilPage() {
                       ? `<!-- Passo intermediário: confirma a descida de plano (evita missclick
                                no botão do plano leve). Só é alcançável pelo off-ramp acima. -->
                          <div data-modal-downgrade-confirm class="hidden">
-                           <h3 class="font-titulo text-xl text-cafe">descer pro plano <span data-dg-nome></span>?</h3>
-                           <p class="mt-2 text-sm text-cafe/70" data-dg-texto></p>
+                           <h3 class="font-titulo text-xl text-ink">descer pro plano <span data-dg-nome></span>?</h3>
+                           <p class="mt-2 text-sm text-ink-2" data-dg-texto></p>
                            <div class="mt-5 flex justify-end gap-3">
-                             <button type="button" data-dg-voltar class="btn-primary text-sm">voltar</button>
-                             <button type="button" data-dg-sim class="btn-ghost text-sm">sim, quero o mais leve</button>
+                             <button type="button" data-dg-voltar class="btn solid sm">voltar</button>
+                             <button type="button" data-dg-sim class="btn ghost sm">sim, quero o mais leve</button>
                            </div>
                          </div>`
                       : ''
                   }
                   <div data-modal-loading class="hidden flex-col items-center py-4 text-center">
-                    <span class="inline-block h-8 w-8 rounded-full border-2 border-cafe/20 border-t-terracota motion-safe:animate-spin" aria-hidden="true"></span>
-                    <p class="mt-3 text-sm text-cafe/70" data-modal-loading-texto aria-live="polite">só um instante… 💛</p>
+                    <span class="inline-block h-8 w-8 rounded-full border-2 border-line border-t-coral motion-safe:animate-spin" aria-hidden="true"></span>
+                    <p class="mt-3 text-sm text-ink-2" data-modal-loading-texto aria-live="polite">só um instante… 💛</p>
                   </div>
                 </div>
               </div>
@@ -2226,33 +2260,33 @@ async function initPerfilPage() {
       }
 
       <div class="mt-4">
-        <a href="/pages/conta/conquistas.html" class="inline-flex items-center gap-2 text-sm font-medium text-terracota hover:underline">
+        <a href="/pages/conta/conquistas.html" class="inline-flex items-center gap-2 text-sm font-medium text-coral hover:underline">
           <i data-lucide="award" class="h-4 w-4"></i>minhas conquistas
         </a>
       </div>
 
-      <form class="mt-10" data-perfil-form novalidate>
-        <h2 class="font-titulo text-xl">teus dados</h2>
-        <p class="mt-1 text-sm text-cafe/60">atualiza quando quiser, é só teu.</p>
-
-        <div class="mt-5">
-          <label for="perfil-nome" class="block text-sm font-medium text-cafe">nome</label>
-          <input id="perfil-nome" name="nome" type="text" value="${nome}" autocomplete="name"
-            class="mt-1 w-full rounded-xl border border-cafe/20 bg-branco/70 px-4 py-2.5 text-cafe focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota" />
+      <form class="form mt-10" data-perfil-form novalidate>
+        <div>
+          <h2 class="font-titulo text-xl">teus dados</h2>
+          <p class="mt-1 text-sm text-muted">atualiza quando quiser, é só teu.</p>
         </div>
 
-        <div class="mt-4">
-          <label for="perfil-telefone" class="block text-sm font-medium text-cafe">telefone</label>
-          <input id="perfil-telefone" name="telefone" type="tel" value="${telefone}" autocomplete="tel"
-            class="mt-1 w-full rounded-xl border border-cafe/20 bg-branco/70 px-4 py-2.5 text-cafe focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota" />
+        <div class="field">
+          <label for="perfil-nome">nome</label>
+          <input id="perfil-nome" name="nome" type="text" value="${nome}" autocomplete="name" class="inp" />
         </div>
 
-        <p class="mt-3 hidden text-sm" data-perfil-msg aria-live="polite"></p>
-        <button type="submit" class="btn-primary mt-5">salvar</button>
+        <div class="field">
+          <label for="perfil-telefone">telefone</label>
+          <input id="perfil-telefone" name="telefone" type="tel" value="${telefone}" autocomplete="tel" class="inp" />
+        </div>
+
+        <p class="hidden text-sm" data-perfil-msg aria-live="polite"></p>
+        <button type="submit" class="btn solid mt-5">salvar</button>
       </form>
 
-      <div class="mt-10 border-t border-cafe/10 pt-6">
-        <button type="button" data-signout class="btn-ghost">
+      <div class="mt-10 border-t border-line pt-6">
+        <button type="button" data-signout class="btn ghost">
           <i data-lucide="log-out" class="h-4 w-4"></i>sair da conta
         </button>
       </div>
@@ -2270,7 +2304,7 @@ async function initPerfilPage() {
     assinaturaMsg.textContent = txt; // textContent → sem risco de XSS
     assinaturaMsg.className =
       'mt-3 text-sm ' +
-      (tom === 'erro' ? 'text-terracota' : tom === 'ok' ? 'text-verde' : 'text-cafe/70');
+      (tom === 'erro' ? 'text-coral' : tom === 'ok' ? 'text-olive' : 'text-ink-2');
   };
 
   // ── Modal (popup) reutilizável: confirmação + carregamento ────────────────
@@ -2597,7 +2631,7 @@ async function initPerfilPage() {
     if (!novoNome) {
       if (msg) {
         msg.textContent = 'conta pra gente teu nome? 💛';
-        msg.className = 'mt-3 text-sm text-terracota';
+        msg.className = 'mt-3 text-sm text-coral';
         msg.classList.remove('hidden');
       }
       return;
@@ -2620,10 +2654,10 @@ async function initPerfilPage() {
       if (msg) {
         if (error) {
           msg.textContent = 'não deu pra salvar agora. tenta de novo daqui a pouco?';
-          msg.className = 'mt-3 text-sm text-terracota';
+          msg.className = 'mt-3 text-sm text-coral';
         } else {
           msg.textContent = 'prontinho, teus dados foram salvos. 💛';
-          msg.className = 'mt-3 text-sm text-verde';
+          msg.className = 'mt-3 text-sm text-olive';
           updateAuthUI(await getSession()); // reflete o nome novo no header
         }
         msg.classList.remove('hidden');
@@ -2710,18 +2744,18 @@ async function initPontosPage() {
 
         let botao;
         if (esgotado) {
-          botao = `<button type="button" disabled class="btn-ghost mt-4 w-full cursor-not-allowed opacity-60">esgotado por ora</button>`;
+          botao = `<button type="button" disabled class="btn ghost mt-4 w-full cursor-not-allowed opacity-60">esgotado por ora</button>`;
         } else if (podeResgatar) {
-          botao = `<button type="button" data-resgatar="${r.id}" data-nome="${nome}" data-custo="${custo}" class="btn-primary mt-4 w-full">resgatar</button>`;
+          botao = `<button type="button" data-resgatar="${r.id}" data-nome="${nome}" data-custo="${custo}" class="btn solid mt-4 w-full">resgatar</button>`;
         } else {
-          botao = `<button type="button" disabled class="btn-ghost mt-4 w-full cursor-not-allowed opacity-70">faltam ${faltam.toLocaleString('pt-BR')} pontos</button>`;
+          botao = `<button type="button" disabled class="btn ghost mt-4 w-full cursor-not-allowed opacity-70">faltam ${faltam.toLocaleString('pt-BR')} pontos</button>`;
         }
 
         return `
-          <article class="flex flex-col rounded-2xl bg-branco/60 p-5 ring-1 ring-cafe/10">
-            <p class="text-xs uppercase tracking-wide text-cafe/50">${tipo}</p>
+          <article class="flex flex-col card">
+            <p class="lbl">${tipo}</p>
             <h3 class="mt-1 flex-1 font-titulo text-lg leading-tight">${nome}</h3>
-            <p class="mt-3 font-titulo text-xl text-terracota">${custo.toLocaleString('pt-BR')} <span class="text-sm font-normal text-cafe/60">pontos</span></p>
+            <p class="mt-3 font-titulo text-xl text-coral">${custo.toLocaleString('pt-BR')} <span class="text-sm font-normal text-muted">pontos</span></p>
             ${botao}
           </article>`;
       })
@@ -2733,29 +2767,29 @@ async function initPontosPage() {
             const delta = Number(l.delta);
             const positivo = delta >= 0;
             const sinal = positivo ? '+' : '−';
-            const cor = positivo ? 'text-verde' : 'text-terracota';
+            const cor = positivo ? 'text-olive' : 'text-coral';
             return `
-              <li class="flex items-center justify-between gap-3 border-b border-cafe/10 py-3">
+              <li class="flex items-center justify-between gap-3 border-b border-line py-3">
                 <div class="min-w-0">
-                  <p class="truncate text-sm text-cafe">${escapeHtml(l.motivo)}</p>
-                  <p class="text-xs text-cafe/50">${formatarDataCurta(l.created_at)}</p>
+                  <p class="truncate text-sm text-ink">${escapeHtml(l.motivo)}</p>
+                  <p class="text-xs text-muted">${formatarDataCurta(l.created_at)}</p>
                 </div>
                 <span class="shrink-0 font-medium ${cor}">${sinal}${Math.abs(delta).toLocaleString('pt-BR')}</span>
               </li>`;
           })
           .join('')
-      : `<li class="py-6 text-center text-sm text-cafe/60">teu extrato começa no teu primeiro café por aqui. 💛</li>`;
+      : `<li class="py-6 text-center text-sm text-muted">teu extrato começa no teu primeiro café por aqui. 💛</li>`;
 
     root.innerHTML = `
       <div class="mx-auto max-w-4xl">
         <p class="decor text-2xl sm:text-3xl">teus pontos</p>
         <div class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
-          <p class="font-titulo text-5xl text-terracota">${saldo.toLocaleString('pt-BR')}</p>
-          <p class="pb-1 text-cafe/70">
+          <p class="font-titulo text-5xl text-coral">${saldo.toLocaleString('pt-BR')}</p>
+          <p class="pb-1 text-ink-2">
             ${
               planoNome
                 ? `teu plano <span class="font-medium">${escapeHtml(planoNome)}</span> rende <span class="font-medium">${multTxt}x</span> pontos`
-                : `os pontos são um agrado de quem tem plano, <a href="/pages/planos.html" class="font-medium text-terracota underline decoration-terracota/40 underline-offset-2 hover:decoration-terracota">ativa um pra começar a pontuar</a>`
+                : `os pontos são um agrado de quem tem plano, <a href="/pages/planos.html" class="font-medium text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">ativa um pra começar a pontuar</a>`
             }
           </p>
         </div>
@@ -2765,9 +2799,9 @@ async function initPontosPage() {
 
         <section class="mt-10">
           <h2 class="font-titulo text-2xl">o que dá pra resgatar</h2>
-          <p class="mt-1 text-sm text-cafe/60">pequenos agrados, no teu tempo. sem pressa, sem pegadinha.</p>
+          <p class="mt-1 text-sm text-muted">pequenos agrados, no teu tempo. sem pressa, sem pegadinha.</p>
           <div class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            ${cardsRewards || '<p class="text-sm text-cafe/60">as recompensas chegam já já.</p>'}
+            ${cardsRewards || '<p class="text-sm text-muted">as recompensas chegam já já.</p>'}
           </div>
         </section>
 
@@ -2776,9 +2810,9 @@ async function initPontosPage() {
             <h2 class="font-titulo text-2xl">teu extrato</h2>
             <ul class="mt-4">${linhasExtrato}</ul>
           </div>
-          <aside class="rounded-2xl bg-bege/60 p-5 ring-1 ring-cafe/10">
+          <aside class="card flat">
             <h2 class="font-titulo text-xl">como funciona</h2>
-            <ul class="mt-3 space-y-2 text-sm text-cafe/75">
+            <ul class="mt-3 space-y-2 text-sm text-ink-2">
               <li>· os pontos são um mimo de quem tem plano ativo.</li>
               <li>· com plano, 1 ponto a cada R$1, e teu tier multiplica (Ouro rende 1,5x).</li>
               <li>· na loja, contam sobre o valor já com teu desconto.</li>
@@ -2787,8 +2821,8 @@ async function initPontosPage() {
           </aside>
         </section>
 
-        <div class="mt-10 border-t border-cafe/10 pt-6">
-          <a href="/pages/conta/perfil.html" class="btn-ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+        <div class="mt-10 border-t border-line pt-6">
+          <a href="/pages/conta/perfil.html" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
         </div>
       </div>`;
 
@@ -2798,10 +2832,12 @@ async function initPontosPage() {
 
   // Mostra o resultado do resgate. Busca o elemento FRESCO no root (sobrevive ao
   // re-render do carregar(), que é chamado antes desta função no caso de sucesso).
-  const mostrarResultado = (html, cor = 'bg-verde/10') => {
+  const mostrarResultado = (html, tom = 'ok') => {
     const resultado = root.querySelector('[data-resgate-resultado]');
     if (!resultado) return;
-    resultado.className = `mt-6 rounded-2xl ${cor} p-5 ring-1 ring-cafe/10`;
+    resultado.className = `mt-6 notice ${tom}`;
+    resultado.style.flexDirection = 'column';
+    resultado.style.alignItems = 'flex-start';
     resultado.innerHTML = html; // conteúdo controlado (strings do banco já escapadas)
     resultado.classList.remove('hidden');
     resultado.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2827,7 +2863,7 @@ async function initPontosPage() {
           });
           if (error || !data?.ok) {
             const msg = data?.error || 'não deu pra resgatar agora. tenta de novo daqui a pouco? 💛';
-            mostrarResultado(`<p class="text-sm text-cafe">${escapeHtml(msg)}</p>`, 'bg-caramelo/15');
+            mostrarResultado(`<p class="text-sm text-ink">${escapeHtml(msg)}</p>`, 'warn');
             btn.disabled = false;
             btn.textContent = texto;
             return;
@@ -2837,9 +2873,9 @@ async function initPontosPage() {
           const codigo = data.codigo ? escapeHtml(data.codigo) : null;
           const cupomHtml = codigo
             ? `<div class="mt-3 flex flex-wrap items-center gap-3">
-                 <code class="rounded-lg bg-branco px-3 py-1.5 font-mono text-lg tracking-wider text-terracota ring-1 ring-cafe/10">${codigo}</code>
-                 <button type="button" data-copiar-cupom="${codigo}" class="btn-ghost text-sm"><i data-lucide="copy" class="h-4 w-4"></i>copiar</button>
-                 <span class="text-xs text-cafe/60">vale por 30 dias</span>
+                 <code class="rounded-lg bg-card px-3 py-1.5 font-mono text-lg tracking-wider text-coral ring-1 ring-line">${codigo}</code>
+                 <button type="button" data-copiar-cupom="${codigo}" class="btn ghost sm"><i data-lucide="copy" class="h-4 w-4"></i>copiar</button>
+                 <span class="text-xs text-muted">vale por 30 dias</span>
                </div>`
             : '';
 
@@ -2848,13 +2884,13 @@ async function initPontosPage() {
           // …e só então mostra o resultado (busca o elemento fresco → sobrevive).
           mostrarResultado(
             `<p class="font-titulo text-lg">resgatado com carinho 💛</p>
-             <p class="mt-1 text-sm text-cafe/75">${escapeHtml(String(data.reward || nome))}, teu novo saldo é <span class="font-medium">${Number(data.saldo || 0).toLocaleString('pt-BR')}</span> pontos.</p>
+             <p class="mt-1 text-sm text-ink-2">${escapeHtml(String(data.reward || nome))}, teu novo saldo é <span class="font-medium">${Number(data.saldo || 0).toLocaleString('pt-BR')}</span> pontos.</p>
              ${cupomHtml}`
           );
         } catch {
           mostrarResultado(
-            `<p class="text-sm text-cafe">a gente não conseguiu falar com o servidor agora. confere tua conexão?</p>`,
-            'bg-caramelo/15'
+            `<p class="text-sm text-ink">a gente não conseguiu falar com o servidor agora. confere tua conexão?</p>`,
+            'warn'
           );
           btn.disabled = false;
           btn.textContent = texto;
@@ -2902,7 +2938,7 @@ async function initConquistasPage() {
   if (!session) return; // já redirecionou pro login
 
   if (!supabase) {
-    root.innerHTML = `<p class="text-center text-cafe/60">as conquistas ainda não estão ligadas por aqui (config pendente).</p>`;
+    root.innerHTML = `<p class="text-center text-muted">as conquistas ainda não estão ligadas por aqui (config pendente).</p>`;
     return;
   }
 
@@ -2934,34 +2970,34 @@ async function initConquistasPage() {
 
       if (quando) {
         return `
-          <article class="flex flex-col items-center rounded-2xl bg-branco/70 p-5 text-center ring-1 ring-terracota/20">
-            <span class="grid h-14 w-14 place-items-center rounded-full bg-terracota/10 text-terracota">
+          <article class="flex flex-col items-center card text-center">
+            <span class="icon-badge lg coral">
               <i data-lucide="${icone}" class="h-7 w-7"></i>
             </span>
             <h3 class="mt-3 font-titulo text-lg leading-tight">${nome}</h3>
-            <p class="mt-1 text-sm text-cafe/70">${descricao}</p>
-            <p class="mt-3 text-xs font-medium text-verde">desbloqueado em ${formatarDataCurta(quando)}</p>
+            <p class="mt-1 text-sm text-ink-2">${descricao}</p>
+            <p class="mt-3 text-xs font-medium text-olive">desbloqueado em ${formatarDataCurta(quando)}</p>
           </article>`;
       }
       return `
-        <article class="flex flex-col items-center rounded-2xl bg-bege/40 p-5 text-center ring-1 ring-cafe/10">
-          <span class="relative grid h-14 w-14 place-items-center rounded-full bg-cafe/5 text-cafe/30">
+        <article class="flex flex-col items-center card flat text-center">
+          <span class="icon-badge lg relative">
             <i data-lucide="${icone}" class="h-7 w-7"></i>
-            <span class="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-bege text-cafe/50 ring-2 ring-branco">
+            <span class="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-paper-2 text-muted ring-2 ring-paper">
               <i data-lucide="lock" class="h-3.5 w-3.5"></i>
             </span>
           </span>
-          <h3 class="mt-3 font-titulo text-lg leading-tight text-cafe/50">${nome}</h3>
-          <p class="mt-1 text-sm text-cafe/50">${descricao}</p>
+          <h3 class="mt-3 font-titulo text-lg leading-tight text-muted">${nome}</h3>
+          <p class="mt-1 text-sm text-muted">${descricao}</p>
           ${
             dica
-              ? `<div class="mt-3 w-full rounded-xl bg-cafe/5 px-3 py-2 text-left">
-                   <p class="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-caramelo">
+              ? `<div class="mt-3 w-full rounded-lg bg-ink/5 px-3 py-2 text-left">
+                   <p class="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-gold">
                      <i data-lucide="key-round" class="h-3 w-3"></i>como desbloquear
                    </p>
-                   <p class="mt-0.5 text-xs leading-snug text-cafe/70">${dica}</p>
+                   <p class="mt-0.5 text-xs leading-snug text-ink-2">${dica}</p>
                  </div>`
-              : `<p class="mt-3 text-xs text-cafe/40">ainda por vir 💛</p>`
+              : `<p class="mt-3 text-xs text-muted">ainda por vir 💛</p>`
           }
         </article>`;
     })
@@ -2971,18 +3007,18 @@ async function initConquistasPage() {
     <div class="mx-auto max-w-4xl">
       <p class="decor text-2xl sm:text-3xl">tuas conquistas</p>
       <div class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
-        <p class="font-titulo text-5xl text-terracota">${conquistadas}<span class="text-2xl text-cafe/40">/${total}</span></p>
-        <p class="pb-1 text-cafe/70">emblemas desbloqueados, cada um do teu jeito, no teu tempo.</p>
+        <p class="font-titulo text-5xl text-coral">${conquistadas}<span class="text-2xl text-muted">/${total}</span></p>
+        <p class="pb-1 text-ink-2">emblemas desbloqueados, cada um do teu jeito, no teu tempo.</p>
       </div>
 
       <section class="mt-10">
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          ${cards || '<p class="text-sm text-cafe/60">as conquistas chegam já já.</p>'}
+          ${cards || '<p class="text-sm text-muted">as conquistas chegam já já.</p>'}
         </div>
       </section>
 
-      <div class="mt-10 border-t border-cafe/10 pt-6">
-        <a href="/pages/conta/perfil.html" class="btn-ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+      <div class="mt-10 border-t border-line pt-6">
+        <a href="/pages/conta/perfil.html" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
       </div>
     </div>`;
 
@@ -3009,7 +3045,7 @@ async function initPedidosPage() {
   if (!session) return; // já redirecionou pro login
 
   if (!supabase) {
-    root.innerHTML = `<p class="text-center text-cafe/60">os pedidos ainda não estão ligados por aqui (config pendente).</p>`;
+    root.innerHTML = `<p class="text-center text-muted">os pedidos ainda não estão ligados por aqui (config pendente).</p>`;
     return;
   }
 
@@ -3027,33 +3063,34 @@ async function initPedidosPage() {
               const nome = escapeHtml(it.nome_snapshot || 'item');
               const variante = it.variante_snapshot ? ` · ${escapeHtml(it.variante_snapshot)}` : '';
               const qtd = Number(it.qtd || 1);
-              return `<li class="flex justify-between gap-3 text-sm text-cafe/75">
-                  <span class="min-w-0 truncate">${nome}${variante} <span class="text-cafe/50">×${qtd}</span></span>
+              return `<li class="flex justify-between gap-3 text-sm text-ink">
+                  <span class="min-w-0 truncate">${nome}${variante} <span class="text-muted">×${qtd}</span></span>
                   <span class="shrink-0">${formatBRL(Number(it.preco_unit_centavos || 0) * qtd)}</span>
                 </li>`;
             })
             .join('');
           const statusTxt = escapeHtml(STATUS_PEDIDO_LABEL[p.status] || p.status || '');
+          const statusTag = { pendente: 'gold', pago: 'green', preparando: 'blue', pronto: 'green', entregue: 'olive', cancelado: 'coral' }[p.status] || '';
           return `
-            <article class="rounded-2xl bg-branco/60 p-5 ring-1 ring-cafe/10">
+            <article class="card">
               <div class="flex flex-wrap items-center justify-between gap-2">
-                <p class="text-sm text-cafe/60">${formatarDataCurta(p.created_at)}</p>
-                <span class="rounded-full bg-bege px-3 py-0.5 text-xs font-medium text-cafe">${statusTxt}</span>
+                <p class="text-sm text-muted">${formatarDataCurta(p.created_at)}</p>
+                <span class="tag ${statusTag}">${statusTxt}</span>
               </div>
-              <ul class="mt-3 space-y-1">${itens || '<li class="text-sm text-cafe/50">—</li>'}</ul>
-              <p class="mt-3 border-t border-cafe/10 pt-3 text-right font-titulo text-lg text-terracota">${formatBRL(Number(p.total_centavos || 0))}</p>
+              <ul class="mt-3 space-y-1">${itens || '<li class="text-sm text-muted">—</li>'}</ul>
+              <p class="mt-3 border-t border-line pt-3 text-right font-titulo text-lg text-coral">${formatBRL(Number(p.total_centavos || 0))}</p>
             </article>`;
         })
         .join('')
-    : `<p class="py-8 text-center text-sm text-cafe/60">teus pedidos aparecem aqui quando tu levar algo do Casa. 💛</p>`;
+    : `<p class="py-8 text-center text-sm text-muted">teus pedidos aparecem aqui quando tu levar algo do Casa. 💛</p>`;
 
   root.innerHTML = `
     <div class="mx-auto max-w-3xl">
       <p class="decor text-2xl sm:text-3xl">teus pedidos</p>
       <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">o que tu levou pra casa</h1>
       <div class="mt-8 grid gap-4">${lista}</div>
-      <div class="mt-10 border-t border-cafe/10 pt-6">
-        <a href="/pages/conta/perfil.html" class="btn-ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+      <div class="mt-10 border-t border-line pt-6">
+        <a href="/pages/conta/perfil.html" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
       </div>
     </div>`;
 
@@ -3082,13 +3119,13 @@ function mostrarToastConquista(meta) {
     const el = document.createElement('div');
     el.setAttribute('role', 'status');
     el.className =
-      'flex max-w-xs translate-y-2 items-center gap-3 rounded-2xl bg-branco/95 p-4 opacity-0 shadow-xl ring-1 ring-terracota/20 backdrop-blur-md transition duration-300';
+      'flex max-w-xs translate-y-2 items-center gap-3 rounded-lg bg-card p-4 opacity-0 shadow-xl ring-1 ring-line backdrop-blur-md transition duration-300';
     el.innerHTML = `
-      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-terracota/10 text-terracota"><i data-lucide="${iconeConquista(meta.icone)}" class="h-5 w-5"></i></span>
+      <span class="icon-badge coral"><i data-lucide="${iconeConquista(meta.icone)}" class="h-5 w-5"></i></span>
       <div class="min-w-0">
-        <p class="text-xs uppercase tracking-wide text-cafe/50">nova conquista</p>
+        <p class="lbl">nova conquista</p>
         <p class="font-titulo text-sm leading-tight">${escapeHtml(meta.nome)}</p>
-        <p class="text-xs text-cafe/60">bem-vindo à mesa 💛</p>
+        <p class="text-xs text-ink-2">bem-vindo à mesa 💛</p>
       </div>`;
     toastContainer().appendChild(el);
     renderIcons();
@@ -3157,18 +3194,22 @@ async function initAuthConfirmadoPage() {
 
   const render = (session) => {
     root.innerHTML = session
-      ? `<span class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-verde/10 text-verde">
-           <i data-lucide="heart" class="h-8 w-8"></i>
-         </span>
-         <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">teu e-mail tá confirmado</h1>
-         <p class="mt-3 text-cafe/70">bem-vindo ao Casa. 💛 tua conta já tá pronta, chega mais.</p>
-         <a href="/pages/conta/perfil.html" class="btn-primary mt-7">ir pra minha conta</a>`
-      : `<span class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-terracota/10 text-terracota">
-           <i data-lucide="mail" class="h-8 w-8"></i>
-         </span>
-         <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">quase lá</h1>
-         <p class="mt-3 text-cafe/70">esse link pode já ter sido usado ou expirado. entra com teu e-mail e senha que a gente te recebe.</p>
-         <a href="/pages/login.html" class="btn-primary mt-7">ir pro login</a>`;
+      ? `<div class="mx-auto max-w-md card text-center">
+           <span class="mx-auto icon-badge lg green">
+             <i data-lucide="heart" class="h-8 w-8"></i>
+           </span>
+           <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">teu e-mail tá confirmado</h1>
+           <p class="mt-3 text-ink-2">bem-vindo ao Casa. 💛 tua conta já tá pronta, chega mais.</p>
+           <a href="/pages/conta/perfil.html" class="btn solid mt-7">ir pra minha conta</a>
+         </div>`
+      : `<div class="mx-auto max-w-md card text-center">
+           <span class="mx-auto icon-badge lg coral">
+             <i data-lucide="mail" class="h-8 w-8"></i>
+           </span>
+           <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">quase lá</h1>
+           <p class="mt-3 text-ink-2">esse link pode já ter sido usado ou expirado. entra com teu e-mail e senha que a gente te recebe.</p>
+           <a href="/pages/login.html" class="btn solid mt-7">ir pro login</a>
+         </div>`;
     renderIcons();
   };
 
@@ -3196,6 +3237,7 @@ function initCarousels() {
 export function initSite() {
   renderHeader();
   renderFooter();
+  renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)
   initCart(); // drawer + badge (todas as páginas)
   initCatalogPage(); // só age se houver [data-catalog-grid]
@@ -3212,6 +3254,7 @@ export function initSite() {
   initAuthConfirmadoPage(); // só age se houver [data-auth-confirmado-root]
   initCarousels(); // só age se houver [data-carousel]
   renderIcons(); // ícones do header/footer + conteúdo estático restante
+  initReveal(); // revela .reveal ao rolar (respeita prefers-reduced-motion)
 }
 
 // Auto-inicializa quando o DOM estiver pronto

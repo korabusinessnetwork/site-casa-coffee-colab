@@ -7,382 +7,154 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
     />
-    <title>Casa Coffee Colab, entra, senta, fica um pouco</title>
+    <title>Casa Coffee Colab — slow coffee, good food, better days</title>
     <meta
       name="description"
-      content="O Casa é café, afeto e comida boa. Um café-casa de encontros em Hamburgo Velho, Novo Hamburgo/RS."
+      content="Um café-casa de encontros na Hamburgo Velho, Novo Hamburgo/RS. Slow coffee, good food, better days."
     />
   </head>
-  <body class="min-h-screen">
+  <body>
     <!-- Header injetado pelo app.js -->
     <div id="site-header"></div>
 
     <main>
       <!-- ===================================================================
-           HERO, carrossel principal (3 slides, dots, autoplay)
+           HERO — [data-hero-transparent] deixa o header transparente sobre o
+           fundo escuro (o app.js troca pra sólido ao rolar).
            =================================================================== -->
-      <section id="hero" data-carousel="hero" class="relative scroll-mt-20">
-        <div data-carousel-track class="carousel-track" aria-label="Destaques do Casa">
-          <!-- Slide 1, O Casa -->
-          <article class="carousel-slide w-full">
-            <div class="photo-warm relative flex h-[70vh] min-h-[480px] w-full items-center">
-              <div class="absolute inset-0 bg-black/40"></div>
-              <div class="relative mx-auto w-full max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-                <p class="decor text-3xl text-bege sm:text-4xl">entra, senta,</p>
-                <h1 class="mt-1 font-titulo text-5xl font-semibold leading-[0.95] text-branco xs:text-6xl sm:text-7xl lg:text-8xl">
-                  fica um pouco.
-                </h1>
-                <p class="mt-5 max-w-xl text-base text-bege/90 sm:text-lg">
-                  O Casa é café, afeto e comida boa, um café-casa de encontros na
-                  Hamburgo Velho.
-                </p>
-              </div>
-            </div>
-          </article>
-
-          <!-- Slide 2, Feito no Casa -->
-          <article class="carousel-slide w-full">
-            <div class="photo-green relative flex h-[70vh] min-h-[480px] w-full items-center">
-              <div class="absolute inset-0 bg-black/40"></div>
-              <div class="relative mx-auto w-full max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-bege/70">Feito no Casa</p>
-                <h2 class="mt-3 font-titulo text-4xl font-semibold leading-[0.98] text-branco xs:text-5xl sm:text-6xl lg:text-7xl">
-                  café que aguça os sentidos.
-                </h2>
-                <p class="mt-5 max-w-xl text-base text-bege/90 sm:text-lg">
-                  Grão moído na hora e um cardápio autoral, cada detalhe pensado pra
-                  despertar o teu paladar.
-                </p>
-              </div>
-            </div>
-          </article>
-
-          <!-- Slide 3, Gente do Casa -->
-          <article class="carousel-slide w-full">
-            <div class="photo-warm relative flex h-[70vh] min-h-[480px] w-full items-center">
-              <div class="absolute inset-0 bg-black/45"></div>
-              <div class="relative mx-auto w-full max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-bege/70">Gente do Casa</p>
-                <h2 class="mt-3 font-titulo text-4xl font-semibold leading-[0.98] text-branco xs:text-5xl sm:text-6xl lg:text-7xl">
-                  colab com a cidade.
-                </h2>
-                <p class="mt-5 max-w-xl text-base text-bege/90 sm:text-lg">
-                  Artistas e marcas do bairro em residência, o Casa é ponto de
-                  encontro da gente daqui.
-                </p>
-              </div>
-            </div>
-          </article>
-        </div>
-
-        <!-- Dots (preenchidos pelo setupCarousel) -->
-        <div data-dots class="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-2"></div>
-      </section>
-
-      <!-- ===================================================================
-           FAIXA, Manhãs do Take Away
-           =================================================================== -->
-      <section aria-labelledby="takeaway-title" class="bg-caramelo/15">
-        <div class="mx-auto flex max-w-7xl flex-col items-start gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-10 3xl:max-w-[1600px]">
-          <div class="flex items-center gap-4">
-            <span class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-terracota/10 text-terracota">
-              <i data-lucide="sunrise" class="h-6 w-6"></i>
-            </span>
-            <div>
-              <p id="takeaway-title" class="decor text-2xl sm:text-3xl">manhãs do take away</p>
-              <p class="text-sm text-cafe/80 sm:text-base">
-                7h às 10h · combo café ou matchá + lanche pra levar
-              </p>
-            </div>
-          </div>
-          <a href="#feito-no-casa" class="btn-ghost shrink-0">ver combos</a>
-        </div>
-      </section>
-
-      <!-- ===================================================================
-           CARROSSEL, Feito no Casa (cardápio em destaque)
-           =================================================================== -->
-      <section id="feito-no-casa" data-carousel="cards" class="scroll-mt-20 py-14 sm:py-20">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-          <div class="flex items-end justify-between gap-4">
-            <div>
-              <h2 class="font-titulo text-3xl sm:text-4xl">Feito no Casa</h2>
-              <p class="mt-2 text-cafe/70">pratos e cafés autorais, com um pouco de poesia</p>
-            </div>
-            <div class="hidden shrink-0 gap-2 sm:flex">
-              <button data-carousel-prev type="button" aria-label="Anterior" class="grid h-10 w-10 place-items-center rounded-full border border-cafe/20 text-cafe transition-colors hover:border-terracota hover:text-terracota">
-                <i data-lucide="chevron-left" class="h-5 w-5"></i>
-              </button>
-              <button data-carousel-next type="button" aria-label="Próximo" class="grid h-10 w-10 place-items-center rounded-full border border-cafe/20 text-cafe transition-colors hover:border-terracota hover:text-terracota">
-                <i data-lucide="chevron-right" class="h-5 w-5"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          data-carousel-track
-          class="carousel-track mt-8 gap-4 px-4 scroll-pl-4 sm:px-6 sm:scroll-pl-6 3xl:mx-auto 3xl:max-w-[1600px]"
-          aria-label="Feito no Casa"
-        >
-          <article class="carousel-slide w-[78%] sm:w-[46%] lg:w-[31%]">
-            <div class="h-full overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-warm aspect-[4/3] w-full"></div>
-              <div class="p-5">
-                <h3 class="font-titulo text-xl">Alma do Casa</h3>
-                <p class="mt-1 text-sm text-cafe/70">nosso blend autoral, encorpado, de final doce.</p>
-              </div>
-            </div>
-          </article>
-          <article class="carousel-slide w-[78%] sm:w-[46%] lg:w-[31%]">
-            <div class="h-full overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-green aspect-[4/3] w-full"></div>
-              <div class="p-5">
-                <h3 class="font-titulo text-xl">Brunch de Domingo</h3>
-                <p class="mt-1 text-sm text-cafe/70">a mesa farta pra ficar a manhã inteira.</p>
-              </div>
-            </div>
-          </article>
-          <article class="carousel-slide w-[78%] sm:w-[46%] lg:w-[31%]">
-            <div class="h-full overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-bege aspect-[4/3] w-full"></div>
-              <div class="p-5">
-                <h3 class="font-titulo text-xl">Matchá da Manhã</h3>
-                <p class="mt-1 text-sm text-cafe/70">verdinho, cremoso, pra começar em paz.</p>
-              </div>
-            </div>
-          </article>
-          <article class="carousel-slide w-[78%] sm:w-[46%] lg:w-[31%]">
-            <div class="h-full overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-warm aspect-[4/3] w-full"></div>
-              <div class="p-5">
-                <h3 class="font-titulo text-xl">Que Seja Doce</h3>
-                <p class="mt-1 text-sm text-cafe/70">a sobremesa da casa, feita pra dividir.</p>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- ===================================================================
-           CARROSSEL, Gente do Casa (colabs)
-           =================================================================== -->
-      <section id="gente-do-casa" data-carousel="cards" class="scroll-mt-20 bg-verde/5 py-14 sm:py-20">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-          <div class="flex items-end justify-between gap-4">
-            <div>
-              <h2 class="font-titulo text-3xl sm:text-4xl">Gente do Casa</h2>
-              <p class="mt-2 text-cafe/70">artistas e marcas da cidade em residência</p>
-            </div>
-            <div class="hidden shrink-0 gap-2 sm:flex">
-              <button data-carousel-prev type="button" aria-label="Anterior" class="grid h-10 w-10 place-items-center rounded-full border border-cafe/20 text-cafe transition-colors hover:border-terracota hover:text-terracota">
-                <i data-lucide="chevron-left" class="h-5 w-5"></i>
-              </button>
-              <button data-carousel-next type="button" aria-label="Próximo" class="grid h-10 w-10 place-items-center rounded-full border border-cafe/20 text-cafe transition-colors hover:border-terracota hover:text-terracota">
-                <i data-lucide="chevron-right" class="h-5 w-5"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          data-carousel-track
-          class="carousel-track mt-8 gap-4 px-4 scroll-pl-4 sm:px-6 sm:scroll-pl-6 3xl:mx-auto 3xl:max-w-[1600px]"
-          aria-label="Gente do Casa"
-        >
-          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
-              <div class="photo-warm w-24 shrink-0 sm:w-28"></div>
-              <div class="p-5">
-                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">residência do trimestre</p>
-                <h3 class="mt-1 font-titulo text-xl">Ateliê Lomba Grande</h3>
-                <p class="mt-1 text-sm text-cafe/70">cerâmica feita à mão que veste as mesas do Casa.</p>
-              </div>
-            </div>
-          </article>
-          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
-              <div class="photo-green w-24 shrink-0 sm:w-28"></div>
-              <div class="p-5">
-                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">produto convidado</p>
-                <h3 class="mt-1 font-titulo text-xl">Torrefação Vale dos Sinos</h3>
-                <p class="mt-1 text-sm text-cafe/70">micro-lote que a gente serve por tempo limitado.</p>
-              </div>
-            </div>
-          </article>
-          <article class="carousel-slide w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="flex h-full overflow-hidden rounded-2xl bg-branco/70 ring-1 ring-cafe/10">
-              <div class="photo-bege w-24 shrink-0 sm:w-28"></div>
-              <div class="p-5">
-                <p class="text-xs font-semibold uppercase tracking-wide text-terracota">rota afetiva</p>
-                <h3 class="mt-1 font-titulo text-xl">Feira da Hamburgo Velho</h3>
-                <p class="mt-1 text-sm text-cafe/70">produtores do bairro que abastecem a nossa cozinha.</p>
-              </div>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <!-- ===================================================================
-           TEASER, A loja do Casa
-           =================================================================== -->
-      <section id="loja" class="scroll-mt-20 py-14 sm:py-20">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-          <div class="flex items-end justify-between gap-4">
-            <div>
-              <h2 class="font-titulo text-3xl sm:text-4xl">A loja do Casa</h2>
-              <p class="mt-2 text-cafe/70">vestuário, acessórios e café em grão</p>
-            </div>
-            <a href="/pages/loja.html" class="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-terracota hover:text-cafe">
-              ver tudo <i data-lucide="arrow-right" class="h-4 w-4"></i>
-            </a>
-          </div>
-
-          <div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6">
-            <div class="overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-warm aspect-square w-full"></div>
-              <div class="p-4">
-                <h3 class="font-titulo text-lg leading-tight">Café em grão · Alma do Casa</h3>
-                <p class="mt-1 text-xs uppercase tracking-wide text-cafe/50">café</p>
-              </div>
-            </div>
-            <div class="overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-bege aspect-square w-full"></div>
-              <div class="p-4">
-                <h3 class="font-titulo text-lg leading-tight">Caneca de autor</h3>
-                <p class="mt-1 text-xs uppercase tracking-wide text-cafe/50">acessórios</p>
-              </div>
-            </div>
-            <div class="overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-green aspect-square w-full"></div>
-              <div class="p-4">
-                <h3 class="font-titulo text-lg leading-tight">Moletom Casa Coffee</h3>
-                <p class="mt-1 text-xs uppercase tracking-wide text-cafe/50">vestuário</p>
-              </div>
-            </div>
-            <div class="overflow-hidden rounded-2xl bg-branco/60 ring-1 ring-cafe/10">
-              <div class="photo-warm aspect-square w-full"></div>
-              <div class="p-4">
-                <h3 class="font-titulo text-lg leading-tight">Bolsa de linho</h3>
-                <p class="mt-1 text-xs uppercase tracking-wide text-cafe/50">acessórios</p>
-              </div>
-            </div>
+      <section class="hero" data-hero-transparent>
+        <div class="ph-hero"></div>
+        <div class="scrim"></div>
+        <div class="wrap">
+          <div class="reveal">
+            <h1>Slow coffee.<br />Good food.<br /><span class="coral">Better days.</span></h1>
+            <div class="rule"></div>
+            <p class="sub">Um lugar para desacelerar, se conectar e aproveitar os bons momentos.</p>
+            <a class="txt-link" href="/pages/o-casa.html">Conheça o Casa <span class="arrow">→</span></a>
           </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           TEASER, Faz parte do Casa (planos)
+           AGENDA — o que acontece no Casa
            =================================================================== -->
-      <section id="planos" class="scroll-mt-20 bg-cafe py-14 text-bege sm:py-20">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-          <div class="max-w-2xl">
-            <h2 class="font-titulo text-3xl text-bege sm:text-4xl">Faz parte do Casa</h2>
-            <p class="mt-2 text-bege/70">assinatura com fidelidade em pontos, cancela quando quiser</p>
+      <section class="agenda">
+        <div class="wrap">
+          <div class="head reveal">
+            <span class="label">O que acontece no Casa</span>
+            <a class="txt-link" href="/pages/colab.html">Ver tudo <span class="arrow">→</span></a>
           </div>
-
-          <div class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <!-- Bronze -->
-            <div class="flex flex-col rounded-2xl bg-bege p-6 text-cafe ring-1 ring-transparent transition hover:ring-caramelo">
-              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Bronze</p>
-              <p class="font-titulo text-xl">Vizinho de Sempre</p>
-              <p class="mt-3"><span class="font-titulo text-3xl">R$29,90</span><span class="text-sm text-cafe/60">/mês</span></p>
-              <div class="mt-4 flex flex-wrap gap-2 text-xs">
-                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">3% na loja</span>
-                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">1x pontos</span>
+          <div class="ag-grid reveal">
+            <article class="ag-card">
+              <span class="num">01</span>
+              <h3>In the Flow</h3>
+              <p class="meta">Música · Café · Pessoas</p>
+              <div class="ph ph-vinyl">
+                <a class="circle-arrow" href="/pages/colab.html" aria-label="Ver In the Flow">→</a>
               </div>
-              <button type="button" data-assinar data-tier="bronze" class="btn-primary mt-6">assinar</button>
-            </div>
-
-            <!-- Prata -->
-            <div class="flex flex-col rounded-2xl bg-bege p-6 text-cafe ring-1 ring-transparent transition hover:ring-caramelo">
-              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Prata</p>
-              <p class="font-titulo text-xl">Frequentador</p>
-              <p class="mt-3"><span class="font-titulo text-3xl">R$49,90</span><span class="text-sm text-cafe/60">/mês</span></p>
-              <div class="mt-4 flex flex-wrap gap-2 text-xs">
-                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">6% na loja</span>
-                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">1,25x pontos</span>
+            </article>
+            <article class="ag-card">
+              <span class="num">02</span>
+              <h3>Matcha Club</h3>
+              <p class="meta">Encontro · Matchá · Conexão</p>
+              <div class="ph ph-matcha">
+                <a class="circle-arrow" href="/pages/colab.html" aria-label="Ver Matcha Club">→</a>
               </div>
-              <button type="button" data-assinar data-tier="prata" class="btn-primary mt-6">assinar</button>
-            </div>
-
-            <!-- Ouro (favorito) -->
-            <div class="relative flex flex-col rounded-2xl bg-bege p-6 text-cafe ring-2 ring-caramelo lg:-translate-y-2">
-              <span class="absolute -top-3 left-6 rounded-full bg-caramelo px-3 py-1 text-xs font-semibold text-cafe">favorito</span>
-              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Ouro</p>
-              <p class="font-titulo text-xl">Gente do Casa</p>
-              <p class="mt-3"><span class="font-titulo text-3xl">R$79,90</span><span class="text-sm text-cafe/60">/mês</span></p>
-              <div class="mt-4 flex flex-wrap gap-2 text-xs">
-                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">10% na loja</span>
-                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">1,5x pontos</span>
+            </article>
+            <article class="ag-card">
+              <span class="num">03</span>
+              <h3>Brunch</h3>
+              <p class="meta">Todo domingo · 10h às 15h</p>
+              <div class="ph ph-brunch">
+                <a class="circle-arrow" href="/pages/cardapio.html" aria-label="Ver o cardápio do brunch">→</a>
               </div>
-              <button type="button" data-assinar data-tier="ouro" class="btn-primary mt-6">assinar</button>
-            </div>
-
-            <!-- Diamante -->
-            <div class="flex flex-col rounded-2xl bg-bege p-6 text-cafe ring-1 ring-transparent transition hover:ring-caramelo">
-              <p class="text-xs font-semibold uppercase tracking-wide text-terracota">Diamante</p>
-              <p class="font-titulo text-xl">Alma do Casa</p>
-              <p class="mt-3"><span class="font-titulo text-3xl">R$129,90</span><span class="text-sm text-cafe/60">/mês</span></p>
-              <div class="mt-4 flex flex-wrap gap-2 text-xs">
-                <span class="rounded-full bg-terracota/10 px-2.5 py-1 font-medium text-terracota">15% na loja</span>
-                <span class="rounded-full bg-verde/10 px-2.5 py-1 font-medium text-verde">2x pontos</span>
+            </article>
+            <article class="ag-card">
+              <span class="num">04</span>
+              <h3>Happy Hour</h3>
+              <p class="meta">Sexta · 17h às 20h</p>
+              <div class="ph ph-drink">
+                <a class="circle-arrow" href="/pages/cardapio.html" aria-label="Ver o cardápio do happy hour">→</a>
               </div>
-              <button type="button" data-assinar data-tier="diamante" class="btn-primary mt-6">assinar</button>
-            </div>
+            </article>
           </div>
-
-          <!-- Área de aviso/erro do checkout (preenchida pelo app.js quando precisa) -->
-          <p
-            class="mt-8 hidden rounded-xl bg-bege/15 px-4 py-3 text-center text-sm text-bege"
-            data-assinar-note
-            role="status"
-            aria-live="polite"
-          ></p>
-
-          <p class="mt-8 text-sm">
-            <a
-              href="/pages/planos.html"
-              class="text-bege underline decoration-caramelo/60 underline-offset-4 transition hover:decoration-caramelo"
-              >conhece os planos por dentro, pontos, conquistas e tudo</a
-            >
-          </p>
-          <p class="mt-4 text-xs text-bege/60">
-            A assinatura é no cartão e renova sozinha todo mês, cancela quando quiser.
-            (Na loja, tu paga com Pix ou cartão.)
-          </p>
-          <p class="mt-3 text-xs text-bege/50">* valores fictícios, a definir</p>
         </div>
       </section>
 
       <!-- ===================================================================
-           PLAYLISTS, as trilhas do Casa
+           DUO — Clube (planos) / Loja
            =================================================================== -->
-      <section aria-labelledby="playlists-title" class="py-14 sm:py-20">
-        <div class="mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <p class="decor text-3xl">as trilhas do Casa</p>
-          <h2 id="playlists-title" class="mt-1 font-titulo text-3xl sm:text-4xl">o som que embala a casa</h2>
-          <p class="mt-2 text-cafe/70">playlists pra ficar um pouco mais.</p>
+      <section class="duo reveal">
+        <div class="half clube">
+          <div class="ph ph-tote"></div>
+          <div class="scrim2"></div>
+          <div class="content">
+            <span class="label eyebrow">Clube Casa</span>
+            <h2>Fazer parte<br />muda tudo.</h2>
+            <p class="desc">Benefícios, pontos que viram mimo e experiências que só quem é do Casa tem.</p>
+            <a class="txt-link" href="/pages/planos.html">Conheça o Clube <span class="arrow">→</span></a>
+          </div>
+        </div>
+        <div class="half loja">
+          <div class="ph ph-tan light"></div>
+          <div class="scrim2"></div>
+          <div class="content">
+            <span class="label eyebrow">Loja Casa</span>
+            <h2>Design, café e objetos para o dia a dia.</h2>
+            <a class="txt-link" href="/pages/loja.html">Ver loja <span class="arrow">→</span></a>
+          </div>
+        </div>
+      </section>
 
-          <!-- TODO: trocar pelo embed real do Spotify. Ex.:
-          <iframe
-            style="border-radius: 12px"
-            src="https://open.spotify.com/embed/playlist/PLAYLIST_ID?utm_source=generator"
-            width="100%"
-            height="352"
-            frameborder="0"
-            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-            loading="lazy"
-          ></iframe>
-          -->
-          <div class="photo-green mt-8 grid min-h-[180px] place-items-center rounded-2xl p-8 text-center">
-            <div class="text-bege">
-              <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-branco/15">
-                <i data-lucide="music" class="h-7 w-7"></i>
-              </span>
-              <p class="mt-4 font-titulo text-lg">playlist do Casa</p>
-              <p class="mt-1 text-sm text-bege/80">em breve tocando por aqui</p>
-            </div>
+      <!-- ===================================================================
+           FEATURES — o que é o Casa (ícones inline, sem links)
+           =================================================================== -->
+      <section class="features">
+        <div class="wrap">
+          <div class="feat reveal">
+            <svg class="ic" viewBox="0 0 40 40" aria-hidden="true">
+              <g stroke="#df5638" stroke-width="3" stroke-linecap="round">
+                <line x1="20" y1="6" x2="20" y2="34" />
+                <line x1="6" y1="20" x2="34" y2="20" />
+                <line x1="10" y1="10" x2="30" y2="30" />
+                <line x1="30" y1="10" x2="10" y2="30" />
+              </g>
+            </svg>
+            <h4>Eventos</h4>
+            <p>Música, talks, feiras e experiências únicas.</p>
+          </div>
+          <div class="feat reveal">
+            <svg class="ic" viewBox="0 0 40 40" aria-hidden="true">
+              <g fill="none" stroke="#4c7a3e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 34V16" />
+                <path d="M20 22c-2-6-8-8-13-8 0 7 5 10 13 10z" />
+                <path d="M20 19c2-5 7-7 12-7 0 6-5 9-12 9z" />
+              </g>
+            </svg>
+            <h4>Cafés especiais</h4>
+            <p>Grãos selecionados e torra feita com propósito.</p>
+          </div>
+          <div class="feat reveal">
+            <svg class="ic" viewBox="0 0 40 40" aria-hidden="true">
+              <g fill="none" stroke="#c49a46" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6l3 6 6 1-4.5 4.5L26 24l-6-3-6 3 1.5-6.5L11 13l6-1z" />
+                <path d="M20 24v10" />
+              </g>
+            </svg>
+            <h4>Comida autoral</h4>
+            <p>Brunch, sanduíches, doces e receitas de verdade.</p>
+          </div>
+          <div class="feat reveal">
+            <svg class="ic" viewBox="0 0 40 40" aria-hidden="true">
+              <g fill="#3f6f9a">
+                <circle cx="14" cy="15" r="4" />
+                <circle cx="26" cy="15" r="4" />
+                <path d="M6 32c0-5 3.6-8 8-8s8 3 8 8z" />
+                <path d="M20 32c0-5 3.6-8 8-8s8 3 8 8z" opacity=".8" />
+              </g>
+            </svg>
+            <h4>Comunidade</h4>
+            <p>Pessoas, encontros e boas histórias.</p>
           </div>
         </div>
       </section>

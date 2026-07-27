@@ -13,53 +13,83 @@
       content="Entra na tua conta do Casa Coffee Colab e continua de onde parou."
     />
   </head>
-  <body class="min-h-screen">
+  <body>
     <!-- Header injetado pelo app.js -->
     <div id="site-header"></div>
 
     <main>
-      <section class="py-14 sm:py-20">
-        <div class="mx-auto max-w-md px-4 sm:px-6">
-          <div class="text-center">
-            <p class="decor text-3xl sm:text-4xl">que bom te ver de volta</p>
-            <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">entra na tua conta</h1>
-            <p class="mt-3 text-cafe/70">continua de onde tu parou. a xícara ainda tá quente. ☕</p>
-          </div>
+      <!-- ===================================================================
+           CABEÇALHO — página interna simples (sem hero escuro), paper claro
+           =================================================================== -->
+      <section class="page-head">
+        <div class="wrap" style="max-width: 480px; margin: 0 auto; text-align: center">
+          <span class="eyebrow coral">Que bom te ver de volta</span>
+          <h1 class="title md" style="margin-top: 10px">Entra na tua conta</h1>
+          <p class="lede" style="margin: 14px auto 0">
+            Continua de onde tu parou — a xícara ainda tá quente. ☕
+          </p>
+        </div>
+      </section>
 
-          <form class="mt-10 rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10 sm:p-8" data-login-form novalidate>
-            <div>
-              <label for="log-email" class="block text-sm font-medium text-cafe">e-mail</label>
-              <input id="log-email" name="email" type="email" autocomplete="email" required
-                class="mt-1 w-full rounded-xl border border-cafe/20 bg-branco/70 px-4 py-2.5 text-cafe placeholder:text-cafe/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota"
-                placeholder="teu@email.com" />
+      <!-- ===================================================================
+           FORMULÁRIO DE LOGIN — hooks pro initLoginPage (app.js):
+           [data-login-form], name="email"/name="senha", [data-form-erro],
+           [data-reset-msg], [data-reset], [data-toggle-senha].
+           =================================================================== -->
+      <section class="section tight">
+        <div class="wrap">
+          <form class="card form" data-login-form novalidate style="margin: 0 auto">
+            <div class="field">
+              <label for="log-email" class="lbl">e-mail</label>
+              <input
+                id="log-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                required
+                class="inp"
+                placeholder="teu@email.com"
+              />
             </div>
 
-            <div class="mt-4">
-              <div class="flex items-center justify-between">
-                <label for="log-senha" class="block text-sm font-medium text-cafe">senha</label>
-                <button type="button" data-reset class="text-xs font-medium text-terracota hover:underline">
-                  esqueci a senha
-                </button>
+            <div class="field">
+              <div class="log-field-row">
+                <label for="log-senha" class="lbl">senha</label>
+                <button type="button" data-reset class="form-link">esqueci a senha</button>
               </div>
-              <div class="relative mt-1">
-                <input id="log-senha" name="senha" type="password" autocomplete="current-password" required
-                  class="w-full rounded-xl border border-cafe/20 bg-branco/70 px-4 py-2.5 pr-12 text-cafe placeholder:text-cafe/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota"
-                  placeholder="tua senha" />
-                <button type="button" data-toggle-senha aria-label="mostrar senha" aria-pressed="false"
-                  class="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-cafe/50 hover:text-terracota focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-terracota">
+              <div class="log-pass-wrap">
+                <input
+                  id="log-senha"
+                  name="senha"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                  class="inp"
+                  placeholder="tua senha"
+                />
+                <!-- olhinho de mostrar/ocultar senha (setupPasswordToggles no app.js) -->
+                <button
+                  type="button"
+                  data-toggle-senha
+                  aria-label="mostrar senha"
+                  aria-pressed="false"
+                  class="log-pass-toggle"
+                >
                   <i data-lucide="eye" class="h-5 w-5"></i>
                 </button>
               </div>
             </div>
 
-            <p class="mt-4 hidden rounded-xl bg-terracota/10 px-4 py-3 text-sm text-terracota" data-form-erro aria-live="polite"></p>
-            <p class="mt-4 hidden rounded-xl bg-verde/10 px-4 py-3 text-sm text-verde" data-reset-msg aria-live="polite"></p>
+            <!-- Erro do login (preenchido pelo initLoginPage) -->
+            <p class="notice err hidden" data-form-erro aria-live="polite"></p>
+            <!-- Confirmação do "esqueci a senha" (preenchido pelo initLoginPage) -->
+            <p class="notice ok hidden" data-reset-msg aria-live="polite"></p>
 
-            <button type="submit" class="btn-primary mt-6 w-full">entrar</button>
+            <button type="submit" class="btn solid block lg">entrar</button>
 
-            <p class="mt-5 text-center text-sm text-cafe/70">
+            <p class="log-foot">
               ainda não tem conta?
-              <a href="/pages/cadastro.html" class="font-medium text-terracota hover:underline">cria a tua</a>.
+              <a href="/pages/cadastro.html" class="form-link">cria a tua</a>.
             </p>
           </form>
         </div>
@@ -68,6 +98,55 @@
 
     <!-- Footer injetado pelo app.js -->
     <div id="site-footer"></div>
+
+    <!-- Estilos pontuais desta página (linha do rótulo+reset, olhinho da senha,
+         rodapé do form). A .notice é declarada fora de @layer pra vencer os
+         utilitários Tailwind por ordem de fonte (ver styles.css) — o que também
+         vence o .hidden do Tailwind (display:flex > display:none); o reforço
+         abaixo garante que [data-form-erro]/[data-reset-msg] escondam de fato
+         quando o app.js alterna a classe. -->
+    <style>
+      .log-field-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .log-pass-wrap {
+        position: relative;
+      }
+      .log-pass-wrap .inp {
+        padding-right: 46px;
+      }
+      .log-pass-toggle {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 2px;
+        width: 42px;
+        display: grid;
+        place-items: center;
+        background: none;
+        border: 0;
+        color: var(--muted);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: color 0.2s var(--e);
+      }
+      .log-pass-toggle:hover {
+        color: var(--coral);
+      }
+      .log-foot {
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+        margin: 4px 0 0;
+      }
+      [data-form-erro].hidden,
+      [data-reset-msg].hidden {
+        display: none;
+      }
+    </style>
 
     <script type="module" src="../app.js"></script>
   </body>

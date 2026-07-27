@@ -11,20 +11,18 @@
     <meta name="description" content="As conquistas que tu desbloqueia usando o Casa, teus emblemas, no teu tempo." />
     <meta name="robots" content="noindex" />
   </head>
-  <body class="min-h-screen" data-requires-auth>
+  <body data-requires-auth>
     <!-- Header injetado pelo app.js -->
     <div id="site-header"></div>
 
-    <main>
-      <section class="py-14 sm:py-20">
-        <div class="mx-auto max-w-4xl px-4 sm:px-6">
-          <!-- Conteúdo injetado pelo app.js (initConquistasPage), depois do guard de auth. -->
-          <div data-conquistas-root>
-            <p class="text-center text-cafe/60">só um instante, juntando teus emblemas…</p>
-          </div>
+    <section class="section">
+      <div class="wrap" style="max-width: 920px">
+        <!-- Conteúdo injetado pelo app.js (initConquistasPage), depois do guard de auth. -->
+        <div data-conquistas-root>
+          <p style="text-align:center; color: var(--muted)">só um instante, juntando teus emblemas…</p>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
 
     <!-- Footer injetado pelo app.js -->
     <div id="site-footer"></div>

@@ -7,91 +7,106 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
     />
-    <title>O Casa, Casa Coffee Colab</title>
+    <title>O Casa — Casa Coffee Colab</title>
     <meta
       name="description"
-      content="A história do Casa Coffee Colab: um café-casa de encontros na Hamburgo Velho, feito de café, afeto e comida boa."
+      content="A história do Casa Coffee Colab: um café-casa de encontros na Hamburgo Velho — café, afeto e comida boa."
     />
   </head>
-  <body class="min-h-screen">
+  <body>
     <!-- Header injetado pelo app.js -->
     <div id="site-header"></div>
 
     <main>
       <!-- ===================================================================
-           HERO, a história do Casa (poético contido)
+           HERO — [data-hero-transparent] deixa o header transparente sobre o
+           fundo escuro (o app.js troca pra sólido ao rolar). Mesmo mecanismo
+           da home; ver .page-hero em styles.css.
            =================================================================== -->
-      <section class="relative">
-        <div class="photo-warm relative flex min-h-[62vh] w-full items-center py-20 sm:min-h-[70vh]">
-          <div class="absolute inset-0 bg-black/40"></div>
-          <div class="relative mx-auto w-full max-w-4xl px-4 sm:px-6 3xl:max-w-[1200px]">
-            <p class="decor text-3xl text-bege sm:text-4xl">o nosso lugar</p>
-            <h1 class="mt-1 font-titulo text-4xl font-semibold leading-[1.02] text-branco xs:text-5xl sm:text-6xl lg:text-7xl">
-              O Casa é café, afeto e comida boa.
-            </h1>
-            <p class="mt-6 max-w-2xl text-base text-bege/90 sm:text-lg">
-              A gente nasceu na Hamburgo Velho como um café-casa de encontros, daqueles
-              com mesa comprida, luz de manhã entrando pela janela e um cafezinho que
-              não tem pressa. Aqui ninguém é cliente de passagem: é gente que senta,
-              conversa e fica um pouco.
+      <section class="page-hero" data-hero-transparent>
+        <div class="ph ph-hero"></div>
+        <div class="scrim"></div>
+        <div class="wrap">
+          <div class="reveal">
+            <span class="eyebrow">O nosso lugar</span>
+            <h1 class="title lg">O Casa é café,<br />afeto e comida boa.</h1>
+            <div class="rule coral"></div>
+            <p class="lede">
+              Nascemos na Hamburgo Velho como um café-casa de encontros: mesa comprida,
+              luz da manhã pela janela e um café que não tem pressa. Aqui ninguém é
+              cliente de passagem — é gente que senta, conversa e fica um pouco.
             </p>
           </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           DNA / valores do Casa
+           DNA — o que o Casa é (4 valores)
            =================================================================== -->
-      <section class="py-14 sm:py-20">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-          <div class="max-w-2xl">
-            <h2 class="font-titulo text-3xl sm:text-4xl">O que a gente é</h2>
-            <p class="mt-2 text-cafe/70">
-              quatro jeitos de dizer a mesma coisa: casa é onde tu te sente bem.
-            </p>
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head reveal">
+            <div>
+              <span class="eyebrow coral">O que a gente é</span>
+              <h2 class="title md" style="margin-top: 10px">Quatro jeitos de dizer a mesma coisa</h2>
+            </div>
           </div>
 
-          <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
-              <span class="grid h-12 w-12 place-items-center rounded-full bg-terracota/10 text-terracota">
-                <i data-lucide="heart" class="h-6 w-6"></i>
+          <div class="card-grid cols-4">
+            <article class="card reveal">
+              <span class="icon-badge coral">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z" />
+                </svg>
               </span>
-              <h3 class="mt-4 font-titulo text-xl">Acolhimento</h3>
-              <p class="mt-2 text-sm text-cafe/70">
-                a porta fica aberta e a xícara, cheia. Tu chega do teu jeito e a gente
-                te faz espaço na mesa.
+              <h3 class="title sm" style="margin-top: 16px">Acolhimento</h3>
+              <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
+                A porta fica aberta e a xícara, cheia. Você chega do seu jeito e a gente
+                abre espaço na mesa.
               </p>
             </article>
 
-            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
-              <span class="grid h-12 w-12 place-items-center rounded-full bg-terracota/10 text-terracota">
-                <i data-lucide="sparkles" class="h-6 w-6"></i>
+            <article class="card reveal">
+              <span class="icon-badge gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3l1.9 4.6L18.5 9l-4.6 1.4L12 15l-1.9-4.6L5.5 9l4.6-1.4z" />
+                  <path d="M6 16l.8 2 2 .8-2 .8L6 22l-.8-2.4-2-.8 2-.8z" />
+                </svg>
               </span>
-              <h3 class="mt-4 font-titulo text-xl">Autoralidade</h3>
-              <p class="mt-2 text-sm text-cafe/70">
-                blends, receitas e cantos pensados por aqui. Cada detalhe tem a mão de
-                alguém, nada de fórmula pronta.
+              <h3 class="title sm" style="margin-top: 16px">Autoralidade</h3>
+              <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
+                Blends, receitas e cantos pensados por aqui. Cada detalhe tem a mão de
+                alguém — nada de fórmula pronta.
               </p>
             </article>
 
-            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
-              <span class="grid h-12 w-12 place-items-center rounded-full bg-terracota/10 text-terracota">
-                <i data-lucide="hand" class="h-6 w-6"></i>
+            <article class="card reveal">
+              <span class="icon-badge green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="9" cy="8" r="3" />
+                  <circle cx="17" cy="10" r="2.4" />
+                  <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+                  <path d="M15 20c.2-2.4 1.9-4 4-4s3.8 1.6 4 4" opacity=".7" />
+                </svg>
               </span>
-              <h3 class="mt-4 font-titulo text-xl">Colab com a cidade</h3>
-              <p class="mt-2 text-sm text-cafe/70">
-                artistas, produtores e marcas do bairro moram um pouco aqui dentro. O
+              <h3 class="title sm" style="margin-top: 16px">Colab com a cidade</h3>
+              <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
+                Artistas, produtores e marcas do bairro moram um pouco aqui dentro. O
                 Casa é ponto de encontro da gente daqui.
               </p>
             </article>
 
-            <article class="flex flex-col rounded-2xl bg-branco/60 p-6 ring-1 ring-cafe/10">
-              <span class="grid h-12 w-12 place-items-center rounded-full bg-terracota/10 text-terracota">
-                <i data-lucide="coffee" class="h-6 w-6"></i>
+            <article class="card reveal">
+              <span class="icon-badge blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 10h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+                  <path d="M17 11h2.2a2.3 2.3 0 0 1 0 4.6H17" />
+                  <path d="M8 3.5c-.6.8-.6 1.7 0 2.5M12 3.5c-.6.8-.6 1.7 0 2.5" />
+                </svg>
               </span>
-              <h3 class="mt-4 font-titulo text-xl">Artesanal</h3>
-              <p class="mt-2 text-sm text-cafe/70">
-                grão moído na hora, pão na chapa, bolo que sai do forno. Feito devagar,
+              <h3 class="title sm" style="margin-top: 16px">Artesanal</h3>
+              <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
+                Grão moído na hora, pão na chapa, bolo que sai do forno. Feito devagar,
                 feito com afeto, feito no Casa.
               </p>
             </article>
@@ -100,60 +115,74 @@
       </section>
 
       <!-- ===================================================================
-           SELO, Feito no Casa
+           SELO — Feito no Casa (seção escura)
            =================================================================== -->
-      <section class="bg-cafe py-14 text-bege sm:py-20">
-        <div class="mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 text-center sm:px-6">
-          <span class="grid h-24 w-24 place-items-center rounded-full border-2 border-caramelo text-caramelo">
-            <i data-lucide="coffee" class="h-10 w-10"></i>
-          </span>
-          <p class="decor text-3xl text-caramelo sm:text-4xl">nosso selo</p>
-          <h2 class="font-titulo text-3xl text-bege sm:text-4xl">Feito no Casa</h2>
-          <p class="max-w-xl text-bege/80">
-            é o carimbo que a gente dá pro que sai daqui com a nossa cara: o café, a
-            comida, o produto da loja, a colab da vez. Se leva o selo, foi feito com
-            tempo, com mão e com carinho.
-          </p>
+      <section class="section ink">
+        <div class="wrap">
+          <div class="reveal" style="max-width: 620px; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 18px">
+            <span class="icon-badge lg gold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 10h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+                <path d="M17 11h2.2a2.3 2.3 0 0 1 0 4.6H17" />
+                <path d="M8 3.5c-.6.8-.6 1.7 0 2.5M12 3.5c-.6.8-.6 1.7 0 2.5" />
+              </svg>
+            </span>
+            <span class="eyebrow gold">Nosso selo</span>
+            <h2 class="title lg">Feito no Casa</h2>
+            <p class="lede" style="max-width: 52ch">
+              É o carimbo que a gente dá pro que sai daqui com a nossa cara: o café, a
+              comida, o produto da loja, a colab da vez. Se leva o selo, foi feito com
+              tempo, com mão e com carinho.
+            </p>
+          </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           LOCALIZAÇÃO, endereço, horário e mapa (placeholder)
+           LOCALIZAÇÃO — endereço, horário e mapa (placeholder)
            =================================================================== -->
-      <section class="py-14 sm:py-20">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 3xl:max-w-[1600px]">
-          <div class="grid gap-8 lg:grid-cols-2 lg:items-center lg:gap-12">
+      <section class="section">
+        <div class="wrap">
+          <div class="duo-info reveal">
             <div>
-              <p class="decor text-2xl sm:text-3xl">a gente te espera</p>
-              <h2 class="mt-1 font-titulo text-3xl sm:text-4xl">Passa aqui?</h2>
+              <span class="eyebrow coral">A gente te espera</span>
+              <h2 class="title lg" style="margin-top: 10px">Passa aqui?</h2>
+              <div class="rule coral"></div>
 
-              <dl class="mt-8 space-y-6">
-                <div class="flex gap-4">
-                  <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-terracota/10 text-terracota">
-                    <i data-lucide="map-pin" class="h-5 w-5"></i>
+              <div class="rows" style="margin-top: 28px">
+                <div class="row" style="border-bottom: 0; align-items: flex-start; gap: 16px">
+                  <span class="icon-badge coral">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M20 10c0 5.5-8 12-8 12s-8-6.5-8-12a8 8 0 0 1 16 0z" />
+                      <circle cx="12" cy="10" r="2.6" />
+                    </svg>
                   </span>
                   <div>
-                    <dt class="text-sm font-semibold uppercase tracking-wide text-cafe/50">Onde</dt>
-                    <dd class="mt-1 text-cafe">
-                      R. Victor Hugo Kunz, 411, Hamburgo Velho<br />Novo Hamburgo/RS
-                    </dd>
+                    <div class="lbl">Onde</div>
+                    <p style="margin-top: 4px; color: var(--ink); line-height: 1.6">
+                      R. Victor Hugo Kunz, 411 — Hamburgo Velho<br />Novo Hamburgo/RS
+                    </p>
                   </div>
                 </div>
 
-                <div class="flex gap-4">
-                  <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-terracota/10 text-terracota">
-                    <i data-lucide="sunrise" class="h-5 w-5"></i>
+                <div class="row" style="border-bottom: 0; align-items: flex-start; gap: 16px">
+                  <span class="icon-badge gold">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12 3v2M4.2 7.2l1.4 1.4M2 15h2M20 15h2M18.4 8.6l1.4-1.4" />
+                      <path d="M6 15a6 6 0 0 1 12 0" />
+                      <path d="M3 19h18" />
+                    </svg>
                   </span>
                   <div>
-                    <dt class="text-sm font-semibold uppercase tracking-wide text-cafe/50">Quando</dt>
-                    <dd class="mt-1 text-cafe">
+                    <div class="lbl">Quando</div>
+                    <p style="margin-top: 4px; color: var(--ink); line-height: 1.6">
                       Seg a sáb, das 8h às 19h<br />Domingo, das 15h às 19h
-                    </dd>
+                    </p>
                   </div>
                 </div>
-              </dl>
+              </div>
 
-              <a href="/pages/cardapio.html" class="btn-primary mt-8">ver o cardápio</a>
+              <a href="/pages/cardapio.html" class="btn solid" style="margin-top: 28px">Ver o cardápio</a>
             </div>
 
             <!-- Placeholder de mapa. TODO: trocar pelo iframe do Google Maps. Ex.:
@@ -164,13 +193,18 @@
               title="Casa Coffee Colab no mapa"
             ></iframe>
             -->
-            <div class="photo-bege grid min-h-[280px] place-items-center rounded-2xl p-8 ring-1 ring-cafe/10 lg:min-h-[360px]">
-              <div class="text-center text-cafe">
-                <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-branco/40">
-                  <i data-lucide="map-pin" class="h-7 w-7"></i>
+            <div class="ph ph-tan light map-ph">
+              <div class="map-ph-inner">
+                <span class="icon-badge lg" style="background: rgba(27,22,17,.06); color: var(--ink)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20 10c0 5.5-8 12-8 12s-8-6.5-8-12a8 8 0 0 1 16 0z" />
+                    <circle cx="12" cy="10" r="2.6" />
+                  </svg>
                 </span>
-                <p class="mt-4 font-titulo text-lg">Hamburgo Velho</p>
-                <p class="mt-1 text-sm text-cafe/70">o mapa chega já já, por ora, é só chegar 💛</p>
+                <p class="title sm" style="margin-top: 14px">Hamburgo Velho</p>
+                <p style="margin-top: 4px; color: var(--ink-2); font-size: 13.5px">
+                  o mapa chega já já — por ora, é só chegar 💛
+                </p>
               </div>
             </div>
           </div>
@@ -180,6 +214,16 @@
 
     <!-- Footer injetado pelo app.js -->
     <div id="site-footer"></div>
+
+    <!-- Estilos pontuais desta página (layout do bloco de localização) -->
+    <style>
+      .duo-info { display: grid; gap: clamp(28px, 4vw, 52px); align-items: center }
+      @media (min-width: 900px) { .duo-info { grid-template-columns: 1fr 1fr } }
+      .map-ph { border-radius: 14px; min-height: 300px; display: grid; place-items: center; padding: 32px; text-align: center }
+      @media (min-width: 900px) { .map-ph { min-height: 380px } }
+      .map-ph-inner { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center }
+      .map-ph.ph::after { display: none }
+    </style>
 
     <script type="module" src="../app.js"></script>
   </body>
