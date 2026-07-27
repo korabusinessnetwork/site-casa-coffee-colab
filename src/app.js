@@ -1480,13 +1480,43 @@ async function doSignOut() {
   window.location.href = '/pages/home.html';
 }
 
+// Título do nome exibido: capitaliza a inicial de cada termo, mantendo conectores
+// pt-BR ("de/da/do/das/dos/e") minúsculos. Não mexe em e-mail (fallback raro) nem
+// no genérico "você". Ex.: "matheus bonato" → "Matheus Bonato".
+function tituloNome(str) {
+  const s = String(str || '').trim();
+  if (!s || s.includes('@')) return s;
+  const conect = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+  return s.replace(/\S+/g, (termo, offset) => {
+    const low = termo.toLocaleLowerCase('pt-BR');
+    if (offset > 0 && conect.has(low)) return low;
+    return low.charAt(0).toLocaleUpperCase('pt-BR') + low.slice(1);
+  });
+}
+
+// Iniciais pro avatar: 1ª letra do primeiro termo + 1ª do último (ignora
+// conectores), sempre maiúsculas. "matheus bonato" → "MB"; "matheus" → "M";
+// "maria da silva" → "MS"; e-mail → 1ª letra antes do "@".
+function iniciaisNome(str) {
+  const s = String(str || '').trim();
+  if (!s) return '?';
+  if (s.includes('@')) return (s.charAt(0) || '?').toLocaleUpperCase('pt-BR');
+  const conect = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+  const termos = s.split(/\s+/).filter(Boolean);
+  const sig = termos.filter((t) => !conect.has(t.toLocaleLowerCase('pt-BR')));
+  const base = sig.length ? sig : termos;
+  const a = base[0].charAt(0);
+  const b = base.length > 1 ? base[base.length - 1].charAt(0) : '';
+  return (a + b || '?').toLocaleUpperCase('pt-BR');
+}
+
 // Preenche os slots de auth do header conforme a sessão (deslogado ↔ logado).
 // Logado (desktop) → painel do usuário "mini-game" (avatar + dropdown com anel de
 // progresso, saldo, emblemas e links). Mobile → lista compacta no drawer.
 function updateAuthUI(session) {
   const raw = nomeDeExibicao(session) || '?';
-  const nome = escapeHtml(raw); // sempre escapado (anti-XSS)
-  const inicial = escapeHtml((raw.trim().charAt(0) || '?').toUpperCase());
+  const nome = escapeHtml(tituloNome(raw)); // capitalizado + sempre escapado (anti-XSS)
+  const inicial = escapeHtml(iniciaisNome(raw)); // iniciais do nome + sobrenome, maiúsculas
 
   const slot = document.querySelector('[data-auth-slot]');
   if (slot) {
@@ -1543,10 +1573,10 @@ function authMobileLogado(nome) {
       <span class="truncate">${nome}</span>
     </div>
     <p class="pb-1 pl-10 text-sm text-cafe/60"><span data-auth-saldo>—</span> pontos</p>
+    <a href="/pages/conta/perfil.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="user" class="h-5 w-5 text-terracota"></i>meu perfil</a>
     <a href="/pages/conta/pontos.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="gift" class="h-5 w-5 text-terracota"></i>meus pontos</a>
     <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="award" class="h-5 w-5 text-terracota"></i>minhas conquistas</a>
     <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="shopping-bag" class="h-5 w-5 text-terracota"></i>meus pedidos</a>
-    <a href="/pages/conta/perfil.html" class="flex items-center gap-2 py-2 text-base text-cafe" data-menu-link><i data-lucide="user" class="h-5 w-5 text-terracota"></i>minha conta</a>
     <button type="button" data-signout class="mt-2 inline-flex items-center gap-2 text-cafe/70 hover:text-terracota">
       <i data-lucide="log-out" class="h-5 w-5"></i>sair da conta
     </button>`;
@@ -1684,6 +1714,7 @@ async function renderUserPanel(panel) {
     ${emblemas ? `<div class="mt-4 flex flex-wrap gap-2">${emblemas}</div>` : ''}
 
     <div class="mt-4 grid gap-0.5 border-t border-cafe/10 pt-3 text-sm">
+      <a href="/pages/conta/perfil.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="user" class="h-4 w-4 text-terracota"></i>meu perfil</a>
       <a href="/pages/conta/pontos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="gift" class="h-4 w-4 text-terracota"></i>meus pontos</a>
       <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="award" class="h-4 w-4 text-terracota"></i>minhas conquistas</a>
       <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-cafe transition-colors hover:bg-cafe/5"><i data-lucide="shopping-bag" class="h-4 w-4 text-terracota"></i>meus pedidos</a>
@@ -2102,17 +2133,28 @@ async function initPerfilPage() {
                   : ''
               }
 
-              <div class="mt-3 hidden rounded-lg bg-terracota/5 p-3 text-sm text-cafe" data-cancelar-confirm>
-                <p>tem certeza? tu para de ser cobrado, mas <strong class="font-semibold">mantém os benefícios até ${
-                  proximaCobranca || 'o fim do período'
-                }</strong>. depois é só retomar — sem pagar de novo.</p>
-                <div class="mt-2 flex gap-3">
-                  <button type="button" data-cancelar-sim class="font-medium text-terracota hover:underline">sim, pausar</button>
-                  <button type="button" data-cancelar-nao class="text-cafe/60 hover:underline">deixa quieto</button>
+              <p class="mt-3 hidden text-sm text-cafe/70" data-assinatura-msg aria-live="polite"></p>
+
+              <!-- Modal reutilizável: passo 1 = confirmação (só no pausar); passo 2 =
+                   carregando (pausar E retomar). Overlay fixo cobrindo a tela. Fecha por
+                   Esc/backdrop só na confirmação; no carregando fica travado (a pessoa
+                   aguarda o back). Spinner respeita prefers-reduced-motion (motion-safe). -->
+              <div class="fixed inset-0 z-50 hidden items-center justify-center bg-preto/40 p-4 backdrop-blur-sm" data-modal aria-hidden="true">
+                <div class="w-full max-w-sm rounded-2xl bg-branco p-6 shadow-xl ring-1 ring-cafe/10" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+                  <div data-modal-confirm>
+                    <h3 id="modal-titulo" class="font-titulo text-xl text-cafe" data-modal-titulo>tem certeza?</h3>
+                    <p class="mt-2 text-sm text-cafe/70" data-modal-texto></p>
+                    <div class="mt-5 flex justify-end gap-3">
+                      <button type="button" data-modal-nao class="btn-ghost text-sm">deixa quieto</button>
+                      <button type="button" data-modal-sim class="btn-primary text-sm">sim, pausar</button>
+                    </div>
+                  </div>
+                  <div data-modal-loading class="hidden flex-col items-center py-4 text-center">
+                    <span class="inline-block h-8 w-8 rounded-full border-2 border-cafe/20 border-t-terracota motion-safe:animate-spin" aria-hidden="true"></span>
+                    <p class="mt-3 text-sm text-cafe/70" data-modal-loading-texto aria-live="polite">só um instante… 💛</p>
+                  </div>
                 </div>
               </div>
-
-              <p class="mt-3 hidden text-sm text-cafe/70" data-assinatura-msg aria-live="polite"></p>
             </section>`
           : ''
       }
@@ -2165,79 +2207,140 @@ async function initPerfilPage() {
       (tom === 'erro' ? 'text-terracota' : tom === 'ok' ? 'text-verde' : 'text-cafe/70');
   };
 
-  // Pausar (o antigo "cancelar" agora PAUSA até o fim do período pago).
-  const cancelarBtn = root.querySelector('[data-cancelar-assinatura]');
-  const cancelarConfirm = root.querySelector('[data-cancelar-confirm]');
-  const cancelarNao = root.querySelector('[data-cancelar-nao]');
-  const cancelarSim = root.querySelector('[data-cancelar-sim]');
+  // ── Modal (popup) reutilizável: confirmação + carregamento ────────────────
+  // Passo 1 (só no pausar): confirmação. Passo 2 (pausar E retomar): carregando.
+  // Fecha por Esc/backdrop/"deixa quieto" APENAS na confirmação; no carregando fica
+  // travado (`modalTravado`) — a pessoa aguarda a volta do back sem fechar sem querer.
+  const modal = root.querySelector('[data-modal]');
+  const modalConfirm = root.querySelector('[data-modal-confirm]');
+  const modalLoading = root.querySelector('[data-modal-loading]');
+  const modalTitulo = root.querySelector('[data-modal-titulo]');
+  const modalTexto = root.querySelector('[data-modal-texto]');
+  const modalSim = root.querySelector('[data-modal-sim]');
+  const modalNao = root.querySelector('[data-modal-nao]');
+  const modalLoadingTexto = root.querySelector('[data-modal-loading-texto]');
+  let modalTravado = false;
 
+  const abrirModal = () => {
+    modal?.classList.remove('hidden');
+    modal?.classList.add('flex');
+    modal?.setAttribute('aria-hidden', 'false');
+  };
+  const fecharModal = () => {
+    if (modalTravado) return; // no carregando, não deixa fechar
+    modal?.classList.add('hidden');
+    modal?.classList.remove('flex');
+    modal?.setAttribute('aria-hidden', 'true');
+  };
+  // Passo 2: troca o conteúdo do modal pra o estado "carregando" e trava o fechamento.
+  const modalParaCarregando = (txt) => {
+    modalTravado = true;
+    if (modalLoadingTexto) modalLoadingTexto.textContent = txt;
+    modalConfirm?.classList.add('hidden');
+    modalLoading?.classList.remove('hidden');
+    modalLoading?.classList.add('flex');
+  };
+  // Passo 1: abre o modal já no passo de confirmação, com handler fresco no "sim".
+  const abrirConfirmacao = ({ titulo, texto, sim, onSim }) => {
+    if (!modal) return;
+    modalTravado = false;
+    if (modalTitulo) modalTitulo.textContent = titulo;
+    if (modalTexto) modalTexto.textContent = texto;
+    if (modalSim) modalSim.textContent = sim;
+    modalConfirm?.classList.remove('hidden');
+    modalLoading?.classList.add('hidden');
+    modalLoading?.classList.remove('flex');
+    if (modalSim) modalSim.onclick = onSim; // handler novo a cada abertura (sem empilhar)
+    abrirModal();
+    modalSim?.focus();
+  };
+  // Vai DIRETO pro carregando (usado no retomar — sem confirmação).
+  const abrirCarregando = (txt) => {
+    if (!modal) return;
+    modalParaCarregando(txt);
+    abrirModal();
+  };
+  modalNao?.addEventListener('click', fecharModal);
+  modal?.addEventListener('click', (e) => { if (e.target === modal) fecharModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharModal(); });
+
+  // Pausar (o antigo "cancelar" agora PAUSA até o fim do período pago).
+  // Fluxo: clique → popup de confirmação → "sim, pausar" → estado de carregando → back.
+  const cancelarBtn = root.querySelector('[data-cancelar-assinatura]');
   cancelarBtn?.addEventListener('click', () => {
     assinaturaMsg?.classList.add('hidden');
-    cancelarConfirm?.classList.remove('hidden');
-    cancelarBtn.classList.add('hidden');
-  });
-  cancelarNao?.addEventListener('click', () => {
-    cancelarConfirm?.classList.add('hidden');
-    cancelarBtn?.classList.remove('hidden');
-  });
-  cancelarSim?.addEventListener('click', async () => {
-    if (!supabase) return;
-    cancelarSim.disabled = true;
-    cancelarSim.textContent = 'pausando…';
-    try {
-      const { data, error } = await supabase.functions.invoke('cancel-subscription', { body: {} });
-      cancelarConfirm?.classList.add('hidden');
-      if (error || !data?.ok) {
-        mostrarMsg('não deu pra pausar agora. tenta de novo daqui a pouco? 💛', 'erro');
-        cancelarBtn?.classList.remove('hidden');
-        return;
-      }
-      const ate = data?.ativo_ate ? new Date(data.ativo_ate) : null;
-      const ateStr = ate && !Number.isNaN(ate.getTime()) ? ate.toLocaleDateString('pt-BR') : '';
-      mostrarMsg(
-        data?.cancelada
-          ? 'assinatura encerrada. a porta fica sempre aberta. 💛'
-          : `plano pausado. teus benefícios seguem${ateStr ? ` até ${ateStr}` : ''} — depois é só retomar. 💛`,
-        'ok',
-      );
-      setTimeout(() => window.location.reload(), 1800);
-    } catch {
-      cancelarConfirm?.classList.add('hidden');
-      mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
-      cancelarBtn?.classList.remove('hidden');
-    } finally {
-      cancelarSim.disabled = false;
-      cancelarSim.textContent = 'sim, pausar';
-    }
+    abrirConfirmacao({
+      titulo: 'pausar teu plano?',
+      texto: `tu para de ser cobrado, mas mantém os benefícios até ${
+        proximaCobranca || 'o fim do período'
+      }. depois é só retomar — sem pagar de novo.`,
+      sim: 'sim, pausar',
+      onSim: async () => {
+        if (!supabase) return;
+        modalParaCarregando('pausando teu plano… 💛');
+        try {
+          const { data, error } = await supabase.functions.invoke('cancel-subscription', { body: {} });
+          if (error || !data?.ok) {
+            modalTravado = false;
+            fecharModal();
+            mostrarMsg('não deu pra pausar agora. tenta de novo daqui a pouco? 💛', 'erro');
+            return;
+          }
+          const ate = data?.ativo_ate ? new Date(data.ativo_ate) : null;
+          const ateStr = ate && !Number.isNaN(ate.getTime()) ? ate.toLocaleDateString('pt-BR') : '';
+          if (modalLoadingTexto) {
+            modalLoadingTexto.textContent = data?.cancelada
+              ? 'assinatura encerrada. a porta fica sempre aberta. 💛'
+              : `plano pausado. teus benefícios seguem${ateStr ? ` até ${ateStr}` : ''}. 💛`;
+          }
+          setTimeout(() => window.location.reload(), 1800);
+        } catch {
+          modalTravado = false;
+          fecharModal();
+          mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+        }
+      },
+    });
   });
 
   // Retomar (reativa a MESMA assinatura pausada — sem cobrar do zero na graça).
+  // Fluxo: clique → estado de carregando DIRETO (sem confirmação) → back.
   const retomarBtn = root.querySelector('[data-retomar]');
   retomarBtn?.addEventListener('click', async () => {
     if (!supabase) return;
-    const txt = retomarBtn.textContent;
-    retomarBtn.disabled = true;
-    retomarBtn.textContent = 'retomando…';
+    assinaturaMsg?.classList.add('hidden');
+    abrirCarregando('retomando teu plano… 💛');
     try {
       const { data, error } = await supabase.functions.invoke('resume-subscription', { body: {} });
       if (error || !data?.ok) {
-        mostrarMsg('não deu pra retomar agora. tenta de novo daqui a pouco? 💛', 'erro');
+        // Lê o corpo do erro (supabase-js guarda a resposta não-2xx em error.context).
+        let corpo = data || null;
+        if (!corpo && error?.context?.json) {
+          try { corpo = await error.context.json(); } catch { /* corpo não-JSON, tudo bem */ }
+        }
+        modalTravado = false;
+        fecharModal();
+        // 409: a assinatura pausada perdeu o vínculo com o gateway — não dá pra
+        // "retomar", mas dá pra voltar pro mesmo plano numa assinatura nova.
+        if (corpo?.precisa_reassinar) {
+          mostrarMsg('essa assinatura perdeu o vínculo com o pagamento, então não dá pra retomar por aqui. atualiza a página pra voltar pro teu plano numa assinatura nova. 💛', 'erro');
+        } else {
+          mostrarMsg('não deu pra retomar agora. tenta de novo daqui a pouco? 💛', 'erro');
+        }
         return;
       }
       // Vencido: a cobrança foi disparada mas ainda não confirmou — o benefício
       // volta quando o pagamento cair (o webhook reativa). No período pago, já valeu.
-      mostrarMsg(
-        data.cobranca_em_processamento
+      if (modalLoadingTexto) {
+        modalLoadingTexto.textContent = data.cobranca_em_processamento
           ? 'tô reativando teu plano — a cobrança tá sendo processada. assim que cair, teus benefícios voltam. 💛'
-          : 'que bom te ver de volta — plano retomado. 💛',
-        'ok',
-      );
+          : 'que bom te ver de volta — plano retomado. 💛';
+      }
       setTimeout(() => window.location.reload(), 2200);
     } catch {
+      modalTravado = false;
+      fecharModal();
       mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
-    } finally {
-      retomarBtn.disabled = false;
-      retomarBtn.textContent = txt;
     }
   });
 

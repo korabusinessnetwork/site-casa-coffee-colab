@@ -12,3 +12,6 @@ supabase/.temp/
 
 # Config local de tooling (Claude Code launch.json etc.)
 .claude/
+
+# Vercel: config/estado local do projeto (project id etc.) — não versionar
+.vercel/
