@@ -308,11 +308,12 @@ export async function getUserTierDiscount(
 
 // =============================================================================
 // PONTOS (Fase 3) — crédito server-side, sempre pelo ledger (append-only).
-// Regra: 1 ponto por R$1 × points_multiplier do tier ATIVO no momento (sem
-// assinatura = 1x). floor (arredonda pra baixo). O trigger update_points_balance
-// (0008) sincroniza o cache profiles.points_balance. Idempotente por (ref_type,
-// ref_id) — UNIQUE no ledger (0008): reprocessar o evento não duplica.
-// GATEWAY-AGNÓSTICO.
+// Regra: fidelidade é EXCLUSIVA de assinante. Só pontua quem tem plano ATIVO no
+// momento da compra — aí ganha 1 ponto por R$1 × points_multiplier do tier. SEM
+// assinatura = ZERO pontos (não é mais "1x"). floor (arredonda pra baixo). O
+// trigger update_points_balance (0008) sincroniza o cache profiles.points_balance.
+// Idempotente por (ref_type, ref_id) — UNIQUE no ledger (0008): reprocessar o
+// evento não duplica. GATEWAY-AGNÓSTICO.
 // =============================================================================
 export async function getTierMultiplier(tierSlug: string | null): Promise<number> {
   if (!tierSlug) return 1;
@@ -337,6 +338,12 @@ export async function creditPoints(args: {
 }): Promise<number> {
   const { userId, valorCentavos, motivo, refType, refId, tierSlug } = args;
   if (!userId || !valorCentavos || valorCentavos <= 0) return 0;
+
+  // Fidelidade é EXCLUSIVA de assinante: sem tier vigente (nenhum plano ativo no
+  // momento da compra) → 0 pontos. A LOJA passa order.tier_slug_aplicado, que é
+  // null quando não havia assinatura no checkout; a cobrança da ASSINATURA sempre
+  // passa o tier vigente. Assim, quem não tem plano não pontua — de propósito.
+  if (!tierSlug) return 0;
 
   const mult = await getTierMultiplier(tierSlug);
   // 1 ponto por R$1 (valorCentavos/100) × multiplicador, arredondado PRA BAIXO.

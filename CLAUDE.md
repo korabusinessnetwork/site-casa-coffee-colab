@@ -380,9 +380,13 @@ O `points_ledger` (0001, append-only) é a **fonte da verdade**; `profiles.point
 é um **cache** que nunca diverge (trigger). Todo cálculo de saldo é server-side; o front
 só LÊ (RLS: cada um lê o próprio ledger).
 
-- **Regra (travada):** 1 ponto por R$1 × `tiers.points_multiplier` do tier ATIVO no
-  momento (sem assinatura = 1x). Loja: sobre o total **já com desconto**. Sempre `floor`.
-  Ex.: R$49,41 no Ouro (1,5x) → `floor(74.115)` = 74.
+- **Regra (travada):** fidelidade é **exclusiva de assinante**. Só pontua quem tem plano
+  ATIVO no momento da compra — aí ganha 1 ponto por R$1 × `tiers.points_multiplier` do tier.
+  **Sem assinatura ativa = ZERO pontos** (a trava fica no `creditPoints`: `tierSlug` nulo →
+  0). Loja: sobre o total **já com desconto**. Sempre `floor`. Ex.: R$49,41 no Ouro (1,5x) →
+  `floor(74.115)` = 74; sem plano, a MESMA compra rende 0. A LOJA passa
+  `order.tier_slug_aplicado` (null quando não havia assinatura no checkout) e a ASSINATURA
+  sempre passa o tier vigente — então quem não tem plano não pontua.
 - **Migration `0008_points`**: `points_ledger.ref_type/ref_id` (+ UNIQUE parcial pra
   anti-duplicação), trigger `update_points_balance` (soma o delta no cache; seta a GUC
   `casa.trusted_points` pra o `prevent_points_tamper` liberar o write server-side),

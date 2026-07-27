@@ -2743,7 +2743,7 @@ async function initPontosPage() {
             ${
               planoNome
                 ? `teu plano <span class="font-medium">${escapeHtml(planoNome)}</span> rende <span class="font-medium">${multTxt}x</span> pontos`
-                : `teus pontos rendem <span class="font-medium">1x</span> — um plano faz render mais, quando fizer sentido pra ti`
+                : `os pontos são um agrado de quem tem plano — <a href="/pages/planos.html" class="font-medium text-terracota underline decoration-terracota/40 underline-offset-2 hover:decoration-terracota">ativa um pra começar a pontuar</a>`
             }
           </p>
         </div>
@@ -2767,9 +2767,9 @@ async function initPontosPage() {
           <aside class="rounded-2xl bg-bege/60 p-5 ring-1 ring-cafe/10">
             <h2 class="font-titulo text-xl">como funciona</h2>
             <ul class="mt-3 space-y-2 text-sm text-cafe/75">
-              <li>· 1 ponto a cada R$1 que tu gasta com a gente.</li>
-              <li>· teu plano multiplica isso (Ouro rende 1,5x, por exemplo).</li>
-              <li>· na loja, os pontos contam sobre o valor já com teu desconto.</li>
+              <li>· os pontos são um mimo de quem tem plano ativo.</li>
+              <li>· com plano, 1 ponto a cada R$1 — e teu tier multiplica (Ouro rende 1,5x).</li>
+              <li>· na loja, contam sobre o valor já com teu desconto.</li>
               <li>· é só juntar e trocar por um agrado quando quiser.</li>
             </ul>
           </aside>
