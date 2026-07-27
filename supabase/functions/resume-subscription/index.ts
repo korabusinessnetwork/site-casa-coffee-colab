@@ -66,6 +66,24 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'a gente não achou uma assinatura pausada no teu nome' }, 404);
   }
 
+  // 2.1) Assinatura SEM vínculo no Asaas (asaas_subscription_id nulo): é linha
+  // antiga/incompleta — o webhook nunca carimbou o id da assinatura no gateway. Não
+  // dá pra "retomar" o que não existe lá. Fingir sucesso (o comportamento antigo,
+  // caía no ramo 'cobranca_em_processamento') deixaria a pessoa presa em 'pausada'
+  // pra sempre, esperando um PAYMENT_CONFIRMED que nunca vem. Ser honesto: sinaliza
+  // pra UI oferecer "assinar de novo" (é uma assinatura nova, ciclo do zero).
+  if (!sub.asaas_subscription_id) {
+    console.warn('[resume-subscription] pausada sem asaas_subscription_id (não reativável):', sub.id);
+    return jsonResponse(
+      {
+        error: 'essa assinatura ficou sem vínculo com o gateway, então não dá pra retomar aqui. bora assinar de novo?',
+        precisa_reassinar: true,
+        tier_slug: sub.tier_slug,
+      },
+      409,
+    );
+  }
+
   // 3) nextDueDate: se ainda estamos no período pago, mantém a data original
   // (sem cobrança agora). Se já venceu, cobra a partir de hoje.
   const now = Date.now();

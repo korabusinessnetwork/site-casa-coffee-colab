@@ -327,13 +327,6 @@ async function activateSubscription(checkout: any): Promise<void> {
     return;
   }
 
-  // DIAGNÓSTICO (TEMPORÁRIO): confirma o vínculo pelo checkout.id. Remover quando estável.
-  // NUNCA stringify(customer): pode vir inline com CPF/e-mail e a gente não guarda PII.
-  console.log(
-    '[asaas-webhook][diag] CHECKOUT_PAID link checkout=%s user=%s tier=%s',
-    checkoutId, userId, tierSlug,
-  );
-
   // Grava/atualiza a linha (status 'ativa'; sub_id/customer/período ficam pro PAYMENT) e
   // espelha o tier no profile — o plano VINCULA aqui, na hora.
   await activateSubscriptionRowByCheckout({ userId, tierSlug, checkoutId });
@@ -400,7 +393,19 @@ function pagamentoMuitoAntigo(payment: any): boolean {
   if (typeof raw !== 'string') return false;
   const t = Date.parse(raw);
   if (Number.isNaN(t)) return false;
-  return Date.now() - t > 6 * 60 * 60 * 1000; // > 6h → CHECKOUT_PAID já devia ter chegado
+  // BUG CORRIGIDO (comprovado em log): os campos de data do Asaas são DATE-ONLY
+  // ("YYYY-MM-DD") → Date.parse assume MEIA-NOITE UTC. Um pagamento de HOJE processado às
+  // 12h UTC parecia ter "12h de idade" e estourava o antigo limite de 6h → a gente
+  // DESISTIA de vincular a assinatura (o PAYMENT perdia a corrida pro CHECKOUT_PAID e, em
+  // vez de dar 500 pra retry, gravava 200 → o asaas_subscription_id NUNCA era carimbado →
+  // "retomar" quebrava pra sempre). Correção: (1) se for date-only, dá a folga do dia
+  // inteiro (o pagamento pode ter sido criado em qualquer hora daquele dia — mede pela
+  // versão mais RECENTE possível, fim do dia) e (2) sobe o limite pra 3 dias — muito além
+  // da corrida normal (segundos), então só descarta órfão de longuíssimo prazo.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw.trim());
+  const folgaMs = dateOnly ? 24 * 60 * 60 * 1000 : 0;
+  const idadeMs = Math.max(0, Date.now() - t - folgaMs);
+  return idadeMs > 3 * 24 * 60 * 60 * 1000; // > 3 dias (com folga do dia p/ date-only)
 }
 
 // =============================================================================
@@ -424,14 +429,13 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
   //  (2) asaas_checkout_id = checkoutSession → A PONTE: casa com a linha que o
   //      CHECKOUT_PAID gravou (user+tier). É o elo da 1ª cobrança.
   let subRow: { id: string; user_id: string; tier_slug: string } | null = null;
-  let via = 'none';
   if (asaasSubId) {
     const { data } = await supabaseAdmin
       .from('subscriptions')
       .select('id, user_id, tier_slug')
       .eq('asaas_subscription_id', asaasSubId)
       .maybeSingle();
-    if (data) { subRow = data; via = 'bySubId'; }
+    if (data) { subRow = data; }
   }
   if (!subRow && checkoutSession) {
     const { data } = await supabaseAdmin
@@ -439,16 +443,27 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
       .select('id, user_id, tier_slug')
       .eq('asaas_checkout_id', checkoutSession)
       .maybeSingle();
-    if (data) { subRow = data; via = 'byCheckout'; }
+    if (data) { subRow = data; }
   }
 
-  // DIAGNÓSTICO (TEMPORÁRIO): revela a ponte. checkoutSession DEVE ser o checkout.id do
-  // CHECKOUT_PAID; via='byCheckout' confirma a ponte da 1ª cobrança funcionando.
-  // Remover quando estável. NUNCA stringify(customer) — PII.
-  console.log(
-    '[asaas-webhook][diag] PAYMENT link id=%s subId=%s checkoutSession=%s via=%s',
-    payment?.id ?? '∅', asaasSubId ?? '∅', checkoutSession ?? '∅', via,
-  );
+  // CORRIDA DE ORDEM (comprovada em log): o PAYMENT_CONFIRMED e o CHECKOUT_PAID chegam
+  // quase juntos (~100ms). Quando o PAYMENT ganha, a linha que o CHECKOUT grava (por
+  // asaas_checkout_id) ainda não existe → byCheckout volta ∅. Como o PAYMENT já traz o
+  // asaas_subscription_id REAL e o checkoutSession, vale esperar um instante e reconsultar
+  // a PONTE na MESMA invocação — assim o vínculo fecha na hora, sem depender do retry (bem
+  // mais lento) do Asaas. Janela curta e barata (~1,6s no pior caso); só acontece nessa
+  // corrida específica (renovação casa por bySubId; PAYMENT tardio casa de primeira).
+  if (!subRow && checkoutSession && asaasSubId) {
+    for (let tent = 0; tent < 4 && !subRow; tent++) {
+      await new Promise((r) => setTimeout(r, 400));
+      const { data } = await supabaseAdmin
+        .from('subscriptions')
+        .select('id, user_id, tier_slug')
+        .eq('asaas_checkout_id', checkoutSession)
+        .maybeSingle();
+      if (data) { subRow = data; }
+    }
+  }
 
   let userId: string | null = subRow?.user_id ?? null;
   let tierSlug: string | null = subRow?.tier_slug ?? null;
