@@ -171,14 +171,28 @@ async function activateSubscriptionRowByCheckout(args: {
 // assinatura + customer + status/período reais. Atualiza pela PK (rowId) pra não criar
 // duplicata nem esbarrar no UNIQUE de asaas_subscription_id. Só seta o que veio (não
 // sobrescreve um período/customer bom com null).
+//
+// applyDowngradeTo: quando setado (renovação com downgrade AGENDADO), troca o
+// tier_slug pro plano leve e LIMPA scheduled_downgrade_to — a descida vale a partir
+// deste ciclo. Feito no MESMO update (atômico) que carimba o pagamento.
 async function stampSubscriptionRow(
   rowId: string,
-  args: { asaasSubId: string | null; customerId: string | null; status: string; periodEndIso: string | null },
+  args: {
+    asaasSubId: string | null;
+    customerId: string | null;
+    status: string;
+    periodEndIso: string | null;
+    applyDowngradeTo?: string | null;
+  },
 ): Promise<void> {
   const patch: Record<string, unknown> = { status: args.status, updated_at: new Date().toISOString() };
   if (args.asaasSubId) patch.asaas_subscription_id = args.asaasSubId;
   if (args.customerId) patch.asaas_customer_id = args.customerId;
   if (args.periodEndIso) patch.current_period_end = args.periodEndIso;
+  if (args.applyDowngradeTo) {
+    patch.tier_slug = args.applyDowngradeTo;
+    patch.scheduled_downgrade_to = null;
+  }
   const { error } = await supabaseAdmin.from('subscriptions').update(patch).eq('id', rowId);
   if (error) throw error;
 }
@@ -428,11 +442,11 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
   //  (1) asaas_subscription_id      → renovações e 1ª cobrança já carimbada.
   //  (2) asaas_checkout_id = checkoutSession → A PONTE: casa com a linha que o
   //      CHECKOUT_PAID gravou (user+tier). É o elo da 1ª cobrança.
-  let subRow: { id: string; user_id: string; tier_slug: string } | null = null;
+  let subRow: { id: string; user_id: string; tier_slug: string; scheduled_downgrade_to: string | null } | null = null;
   if (asaasSubId) {
     const { data } = await supabaseAdmin
       .from('subscriptions')
-      .select('id, user_id, tier_slug')
+      .select('id, user_id, tier_slug, scheduled_downgrade_to')
       .eq('asaas_subscription_id', asaasSubId)
       .maybeSingle();
     if (data) { subRow = data; }
@@ -440,7 +454,7 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
   if (!subRow && checkoutSession) {
     const { data } = await supabaseAdmin
       .from('subscriptions')
-      .select('id, user_id, tier_slug')
+      .select('id, user_id, tier_slug, scheduled_downgrade_to')
       .eq('asaas_checkout_id', checkoutSession)
       .maybeSingle();
     if (data) { subRow = data; }
@@ -458,7 +472,7 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
       await new Promise((r) => setTimeout(r, 400));
       const { data } = await supabaseAdmin
         .from('subscriptions')
-        .select('id, user_id, tier_slug')
+        .select('id, user_id, tier_slug, scheduled_downgrade_to')
         .eq('asaas_checkout_id', checkoutSession)
         .maybeSingle();
       if (data) { subRow = data; }
@@ -494,6 +508,19 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     return;
   }
 
+  // DOWNGRADE AGENDADO: a pessoa pediu pra descer de plano e escolhemos aplicar no
+  // PRÓXIMO ciclo (ver downgrade-subscription). Este pagamento é a RENOVAÇÃO — a hora
+  // de efetivar. Se a linha tem scheduled_downgrade_to (≠ do tier atual), o tier
+  // EFETIVO daqui pra frente é o plano leve. Aplicar ANTES do stamp/mirror/pontos
+  // garante que os pontos desta cobrança já contam pelo multiplicador NOVO (menor) e
+  // que o valor já é o menor (o value recorrente foi baixado quando agendamos).
+  // Idempotente: o stamp limpa scheduled_downgrade_to no mesmo update, então um
+  // reprocessamento não reaplica (a coluna já vem null). Só vale quando há subRow
+  // (self-heal por ref não tem agendamento). O motivo do ledger continua 'assinatura'.
+  const scheduledTo = subRow?.scheduled_downgrade_to ?? null;
+  const aplicandoDowngrade = !!scheduledTo && scheduledTo !== tierSlug;
+  const tierEfetivo = aplicandoDowngrade ? (scheduledTo as string) : tierSlug;
+
   // Status/período REAIS do gateway (nunca chuta — ver auditoria Raiz B). Best-effort:
   // se o fetch falhar, mantém 'ativa' e não mexe no período (o pagamento aconteceu).
   const customerId = idOf(payment?.customer);
@@ -503,14 +530,21 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
 
   if (subRow) {
     // Carimba a linha existente (a do CHECKOUT_PAID) com sub_id + customer + status/período.
-    await stampSubscriptionRow(subRow.id, { asaasSubId, customerId, status: statusReal, periodEndIso });
+    // Se há downgrade agendado, o MESMO update troca o tier pro leve e limpa o agendamento.
+    await stampSubscriptionRow(subRow.id, {
+      asaasSubId,
+      customerId,
+      status: statusReal,
+      periodEndIso,
+      applyDowngradeTo: aplicandoDowngrade ? tierEfetivo : null,
+    });
   } else if (asaasSubId) {
     // Self-heal (raro): resolvemos user/tier pelo ref DO PAGAMENTO mas não havia linha.
     // Cria por asaas_subscription_id (UNIQUE) pra não perder o vínculo.
     const { error } = await supabaseAdmin.from('subscriptions').upsert(
       {
         user_id: userId,
-        tier_slug: tierSlug,
+        tier_slug: tierEfetivo,
         status: statusReal,
         asaas_subscription_id: asaasSubId,
         asaas_customer_id: customerId,
@@ -522,10 +556,11 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     if (error) throw error;
   }
 
-  // Espelha o tier no profile só se a assinatura CONCEDE benefício agora (ativa).
-  if (statusReal === 'ativa') await mirrorProfile(userId, tierSlug, customerId);
+  // Espelha o tier (EFETIVO) no profile só se a assinatura CONCEDE benefício agora (ativa).
+  if (statusReal === 'ativa') await mirrorProfile(userId, tierEfetivo, customerId);
 
-  // Pontos: valor REAL pago × multiplicador do tier. Idempotente por (subscription, payment.id).
+  // Pontos: valor REAL pago × multiplicador do tier EFETIVO. Idempotente por
+  // (subscription, payment.id).
   const valorCentavos = centavosFromReais(Number(payment?.value ?? 0));
   if (valorCentavos > 0) {
     await creditPoints({
@@ -534,7 +569,7 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
       motivo: 'assinatura',
       refType: 'subscription',
       refId: String(payment.id),
-      tierSlug,
+      tierSlug: tierEfetivo,
     });
     await checkAchievements(userId); // conquistas de tempo de casa best-effort
   }

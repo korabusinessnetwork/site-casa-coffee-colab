@@ -1999,25 +1999,27 @@ async function initPerfilPage() {
   let subStatus = null; // 'ativa' | 'pausada' | 'cancelada' | null
   let periodEndMs = NaN;
   let ativoAte = ''; // DD/MM (current_period_end formatado)
-  let tiers = []; // [{ slug, nome, preco_centavos, ordem }]
+  let agendadoSlug = null; // scheduled_downgrade_to (downgrade agendado pro próximo ciclo)
+  let tiers = []; // [{ slug, nome, preco_centavos, ordem, ativo }]
 
   if (supabase) {
     const [subRes, tiersRes] = await Promise.all([
       supabase
         .from('subscriptions')
-        .select('tier_slug, status, current_period_end')
+        .select('tier_slug, status, current_period_end, scheduled_downgrade_to')
         .eq('user_id', session.user.id)
         .in('status', ['ativa', 'pausada', 'cancelada'])
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabase.from('tiers').select('slug, nome, preco_centavos, ordem').order('ordem'),
+      supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo').order('ordem'),
     ]);
     tiers = Array.isArray(tiersRes.data) ? tiersRes.data : [];
     const sub = subRes.data;
     if (sub) {
       subStatus = sub.status;
       planoSlug = sub.tier_slug || planoSlug;
+      agendadoSlug = sub.scheduled_downgrade_to || null;
       if (sub.current_period_end) {
         const d = new Date(sub.current_period_end);
         if (!Number.isNaN(d.getTime())) {
@@ -2042,9 +2044,20 @@ async function initPerfilPage() {
   const temGerenciar = ativa || pausada || reassinavel; // tem assinatura pra gerenciar
   const temPlano = temGerenciar || Boolean(profile?.tier_slug);
   const proximaCobranca = ativoAte;
-  // Upgrade só faz sentido com assinatura ATIVA e tiers acima do atual.
   const ordemAtual = tiers.find((t) => t.slug === planoSlug)?.ordem ?? 0;
-  const tiersUpgrade = ativa ? tiers.filter((t) => (t.ordem ?? 0) > ordemAtual) : [];
+  // Downgrade AGENDADO (vale no próximo ciclo). Só existe em assinatura ATIVA (a
+  // function exige 'ativa'). Enquanto agendado, a gente NÃO oferece upgrade (pra não
+  // virar puxa-empurra) nem o desvio de "plano leve" no modal (já está mais leve).
+  const tierAgendado = agendadoSlug ? tiers.find((t) => t.slug === agendadoSlug) : null;
+  const agendadoNome = tierAgendado ? escapeHtml(tierAgendado.nome) : agendadoSlug ? escapeHtml(agendadoSlug) : '';
+  const temDowngradeAgendado = ativa && Boolean(agendadoSlug);
+  // Upgrade só faz sentido com assinatura ATIVA, SEM downgrade agendado, e com tiers
+  // acima do atual.
+  const tiersUpgrade = ativa && !agendadoSlug ? tiers.filter((t) => (t.ordem ?? 0) > ordemAtual) : [];
+  // Desvio gentil de retenção: SÓ aparece dentro do fluxo de pausar, e SÓ se não
+  // houver downgrade já agendado. Planos ATIVOS mais leves que o atual (ordem menor).
+  const tiersDowngrade =
+    ativa && !agendadoSlug ? tiers.filter((t) => t.ativo !== false && (t.ordem ?? 0) < ordemAtual) : [];
 
   root.innerHTML = `
     <div class="mx-auto max-w-2xl">
@@ -2087,9 +2100,13 @@ async function initPerfilPage() {
               </div>
               ${
                 ativa
-                  ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá ativo.${
-                      proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-cafe">${proximaCobranca}</strong>.` : ''
-                    }</p>`
+                  ? temDowngradeAgendado
+                    ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> segue ativo${
+                        proximaCobranca ? ` até <strong class="font-semibold text-cafe">${proximaCobranca}</strong>` : ''
+                      } — e a partir daí vira <strong class="font-semibold text-cafe">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}.</p>`
+                    : `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá ativo.${
+                        proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-cafe">${proximaCobranca}</strong>.` : ''
+                      }</p>`
                   : emGraca
                     ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-cafe">${ativoAte}</strong> — e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
                     : reassinavel
@@ -2099,9 +2116,11 @@ async function initPerfilPage() {
 
               <div class="mt-4 flex flex-wrap gap-3">
                 ${
-                  ativa && tiersUpgrade.length
-                    ? `<button type="button" data-upgrade-abrir class="btn-primary text-sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
-                    : ''
+                  temDowngradeAgendado
+                    ? `<button type="button" data-manter-plano class="btn-primary text-sm"><i data-lucide="heart" class="h-4 w-4"></i>manter o ${plano}</button>`
+                    : ativa && tiersUpgrade.length
+                      ? `<button type="button" data-upgrade-abrir class="btn-primary text-sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
+                      : ''
                 }
                 ${
                   ativa
@@ -2148,6 +2167,27 @@ async function initPerfilPage() {
                       <button type="button" data-modal-nao class="btn-primary text-sm">deixa quieto</button>
                       <button type="button" data-modal-sim class="btn-ghost text-sm">sim, pausar</button>
                     </div>
+                    ${
+                      tiersDowngrade.length
+                        ? `<div class="mt-5 hidden border-t border-cafe/10 pt-4" data-modal-downgrade>
+                             <p class="text-center text-xs uppercase tracking-wide text-cafe/40">ou, se preferir</p>
+                             <p class="mt-2 text-sm text-cafe/70">dá pra continuar com a gente num plano mais leve. tu mantém o ${plano}${
+                               proximaCobranca ? ` até ${proximaCobranca}` : ''
+                             } e, a partir daí, segue no novo — sem pagar do zero.</p>
+                             <div class="mt-3 grid gap-2">
+                               ${tiersDowngrade
+                                 .map(
+                                   (t) =>
+                                     `<button type="button" data-downgrade-tier="${escapeHtml(t.slug)}" class="flex items-center justify-between rounded-lg bg-bege/40 px-4 py-2.5 text-left ring-1 ring-cafe/10 transition hover:ring-verde/40 disabled:opacity-50">
+                                        <span class="text-sm font-medium text-cafe">${escapeHtml(t.nome)}</span>
+                                        <span class="text-sm text-verde">${formatBRL(t.preco_centavos)}/mês</span>
+                                      </button>`,
+                                 )
+                                 .join('')}
+                             </div>
+                           </div>`
+                        : ''
+                    }
                   </div>
                   <div data-modal-loading class="hidden flex-col items-center py-4 text-center">
                     <span class="inline-block h-8 w-8 rounded-full border-2 border-cafe/20 border-t-terracota motion-safe:animate-spin" aria-hidden="true"></span>
@@ -2219,6 +2259,7 @@ async function initPerfilPage() {
   const modalSim = root.querySelector('[data-modal-sim]');
   const modalNao = root.querySelector('[data-modal-nao]');
   const modalLoadingTexto = root.querySelector('[data-modal-loading-texto]');
+  const modalDowngrade = root.querySelector('[data-modal-downgrade]'); // desvio gentil (só no pausar)
   let modalTravado = false;
 
   const abrirModal = () => {
@@ -2248,6 +2289,9 @@ async function initPerfilPage() {
     if (modalTexto) modalTexto.textContent = texto;
     if (modalSim) modalSim.textContent = sim;
     modalConfirm?.classList.remove('hidden');
+    // Desvio gentil de retenção: a confirmação só é usada no fluxo de pausar, então
+    // revelar aqui mantém o "plano mais leve" restrito a esse momento (nunca na tela).
+    modalDowngrade?.classList.remove('hidden');
     modalLoading?.classList.add('hidden');
     modalLoading?.classList.remove('flex');
     if (modalSim) modalSim.onclick = onSim; // handler novo a cada abertura (sem empilhar)
@@ -2277,6 +2321,7 @@ async function initPerfilPage() {
       sim: 'sim, pausar',
       onSim: async () => {
         if (!supabase) return;
+        if (modalDowngrade) modalDowngrade.classList.add('hidden'); // some ao confirmar a pausa
         modalParaCarregando('pausando teu plano… 💛');
         try {
           const { data, error } = await supabase.functions.invoke('cancel-subscription', { body: {} });
@@ -2409,6 +2454,69 @@ async function initPerfilPage() {
         travarUpgrade(false);
       }
     });
+  });
+
+  // Desvio de retenção (dentro do modal de pausar): em vez de pausar, AGENDA a descida
+  // pro plano mais leve. A pessoa mantém o plano atual até o fim do período já pago; a
+  // renovação vem no valor menor. A function refaz preço/validação server-side.
+  const downgradeBtns = root.querySelectorAll('[data-downgrade-tier]');
+  downgradeBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!supabase) return;
+      const toTier = btn.dataset.downgradeTier;
+      if (!toTier) return;
+      downgradeBtns.forEach((b) => (b.disabled = true));
+      modalParaCarregando('ajustando teu plano… 💛');
+      try {
+        const { data, error } = await supabase.functions.invoke('downgrade-subscription', {
+          body: { tier_slug: toTier },
+        });
+        if (error || !data?.ok) {
+          modalTravado = false;
+          fecharModal();
+          mostrarMsg('não deu pra ajustar teu plano agora. tenta de novo daqui a pouco? 💛', 'erro');
+          return;
+        }
+        const efet = data?.efetivo_em ? new Date(data.efetivo_em) : null;
+        const efetStr = efet && !Number.isNaN(efet.getTime()) ? efet.toLocaleDateString('pt-BR') : '';
+        if (modalLoadingTexto) {
+          modalLoadingTexto.textContent = `pronto — segue tudo igual${
+            efetStr ? ` até ${efetStr}` : ''
+          }, e depois teu plano fica mais leve. dá pra voltar atrás quando quiser. 💛`;
+        }
+        setTimeout(() => window.location.reload(), 2200);
+      } catch {
+        modalTravado = false;
+        fecharModal();
+        mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+      }
+    });
+  });
+
+  // Manter o plano atual (desfaz um downgrade agendado). Volta a renovar no valor cheio
+  // do tier atual. Sem confirmação — é a ação "positiva" (a pessoa está ficando).
+  const manterBtn = root.querySelector('[data-manter-plano]');
+  manterBtn?.addEventListener('click', async () => {
+    if (!supabase) return;
+    assinaturaMsg?.classList.add('hidden');
+    abrirCarregando('voltando pro teu plano… 💛');
+    try {
+      const { data, error } = await supabase.functions.invoke('downgrade-subscription', {
+        body: { acao: 'cancelar' },
+      });
+      if (error || !data?.ok) {
+        modalTravado = false;
+        fecharModal();
+        mostrarMsg('não deu pra desfazer agora. tenta de novo daqui a pouco? 💛', 'erro');
+        return;
+      }
+      if (modalLoadingTexto) modalLoadingTexto.textContent = 'que bom que ficou — teu plano segue igual. 💛';
+      setTimeout(() => window.location.reload(), 1800);
+    } catch {
+      modalTravado = false;
+      fecharModal();
+      mostrarMsg('a gente não conseguiu falar com o servidor agora.', 'erro');
+    }
   });
 
   // Editar nome/telefone — update na PRÓPRIA linha (RLS garante id = auth.uid()).
