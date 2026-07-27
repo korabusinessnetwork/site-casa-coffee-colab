@@ -134,15 +134,27 @@ Deno.serve(async (req) => {
       // cobrar (são centavos): sobe o value recorrente e o tier já.
       const ASAAS_MIN_CENTAVOS = 500;
       if (delta_centavos < ASAAS_MIN_CENTAVOS) {
+        // Estado ANTERIOR de um downgrade agendado (pra reverter certinho se algum
+        // passo falhar). Subir de plano CANCELA a descida agendada: o upgrade manda.
+        // getEffectiveSubscription não traz essa coluna, então leio direto pela id.
+        const { data: subExtra } = await supabaseAdmin
+          .from('subscriptions')
+          .select('scheduled_downgrade_to')
+          .eq('id', sub.id)
+          .maybeSingle();
+        const prevScheduled = subExtra?.scheduled_downgrade_to ?? null;
+
         // 1) Sobe o value recorrente no Asaas.
         await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
           value: reaisFromCentavos(novo.preco_centavos),
         });
         // 2) Espelha o tier novo no banco: subscriptions PRIMEIRO (é dela que
         // getEffectiveSubscription/getUserTierDiscount leem o tier), profiles depois.
+        // LIMPA scheduled_downgrade_to: senão o webhook aplicaria a descida na renovação
+        // e desfaria este upgrade (value/tier voltariam a divergir).
         const { error: subErr } = await supabaseAdmin
           .from('subscriptions')
-          .update({ tier_slug: toSlug, updated_at: new Date().toISOString() })
+          .update({ tier_slug: toSlug, scheduled_downgrade_to: null, updated_at: new Date().toISOString() })
           .eq('id', sub.id);
         const { error: profErr } = subErr
           ? { error: null }
@@ -158,7 +170,11 @@ Deno.serve(async (req) => {
           if (!subErr) {
             const { error: revSubErr } = await supabaseAdmin
               .from('subscriptions')
-              .update({ tier_slug: sub.tier_slug, updated_at: new Date().toISOString() })
+              .update({
+                tier_slug: sub.tier_slug,
+                scheduled_downgrade_to: prevScheduled,
+                updated_at: new Date().toISOString(),
+              })
               .eq('id', sub.id);
             if (revSubErr) {
               console.error('[create-checkout] falha ao reverter tier_slug da subscription:', revSubErr);

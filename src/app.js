@@ -2046,14 +2046,16 @@ async function initPerfilPage() {
   const proximaCobranca = ativoAte;
   const ordemAtual = tiers.find((t) => t.slug === planoSlug)?.ordem ?? 0;
   // Downgrade AGENDADO (vale no próximo ciclo). Só existe em assinatura ATIVA (a
-  // function exige 'ativa'). Enquanto agendado, a gente NÃO oferece upgrade (pra não
-  // virar puxa-empurra) nem o desvio de "plano leve" no modal (já está mais leve).
+  // function exige 'ativa'). Mesmo com downgrade agendado a gente OFERECE upgrade:
+  // subir de plano CANCELA a descida agendada (as Edge Functions do upgrade limpam o
+  // scheduled_downgrade_to ao aplicar). O que NÃO reaparece é o desvio de "plano
+  // leve" no modal de pausar (já está mais leve, seria puxa-empurra).
   const tierAgendado = agendadoSlug ? tiers.find((t) => t.slug === agendadoSlug) : null;
   const agendadoNome = tierAgendado ? escapeHtml(tierAgendado.nome) : agendadoSlug ? escapeHtml(agendadoSlug) : '';
   const temDowngradeAgendado = ativa && Boolean(agendadoSlug);
-  // Upgrade só faz sentido com assinatura ATIVA, SEM downgrade agendado, e com tiers
-  // acima do atual.
-  const tiersUpgrade = ativa && !agendadoSlug ? tiers.filter((t) => (t.ordem ?? 0) > ordemAtual) : [];
+  // Upgrade faz sentido com assinatura ATIVA e tiers acima do atual, inclusive com
+  // downgrade agendado (o upgrade tem prioridade e desfaz a descida).
+  const tiersUpgrade = ativa ? tiers.filter((t) => (t.ordem ?? 0) > ordemAtual) : [];
   // Desvio gentil de retenção: SÓ aparece dentro do fluxo de pausar, e SÓ se não
   // houver downgrade já agendado. Planos ATIVOS mais leves que o atual (ordem menor).
   const tiersDowngrade =
@@ -2087,7 +2089,7 @@ async function initPerfilPage() {
         </div>
         <div class="rounded-2xl bg-branco/60 p-4 ring-1 ring-cafe/10">
           <dt class="text-xs uppercase tracking-wide text-cafe/50">e-mail</dt>
-          <dd class="mt-1 truncate text-sm text-cafe" title="${email}">${email}</dd>
+          <dd class="mt-1 break-all text-sm text-cafe">${email}</dd>
         </div>
       </dl>
 
@@ -2103,7 +2105,7 @@ async function initPerfilPage() {
                   ? temDowngradeAgendado
                     ? `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> segue ativo${
                         proximaCobranca ? ` até <strong class="font-semibold text-cafe">${proximaCobranca}</strong>` : ''
-                      }, e a partir daí vira <strong class="font-semibold text-cafe">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}.</p>`
+                      }, e a partir daí vira <strong class="font-semibold text-cafe">${agendadoNome}</strong>, um plano mais leve, sem pagar do zero. mudou de ideia? dá pra manter o ${plano}, ou subir pra um plano maior.</p>`
                     : `<p class="mt-2 text-sm text-cafe/70">teu <strong class="font-semibold text-cafe">${plano}</strong> tá ativo.${
                         proximaCobranca ? ` próxima cobrança em <strong class="font-semibold text-cafe">${proximaCobranca}</strong>.` : ''
                       }</p>`
@@ -2118,9 +2120,14 @@ async function initPerfilPage() {
                 ${
                   temDowngradeAgendado
                     ? `<button type="button" data-manter-plano class="btn-primary text-sm"><i data-lucide="heart" class="h-4 w-4"></i>manter o ${plano}</button>`
-                    : ativa && tiersUpgrade.length
-                      ? `<button type="button" data-upgrade-abrir class="btn-primary text-sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
-                      : ''
+                    : ''
+                }
+                ${
+                  ativa && tiersUpgrade.length
+                    ? `<button type="button" data-upgrade-abrir class="${
+                        temDowngradeAgendado ? 'btn-ghost' : 'btn-primary'
+                      } text-sm"><i data-lucide="arrow-up-circle" class="h-4 w-4"></i>fazer upgrade</button>`
+                    : ''
                 }
                 ${
                   ativa
@@ -2137,6 +2144,11 @@ async function initPerfilPage() {
                        <p class="text-sm text-cafe/70">tu paga só a <strong class="font-semibold text-cafe">diferença proporcional</strong> pelos dias que faltam${
                          proximaCobranca ? ` até ${proximaCobranca}` : ''
                        }. no próximo ciclo, o valor cheio do novo plano.</p>
+                       ${
+                         temDowngradeAgendado
+                           ? `<p class="mt-2 text-sm text-cafe/70">e olha: subir de plano desfaz a descida pro <strong class="font-semibold text-cafe">${agendadoNome}</strong> que tava agendada, tu segue pra cima. 💛</p>`
+                           : ''
+                       }
                        <div class="mt-3 grid gap-2">
                          ${tiersUpgrade
                            .map(

@@ -386,10 +386,18 @@ async function applyUpgrade(checkout: any): Promise<void> {
     console.error('[asaas-webhook] falha ao subir value no upgrade:', (err as Error).message);
   }
 
-  // Reflete no banco: tier novo + ativa (por asaas_subscription_id).
+  // Reflete no banco: tier novo + ativa (por asaas_subscription_id). LIMPA
+  // scheduled_downgrade_to: se havia uma descida agendada, o upgrade a cancela —
+  // senão, na renovação, handleSubscriptionPayment aplicaria a descida e desfaria
+  // este upgrade. Idempotente (reprocessar deixa null em null).
   const { error: uErr } = await supabaseAdmin
     .from('subscriptions')
-    .update({ tier_slug: toTier, status: 'ativa', updated_at: new Date().toISOString() })
+    .update({
+      tier_slug: toTier,
+      status: 'ativa',
+      scheduled_downgrade_to: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq('asaas_subscription_id', asaasSubId);
   if (uErr) throw uErr;
 
