@@ -117,7 +117,9 @@ const MARCA = {
     endereco: 'R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS',
     email: 'casacoffeecolab@gmail.com',
     telefone: '(51) 99360-5262',
-    telefoneHref: '+5551993605262',
+    // O telefone do rodapé abre o WhatsApp já com a conversa começada.
+    whatsappNumero: '5551993605262',
+    whatsappMensagem: 'Oii, gente do casa!! Quero saber mais sobre vocês!!',
     horario: 'Seg a sáb 8h–19h · dom 15h–19h',
   },
   redes: [
@@ -612,7 +614,12 @@ function renderFooter() {
           <address>
             <p>${contato.endereco}</p>
             <a href="mailto:${contato.email}">${contato.email}</a>
-            <a href="tel:${contato.telefoneHref}">${contato.telefone}</a>
+            <a
+              href="https://wa.me/${contato.whatsappNumero}?text=${encodeURIComponent(contato.whatsappMensagem)}"
+              target="_blank"
+              rel="noopener"
+              >${contato.telefone}</a
+            >
             <p>${contato.horario}</p>
           </address>
         </div>
