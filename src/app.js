@@ -133,22 +133,24 @@ const MARCA = {
 //   semLink — o item vira texto, sem clique. A PÁGINA CONTINUA NO AR: quem
 //             souber a URL entra direto. É só o menu que para de oferecer.
 const NAV = [
-  { rotulo: 'Home', href: '/pages/home.html' },
-  { rotulo: 'O Casa', href: '/pages/o-casa.html' },
-  { rotulo: 'Cardápio', href: '/pages/cardapio.html' },
-  { rotulo: 'Loja', href: '/pages/loja.html', selo: 'em breve', semLink: true },
-  { rotulo: 'Planos', href: '/pages/planos.html' },
-  { rotulo: 'Colab', href: '/pages/colab.html' },
+  { rotulo: 'Home', href: '/home' },
+  { rotulo: 'O Casa', href: '/o-casa' },
+  { rotulo: 'Cardápio', href: '/cardapio' },
+  { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true },
+  { rotulo: 'Planos', href: '/planos' },
+  { rotulo: 'Colab', href: '/colab' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
-// produto.html conta como "Loja"; a raiz "/" conta como "Home".
+// As URLs são limpas (/o-casa), mas o .html continua aceito — em dev dá pra
+// abrir /o-casa.html, e links antigos ainda chegam aqui via redirect.
+// "produto" conta como "Loja"; a raiz "/" conta como "Home".
 function activeNavHref() {
-  const path = window.location.pathname;
-  const base = path.substring(path.lastIndexOf('/') + 1) || 'home.html';
-  if (base === '' || base === 'index.html') return '/pages/home.html';
-  if (base === 'produto.html') return '/pages/loja.html';
-  const found = NAV.find((item) => item.href.endsWith('/' + base));
+  const path = window.location.pathname.replace(/\/+$/, '');
+  const base = path.substring(path.lastIndexOf('/') + 1).replace(/\.html$/, '');
+  if (base === '' || base === 'index') return '/home';
+  if (base === 'produto') return '/loja';
+  const found = NAV.find((item) => item.href === '/' + base);
   return found ? found.href : null;
 }
 
@@ -474,7 +476,7 @@ function renderHeader() {
     <header id="topo" class="site-header" data-site-header>
       <div class="wrap">
         <!-- Marca (logo oficial; o texto acessível vive no aria-label do link) -->
-        <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab, início">
+        <a href="/home" class="brand" aria-label="Casa Coffee Colab, início">
           <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
         </a>
 
@@ -492,7 +494,7 @@ function renderHeader() {
           </button>
 
           <!-- CTA -->
-          <a href="/pages/o-casa.html" class="btn-visit">Visite-nos</a>
+          <a href="/o-casa" class="btn-visit">Visite-nos</a>
 
           <!-- Hambúrguer (mobile) -->
           <button type="button" class="burger" aria-label="Abrir menu"
@@ -507,7 +509,7 @@ function renderHeader() {
         <nav class="menu-inner" aria-label="Navegação mobile">
           ${linksMobile}
           <div class="menu-cta">
-            <a href="/pages/o-casa.html" class="btn-visit" data-menu-link>Visite-nos</a>
+            <a href="/o-casa" class="btn-visit" data-menu-link>Visite-nos</a>
           </div>
           <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
           <div data-auth-slot-mobile></div>
@@ -592,7 +594,7 @@ function renderFooter() {
       <div class="wrap">
         <!-- Marca + bio -->
         <div>
-          <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab, início">
+          <a href="/home" class="brand" aria-label="Casa Coffee Colab, início">
             <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
           </a>
           <p class="decor">${MARCA.bio}</p>
@@ -639,7 +641,7 @@ function renderTabbar() {
   if (document.querySelector('[data-tabbar]')) return; // injeta uma vez só
 
   const ativo = activeNavHref();
-  const HOME = '/pages/home.html';
+  const HOME = '/home';
   const on = (href) => (href === ativo ? ' aria-current="page"' : '');
 
   const el = document.createElement('nav');
@@ -647,17 +649,17 @@ function renderTabbar() {
   el.setAttribute('data-tabbar', '');
   el.setAttribute('aria-label', 'Navegação rápida');
   el.innerHTML = `
-    <a href="/pages/cardapio.html"${on('/pages/cardapio.html')}>
+    <a href="/cardapio"${on('/cardapio')}>
       <i data-lucide="utensils"></i><span>Cardápio</span>
     </a>
-    <a href="/pages/loja.html"${on('/pages/loja.html')}>
+    <a href="/loja"${on('/loja')}>
       <i data-lucide="shopping-bag"></i><span>Loja</span>
     </a>
     <a href="${HOME}" class="center" aria-label="Início"${on(HOME)}>C</a>
-    <a href="/pages/planos.html"${on('/pages/planos.html')}>
+    <a href="/planos"${on('/planos')}>
       <i data-lucide="sparkles"></i><span>Clube</span>
     </a>
-    <a href="/pages/colab.html"${on('/pages/colab.html')}>
+    <a href="/colab"${on('/colab')}>
       <i data-lucide="users"></i><span>Colab</span>
     </a>
   `;
@@ -855,7 +857,7 @@ function updateCartUI() {
       <div class="empty">
         <p class="e-title">teu carrinho tá vazio</p>
         <p class="mx-auto max-w-[16rem]">passa na loja e leva junto o que te agradar, no teu ritmo.</p>
-        <a href="/pages/loja.html" class="btn solid">ver a loja</a>
+        <a href="/loja" class="btn solid">ver a loja</a>
       </div>`;
     footer.classList.add('hidden');
     renderIcons();
@@ -990,7 +992,7 @@ function initCart() {
       const session = await getSession();
       if (!session) {
         const destino = encodeURIComponent(window.location.pathname + '?cart=open');
-        window.location.href = `/pages/login.html?redirect=${destino}`;
+        window.location.href = `/login?redirect=${destino}`;
         return;
       }
 
@@ -1208,21 +1210,21 @@ function setupCarousel(trackEl, { dots = false, autoplay = false, interval = 550
 // =============================================================================
 function cardProdutoHTML(p) {
   const acao = p.variantes
-    ? `<a href="/pages/produto.html?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
+    ? `<a href="/produto?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
     : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
   return `
     <article class="prod" data-produto data-categoria="${p.categoria}">
-      <a href="/pages/produto.html?slug=${p.slug}" class="block" aria-label="${p.nome}">
+      <a href="/produto?slug=${p.slug}" class="block" aria-label="${p.nome}">
         <div class="ph ${p.imagemPlaceholder}"></div>
       </a>
       <div class="prod-body">
         <p class="prod-cat">${CATEGORIAS[p.categoria]}</p>
         <h3 class="leading-tight">
-          <a href="/pages/produto.html?slug=${p.slug}" class="hover:text-coral">${p.nome}</a>
+          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${p.nome}</a>
         </h3>
         <p class="price">${formatBRL(p.preco_centavos)}</p>
         <div class="mt-2 flex gap-2">
-          <a href="/pages/produto.html?slug=${p.slug}" class="btn ghost sm" style="flex:1">ver</a>
+          <a href="/produto?slug=${p.slug}" class="btn ghost sm" style="flex:1">ver</a>
           ${acao}
         </div>
       </div>
@@ -1284,7 +1286,7 @@ function initProductPage() {
       <div class="empty">
         <p class="e-title">a gente não achou esse produto</p>
         <p class="mx-auto max-w-sm">pode ser que ele tenha saído da vitrine. dá uma olhada no que tem por lá?</p>
-        <a href="/pages/loja.html" class="btn solid">voltar pra loja</a>
+        <a href="/loja" class="btn solid">voltar pra loja</a>
       </div>`;
     renderIcons();
     return;
@@ -1316,7 +1318,7 @@ function initProductPage() {
     <div class="grid gap-8 lg:grid-cols-2">
       <div class="ph ${p.imagemPlaceholder} aspect-square w-full"></div>
       <div>
-        <a href="/pages/loja.html" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
+        <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
           <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
         </a>
         <p class="mt-4 prod-cat">${CATEGORIAS[p.categoria]}</p>
@@ -1400,7 +1402,7 @@ function initPlanosPage() {
   // (o login sanitiza via sanitizeRedirect, anti open-redirect).
   const irProLogin = () => {
     const destino = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = `/pages/login.html?redirect=${destino}`;
+    window.location.href = `/login?redirect=${destino}`;
   };
 
   // Abre o Checkout hospedado do Asaas (modo assinatura). O preço vem do BANCO na
@@ -1626,7 +1628,7 @@ async function initCheckoutSucessoPage() {
 // Sai da conta e volta pra home.
 async function doSignOut() {
   await signOut();
-  window.location.href = '/pages/home.html';
+  window.location.href = '/home';
 }
 
 // Título do nome exibido: capitaliza a inicial de cada termo, mantendo conectores
@@ -1671,14 +1673,14 @@ function updateAuthUI(session) {
   if (slot) {
     slot.innerHTML = session
       ? authDesktopLogado(nome, inicial)
-      : `<a href="/pages/login.html" class="hdr-auth-link">entrar</a>`;
+      : `<a href="/login" class="hdr-auth-link">entrar</a>`;
   }
 
   const slotM = document.querySelector('[data-auth-slot-mobile]');
   if (slotM) {
     slotM.innerHTML = session
       ? authMobileLogado(nome)
-      : `<a href="/pages/login.html" data-menu-link>entrar</a>`;
+      : `<a href="/login" data-menu-link>entrar</a>`;
   }
 
   // Liga o "sair" dos botões do header (o painel liga o seu próprio ao renderizar).
@@ -1721,10 +1723,10 @@ function authMobileLogado(nome) {
       <span class="truncate">${nome}</span>
     </div>
     <p class="pb-1 pl-10 text-sm text-muted"><span data-auth-saldo>—</span> pontos</p>
-    <a href="/pages/conta/perfil.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="user" class="h-5 w-5 text-coral"></i>meu perfil</a>
-    <a href="/pages/conta/pontos.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="gift" class="h-5 w-5 text-coral"></i>meus pontos</a>
-    <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="award" class="h-5 w-5 text-coral"></i>minhas conquistas</a>
-    <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="shopping-bag" class="h-5 w-5 text-coral"></i>meus pedidos</a>
+    <a href="/conta/perfil" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="user" class="h-5 w-5 text-coral"></i>meu perfil</a>
+    <a href="/conta/pontos" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="gift" class="h-5 w-5 text-coral"></i>meus pontos</a>
+    <a href="/conta/conquistas" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="award" class="h-5 w-5 text-coral"></i>minhas conquistas</a>
+    <a href="/conta/pedidos" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="shopping-bag" class="h-5 w-5 text-coral"></i>meus pedidos</a>
     <button type="button" data-signout class="mt-2 inline-flex items-center gap-2 text-muted hover:text-coral">
       <i data-lucide="log-out" class="h-5 w-5"></i>sair da conta
     </button>`;
@@ -1862,14 +1864,14 @@ async function renderUserPanel(panel) {
     ${emblemas ? `<div class="mt-4 flex flex-wrap gap-2">${emblemas}</div>` : ''}
 
     <div class="mt-4 grid gap-0.5 border-t border-line pt-3 text-sm">
-      <a href="/pages/conta/perfil.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="user" class="h-4 w-4 text-coral"></i>meu perfil</a>
-      <a href="/pages/conta/pontos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="gift" class="h-4 w-4 text-coral"></i>meus pontos</a>
-      <a href="/pages/conta/conquistas.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="award" class="h-4 w-4 text-coral"></i>minhas conquistas</a>
-      <a href="/pages/conta/pedidos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="shopping-bag" class="h-4 w-4 text-coral"></i>meus pedidos</a>
+      <a href="/conta/perfil" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="user" class="h-4 w-4 text-coral"></i>meu perfil</a>
+      <a href="/conta/pontos" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="gift" class="h-4 w-4 text-coral"></i>meus pontos</a>
+      <a href="/conta/conquistas" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="award" class="h-4 w-4 text-coral"></i>minhas conquistas</a>
+      <a href="/conta/pedidos" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="shopping-bag" class="h-4 w-4 text-coral"></i>meus pedidos</a>
       ${
         planoNome
           ? `<button type="button" data-panel-assinatura class="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>minha assinatura</button>`
-          : `<a href="/pages/planos.html" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>conhecer os planos</a>`
+          : `<a href="/planos" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>conhecer os planos</a>`
       }
       <button type="button" data-signout class="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-left text-muted transition-colors hover:bg-ink/5 hover:text-coral"><i data-lucide="log-out" class="h-4 w-4"></i>sair da conta</button>
     </div>`;
@@ -1910,7 +1912,7 @@ function animarContagem(el, alvo, dur = 900) {
 // "minha assinatura" (painel do header) → leva pro perfil, onde fica a nossa tela
 // de gerenciar/cancelar (o Asaas não tem portal de cobrança hospedado).
 function irParaAssinatura() {
-  window.location.href = '/pages/conta/perfil.html';
+  window.location.href = '/conta/perfil';
 }
 
 // Preenche o saldo nos slots [data-auth-saldo] (drawer mobile). Uma leitura leve.
@@ -1936,7 +1938,7 @@ async function requireAuth() {
   const session = await getSession();
   if (!session) {
     const destino = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.replace(`/pages/login.html?redirect=${destino}`);
+    window.location.replace(`/login?redirect=${destino}`);
     return null;
   }
   return session;
@@ -2017,14 +2019,14 @@ function initCadastroPage() {
           // nome e telefone vão pro raw_user_meta_data → a trigger handle_new_user popula o profiles.
           data: { full_name: nome, telefone },
           // link do e-mail de confirmação volta pra uma página do próprio site (env-driven).
-          emailRedirectTo: `${siteBase()}/pages/auth-confirmado.html`,
+          emailRedirectTo: `${siteBase()}/auth-confirmado`,
         },
       });
       if (error) return mostrarErro(mensagemDeErroAuth(error));
 
       if (data.session) {
         // "Confirm email" desligado → já entrou. Vai pro perfil.
-        window.location.href = '/pages/conta/perfil.html';
+        window.location.href = '/conta/perfil';
         return;
       }
 
@@ -2089,7 +2091,7 @@ function initLoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
       if (error) return mostrarErro(mensagemDeErroAuth(error));
-      window.location.href = redirect || '/pages/conta/perfil.html';
+      window.location.href = redirect || '/conta/perfil';
     } catch (err) {
       mostrarErro(mensagemDeErroAuth(err));
     } finally {
@@ -2109,7 +2111,7 @@ function initLoginPage() {
     if (!supabase) return mostrarErro('o reset de senha ainda não tá ligado por aqui (config pendente).');
     try {
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${siteBase()}/pages/login.html`,
+        redirectTo: `${siteBase()}/login`,
       });
     } catch {
       /* não revela se o e-mail existe, mensagem é sempre a mesma */
@@ -2218,7 +2220,7 @@ async function initPerfilPage() {
         <div class="card">
           <dt class="lbl">teus pontos</dt>
           <dd class="mt-1 font-titulo text-2xl text-coral">${pontos}</dd>
-          <a href="/pages/conta/pontos.html" class="mt-1 inline-block text-xs font-medium text-coral hover:underline">ver extrato e resgatar</a>
+          <a href="/conta/pontos" class="mt-1 inline-block text-xs font-medium text-coral hover:underline">ver extrato e resgatar</a>
         </div>
         <div class="card">
           <dt class="lbl">teu plano</dt>
@@ -2232,7 +2234,7 @@ async function initPerfilPage() {
                   ? `<p class="status mt-1"><span class="dot muted"></span>pausado</p>`
                   : reassinavel
                     ? `<p class="status mt-1"><span class="dot muted"></span>encerrado</p>`
-                    : `<a href="/pages/planos.html" class="mt-2 inline-block text-xs font-medium text-coral hover:underline">ver os planos</a>`
+                    : `<a href="/planos" class="mt-2 inline-block text-xs font-medium text-coral hover:underline">ver os planos</a>`
           }
         </div>
         <div class="card">
@@ -2374,7 +2376,7 @@ async function initPerfilPage() {
       }
 
       <div class="mt-4">
-        <a href="/pages/conta/conquistas.html" class="inline-flex items-center gap-2 text-sm font-medium text-coral hover:underline">
+        <a href="/conta/conquistas" class="inline-flex items-center gap-2 text-sm font-medium text-coral hover:underline">
           <i data-lucide="award" class="h-4 w-4"></i>minhas conquistas
         </a>
       </div>
@@ -2903,7 +2905,7 @@ async function initPontosPage() {
             ${
               planoNome
                 ? `teu plano <span class="font-medium">${escapeHtml(planoNome)}</span> rende <span class="font-medium">${multTxt}x</span> pontos`
-                : `os pontos são um agrado de quem tem plano, <a href="/pages/planos.html" class="font-medium text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">ativa um pra começar a pontuar</a>`
+                : `os pontos são um agrado de quem tem plano, <a href="/planos" class="font-medium text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">ativa um pra começar a pontuar</a>`
             }
           </p>
         </div>
@@ -2936,7 +2938,7 @@ async function initPontosPage() {
         </section>
 
         <div class="mt-10 border-t border-line pt-6">
-          <a href="/pages/conta/perfil.html" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+          <a href="/conta/perfil" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
         </div>
       </div>`;
 
@@ -3132,7 +3134,7 @@ async function initConquistasPage() {
       </section>
 
       <div class="mt-10 border-t border-line pt-6">
-        <a href="/pages/conta/perfil.html" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+        <a href="/conta/perfil" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
       </div>
     </div>`;
 
@@ -3204,7 +3206,7 @@ async function initPedidosPage() {
       <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">o que tu levou pra casa</h1>
       <div class="mt-8 grid gap-4">${lista}</div>
       <div class="mt-10 border-t border-line pt-6">
-        <a href="/pages/conta/perfil.html" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+        <a href="/conta/perfil" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
       </div>
     </div>`;
 
@@ -3314,7 +3316,7 @@ async function initAuthConfirmadoPage() {
            </span>
            <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">teu e-mail tá confirmado</h1>
            <p class="mt-3 text-ink-2">bem-vindo ao Casa. 💛 tua conta já tá pronta, chega mais.</p>
-           <a href="/pages/conta/perfil.html" class="btn solid mt-7">ir pra minha conta</a>
+           <a href="/conta/perfil" class="btn solid mt-7">ir pra minha conta</a>
          </div>`
       : `<div class="mx-auto max-w-md card text-center">
            <span class="mx-auto icon-badge lg coral">
@@ -3322,7 +3324,7 @@ async function initAuthConfirmadoPage() {
            </span>
            <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">quase lá</h1>
            <p class="mt-3 text-ink-2">esse link pode já ter sido usado ou expirado. entra com teu e-mail e senha que a gente te recebe.</p>
-           <a href="/pages/login.html" class="btn solid mt-7">ir pro login</a>
+           <a href="/login" class="btn solid mt-7">ir pro login</a>
          </div>`;
     renderIcons();
   };

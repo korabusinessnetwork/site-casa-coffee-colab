@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
   }
 
   const site = getSiteUrl();
-  const cancel_url = `${site}/pages/checkout-cancelado.html`;
+  const cancel_url = `${site}/checkout-cancelado`;
 
   try {
     // -------------------------------------------------------------------------
@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
         minutesToExpire: CHECKOUT_EXPIRA_MIN,
         externalReference: upgradeRef,
         callback: {
-          successUrl: `${site}/pages/checkout-sucesso.html?upgrade=1`,
+          successUrl: `${site}/checkout-sucesso?upgrade=1`,
           cancelUrl: cancel_url,
           expiredUrl: cancel_url,
           autoRedirect: true,
@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
           minutesToExpire: CHECKOUT_EXPIRA_MIN,
           externalReference: order.id,
           callback: {
-            successUrl: `${site}/pages/checkout-sucesso.html?ref=${order.id}`,
+            successUrl: `${site}/checkout-sucesso?ref=${order.id}`,
             cancelUrl: cancel_url,
             expiredUrl: cancel_url,
             autoRedirect: true,
@@ -366,7 +366,7 @@ Deno.serve(async (req) => {
       minutesToExpire: CHECKOUT_EXPIRA_MIN,
       externalReference: `sub:${user.id}:${tier.slug}:${nonce}`,
       callback: {
-        successUrl: `${site}/pages/checkout-sucesso.html?assinatura=1`,
+        successUrl: `${site}/checkout-sucesso?assinatura=1`,
         cancelUrl: cancel_url,
         expiredUrl: cancel_url,
         autoRedirect: true,

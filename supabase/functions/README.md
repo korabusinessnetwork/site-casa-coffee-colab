@@ -203,7 +203,7 @@ downgrade fica fora de escopo por ora.
   duplica o crédito (unique `(ref_type, ref_id)` no ledger + `asaas_events` por `id`).
 - **Renovação:** cada mensalidade gera novo `PAYMENT_CONFIRMED/RECEIVED` (ref =
   `payment.id`) → credita de novo, sem duplicar.
-- **Resgate:** em `/pages/conta/pontos.html`, "resgatar" → desconta o saldo, cria
+- **Resgate:** em `/conta/pontos`, "resgatar" → desconta o saldo, cria
   `redemptions`, baixa estoque e (se cupom) gera um código `CASA-XXXX` (30 dias).
 - **RLS:** anon não lê `points_ledger`/`redemptions`/`coupons`/`asaas_events` de
   ninguém (só o dono, logado).

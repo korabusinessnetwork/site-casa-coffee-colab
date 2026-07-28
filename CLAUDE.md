@@ -31,7 +31,7 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 
 **Header, footer e menu são funções dentro do `app.js`** que injetam HTML nos placeholders da página (`<div id="site-header"></div>` / `<div id="site-footer"></div>`).
 
-**Páginas `.html` continuam separadas** — cada uma é uma URL. Ficam em `src/pages/` (exceto a home, que é a entrada principal do Vite).
+**Páginas `.html` continuam separadas** — cada uma é uma URL. Ficam direto em `src/` (a área logada em `src/conta/`), porque **o caminho do arquivo é a URL**: `src/o-casa.html` vira `/o-casa`, `src/conta/perfil.html` vira `/conta/perfil`.
 
 ---
 
@@ -130,8 +130,8 @@ cores da marca, via utilitários no `styles.css`:
   `id, nome, slug, categoria (vestuario|acessorios|cafe_grao), preco_centavos, descricao,
   imagemPlaceholder (.photo-*), variantes ({ rotulo, opcoes[] } | null)`.
   > **TODO (Fase 2):** substituir o mock pela tabela **`products` do Supabase** (mesma forma).
-- **Páginas**: `src/pages/loja.html` (grid + filtro por categoria) e
-  `src/pages/produto.html` (lê `?slug=`, renderiza detalhe; estado vazio gentil se não achar).
+- **Páginas**: `src/loja.html` (grid + filtro por categoria) e
+  `src/produto.html` (lê `?slug=`, renderiza detalhe; estado vazio gentil se não achar).
   Ambas registradas no `rollupOptions.input` do `vite.config.js`.
 - **Carrinho** (`Cart` no `app.js`): estado em **localStorage** (chave `casa_cart`) — o site é
   multi-página, então o carrinho **sobrevive a reloads/navegação**. API:
@@ -147,27 +147,42 @@ cores da marca, via utilitários no `styles.css`:
 
 ## Páginas & navegação
 
-Todas as páginas ficam em `src/pages/` (uma URL cada) e precisam estar registradas no
-`rollupOptions.input` do `vite.config.js`. Header/footer vêm do `app.js`.
+Todas as páginas ficam direto em `src/` (a área logada em `src/conta/`) e precisam estar
+registradas no `rollupOptions.input` do `vite.config.js`. Header/footer vêm do `app.js`.
 
-| Página        | Arquivo             | Conteúdo                                                            |
-|---------------|---------------------|--------------------------------------------------------------------|
-| Home          | `home.html`         | hero + carrosséis + teasers (loja/planos) + playlists              |
-| O Casa        | `o-casa.html`       | sobre: história, DNA, selo "Feito no Casa", localização (mapa TODO) |
-| Cardápio      | `cardapio.html`     | menu literário (lista por seção) — informativo, **sem carrinho**   |
-| Loja          | `loja.html`         | catálogo + filtro por categoria                                    |
-| Produto       | `produto.html`      | detalhe via `?slug=` (conta como "Loja" na nav)                    |
-| Planos        | `planos.html`       | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
-| Colab         | `colab.html`        | Residência Gente do Casa; carrossel de colabs; convite (mailto/WhatsApp) |
-| Cadastro      | `cadastro.html`     | criar conta (nome/telefone/e-mail/senha); estado "confirme seu e-mail" |
-| Login         | `login.html`        | entrar (e-mail/senha) + "esqueci a senha" (reset por e-mail)       |
-| Auth OK       | `auth-confirmado.html` | retorno do link de confirmação; detecta a sessão na URL         |
-| Perfil        | `conta/perfil.html` | área logada (protegida): dados, pontos, plano; editar nome/telefone |
+**URLs limpas — sem `/pages/` e sem `.html`.** O arquivo `src/o-casa.html` é servido em
+`/o-casa`. Quem tira a extensão em produção é a **Vercel** (`cleanUrls: true` no
+`vercel.json`, que também redireciona 308 de `/x.html` pra `/x`); em desenvolvimento quem
+faz isso é o plugin `urlsLimpasNoDev()` do `vite.config.js`, um middleware que anexa
+`.html` na requisição quando o arquivo existe. Assim o link é escrito limpo num lugar só e
+funciona igual nos dois ambientes. O `vercel.json` guarda ainda redirects permanentes de
+`/pages/*` pros caminhos novos, pra não quebrar links antigos em circulação (e-mails de
+confirmação do Supabase, `successUrl` de checkouts já emitidos).
+
+| Página        | Arquivo             | URL                | Conteúdo                                                            |
+|---------------|---------------------|--------------------|--------------------------------------------------------------------|
+| Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
+| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, selo "Feito no Casa", localização (mapa TODO) |
+| Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) — informativo, **sem carrinho**   |
+| Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria                                    |
+| Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=` (conta como "Loja" na nav)                    |
+| Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
+| Colab         | `colab.html`        | `/colab`           | Residência Gente do Casa; carrossel de colabs; convite (mailto/WhatsApp) |
+| Cadastro      | `cadastro.html`     | `/cadastro`        | criar conta (nome/telefone/e-mail/senha); estado "confirme seu e-mail" |
+| Login         | `login.html`        | `/login`           | entrar (e-mail/senha) + "esqueci a senha" (reset por e-mail)       |
+| Auth OK       | `auth-confirmado.html` | `/auth-confirmado` | retorno do link de confirmação; detecta a sessão na URL         |
+| Perfil        | `conta/perfil.html` | `/conta/perfil`    | área logada (protegida): dados, pontos, plano; editar nome/telefone |
+
+A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
 
 - **NAV** (array no `app.js`): Home, O Casa, Cardápio, Loja, Planos, Colab — todas
-  apontam pras páginas reais. `activeNavHref()` detecta a página atual pelo pathname e
-  marca o item ativo com `aria-current="page"` + `text-terracota font-semibold`
-  (produto → "Loja"; raiz/`index.html` → "Home").
+  apontam pras páginas reais, com href limpo (`/o-casa`). `activeNavHref()` detecta a
+  página atual pelo pathname (tolerando um `.html` no fim, pra links antigos) e marca o
+  item ativo com `aria-current="page"` + `text-terracota font-semibold`
+  (produto → "Loja"; raiz/`index` → "Home").
+- **Loja está com selo "em breve" e SEM link** (`semLink: true` na NAV): o item aparece no
+  header, no menu mobile e no rodapé como texto morto (`.nav-off`). A página continua no
+  ar — dá pra abrir digitando `/loja`. Pra religar o link, é só tirar o `semLink`.
 - **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
   "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) só revela um aviso
   gentil — o checkout via Stripe vem na Fase 2.
@@ -426,12 +441,17 @@ só LÊ (RLS: cada um lê o próprio ledger).
 
 ```
 /
-├── index.html            # home (entrada principal do Vite)
-├── src/
+├── src/                  # root do Vite — o caminho do arquivo é a URL
+│   ├── index.html        # raiz "/" → redireciona pra /home
+│   ├── home.html         # /home … e assim por diante, uma página por URL
 │   ├── app.js            # header/footer/menu + lógica de UI
 │   ├── styles.css        # entrada Tailwind + base
-│   ├── pages/            # demais páginas .html (uma por URL)
-│   └── assets/           # imagens, ícones, etc.
+│   ├── conta/            # área logada (/conta/perfil, /conta/pontos, …)
+│   └── assets/           # publicDir: servido na raiz (/fotos/…)
+├── supabase/
+│   ├── migrations/       # SQL numerado, append-only
+│   └── functions/        # Edge Functions (segredos só aqui)
+├── vercel.json           # cleanUrls + redirects do /pages/ legado
 ├── tailwind.config.js
 ├── postcss.config.js
 ├── vite.config.js
