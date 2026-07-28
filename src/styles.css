@@ -414,6 +414,10 @@ a.txt-link.gold { color: var(--gold) }
    da home: a seção leva [data-hero-transparent] e o header sobe transparente. */
 .page-hero { position: relative; margin-top: calc(-1 * var(--hh)); padding-top: var(--hh); min-height: 56vh; display: flex; align-items: center; overflow: hidden }
 .page-hero .ph { position: absolute; inset: 0 }
+/* O quadro do hero é bem mais largo que qualquer foto, então o cover corta em cima
+   e embaixo. Ancorar acima do centro guarda o que importa numa fachada: letreiro e
+   rostos ficam na parte alta do enquadramento. */
+.page-hero .ph > img { object-position: 50% 22% }
 .page-hero .scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(12, 8, 4, .86) 0%, rgba(12, 8, 4, .5) 44%, rgba(12, 8, 4, .08) 74%), linear-gradient(180deg, rgba(12, 8, 4, .4), transparent 24%) }
 .page-hero .wrap { position: relative; z-index: 2; color: var(--cream); padding-top: 40px; padding-bottom: 54px }
 .page-hero .eyebrow { color: var(--gold-2) }
