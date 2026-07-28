@@ -179,6 +179,11 @@
 a.txt-link { display: inline-flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; font-size: 11.5px; letter-spacing: .22em; text-transform: uppercase; font-weight: 600 }
 a.txt-link:hover .arrow { transform: translateX(5px) }
 a.txt-link.gold { color: var(--gold) }
+/* .txt-off é o txt-link que perdeu o link (mesma ideia do .nav-off na navbar):
+   mesma tipografia dos vizinhos, sem seta e sem clique, com o carimbo do selo ao
+   lado. A página continua no ar por URL direta. */
+.txt-off { display: inline-flex; align-items: center; gap: 10px; font-size: 11.5px; letter-spacing: .22em; text-transform: uppercase; font-weight: 600; cursor: default; user-select: none }
+.txt-off .nav-selo { font-size: 7.5px; letter-spacing: .16em; padding: 3px 6px; transform: rotate(-6deg) }
 
 /* placeholders de foto — TODO: trocar por <img> reais (ver CLAUDE.md) */
 .ph { position: relative; overflow: hidden }
