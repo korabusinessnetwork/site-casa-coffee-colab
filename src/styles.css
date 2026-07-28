@@ -290,6 +290,19 @@ a.txt-link.gold { color: var(--gold) }
 .hero .wrap { position: relative; z-index: 2; color: var(--cream); padding-top: 40px; padding-bottom: 60px }
 .hero h1 { font-size: clamp(54px, 8.5vw, 116px); line-height: .98; letter-spacing: -.02em; font-weight: 500; color: var(--cream) }
 .hero h1 .coral { color: var(--coral) }
+/* Entrada do título: cada linha entra deslizando, bem devagar, uma atrás da
+   outra. As linhas em creme vêm da direita; a coral vem da esquerda. O hero tem
+   overflow: hidden, então o texto começa fora da tela sem criar barra lateral.
+   Cada <span class="ln"> substitui um <br> — é o bloco que dá pra animar. */
+.hero h1 .ln { display: block; opacity: 0; transform: translate3d(var(--de, 0), 0, 0); animation: hero-linha 1.9s var(--e) var(--atraso, 0s) forwards }
+.hero h1 .ln.dir { --de: 18vw }
+.hero h1 .ln.esq { --de: -18vw }
+.hero h1 .ln:nth-child(2) { --atraso: .26s }
+.hero h1 .ln:nth-child(3) { --atraso: .52s }
+@keyframes hero-linha { to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) {
+  .hero h1 .ln { opacity: 1; transform: none; animation: none }
+}
 .hero .rule { width: 52px; height: 2px; background: var(--cream); opacity: .55; margin: 30px 0 18px }
 .hero p.sub { max-width: 30ch; font-size: clamp(15px, 1.5vw, 17px); color: #e7dfce; opacity: .92 }
 .hero .txt-link { margin-top: 30px; color: var(--cream) }
