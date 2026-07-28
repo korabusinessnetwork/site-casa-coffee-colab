@@ -194,6 +194,13 @@ a.txt-link.gold { color: var(--gold) }
 .ph-drink { background: radial-gradient(circle at 50% 48%, #dd9a44, #7a3419 58%, #1d100a) }
 .ph-tote { background: linear-gradient(155deg, #586044, #2c3220) }
 .ph-tan { background: linear-gradient(155deg, #e7ddc9, #c6b898) }
+/* Foto real dentro do placeholder: o .ph continua como moldura e esqueleto (o
+   gradiente aparece enquanto a imagem carrega) e a foto cobre o quadro. Com
+   .has-foto o scrim sobe pra cima dela (contraste pro botão) e o ícone de
+   câmera sai de cena. A .circle-arrow tem z-index 3, então segue por cima. */
+.ph > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block }
+.ph.has-foto::before { z-index: 1 }
+.ph.has-foto::after { display: none }
 
 /* ---------- header ---------- */
 .site-header { position: sticky; top: 0; z-index: 50; transition: background .35s var(--e), box-shadow .35s var(--e), border-color .35s var(--e) }
