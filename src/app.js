@@ -464,10 +464,9 @@ function renderHeader() {
   slot.innerHTML = `
     <header id="topo" class="site-header" data-site-header>
       <div class="wrap">
-        <!-- Marca -->
+        <!-- Marca (logo oficial; o texto acessível vive no aria-label do link) -->
         <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab — início">
-          <span class="big">CASA</span>
-          <span class="small">COFFEE COLAB</span>
+          <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
         </a>
 
         <!-- Nav desktop -->

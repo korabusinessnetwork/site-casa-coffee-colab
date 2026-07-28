@@ -477,3 +477,64 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS — **o humano ainda precisa aplicar esta no SQL Editor, depois da 0010**).
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
+
+---
+
+## Operação
+
+Estas regras existem porque o custo de uma sessão agêntica se concentra em turnos
+e subagentes, não em tokens de resposta. Entenda o motivo e aplique com julgamento;
+não são checklist.
+
+### Subagentes
+
+Cada subagente refaz contexto do zero, explora, reporta, e eu releio o relatório —
+o custo se multiplica e a latência também.
+
+- Delegue apenas para investigação ampla genuinamente paralela em vários arquivos,
+  ou trilhas independentes de tamanho real.
+- Não delegue trabalho que se resolve em algumas chamadas de ferramenta.
+- Nunca delegue para verificar o próprio trabalho: verificação pertence ao loop
+  principal.
+- Se um subagente resolve, use um. Mantenha a contagem baixa e não redo o trabalho
+  dele depois que ele reporta.
+- Ao disparar vários para trabalho independente, mande todos no mesmo bloco para
+  rodarem em paralelo.
+
+### Verificação
+
+Você já verifica seu próprio trabalho por padrão. Não adicione um passo separado de
+verificação nem revise duas vezes por precaução — isso duplica custo sem achar mais
+nada. Verifique quando houver motivo concreto (teste falhou, resultado inesperado),
+não por ritual.
+
+### Escopo
+
+Entregue o que foi pedido, no escopo pedido. Interprete ambiguidade como um colega
+cuidadoso faria: decisões pequenas (nome de variável, valor default, qual de duas
+abordagens equivalentes) você toma e menciona; mudança de escopo ou ação destrutiva
+você pergunta antes.
+
+Se achar que o pedido está errado ou que existe caminho melhor, diga em uma frase e
+siga com o pedido — não estreite, alargue nem transforme por conta própria. Termine a
+tarefa inteira; se algo ficou de fora, diga o que e por quê em vez de reportar
+"pronto".
+
+Não adicione features, refactor, abstração, error handling ou fallback além do que a
+tarefa exige. Correção de bug não pede faxina em volta.
+
+### Comunicação
+
+Seu texto entre chamadas de ferramenta é o que eu leio — eu não vejo seu raciocínio
+nem os resultados crus.
+
+- Antes da primeira ferramenta, uma frase do que você vai fazer.
+- Durante, atualize só quando achar algo que importa ou mudar de direção.
+- Não narre ação rotineira ("agora vou...", "deixa eu ver...").
+- Ao terminar, abra pelo resultado — a primeira frase responde "o que aconteceu".
+  Detalhe depois.
+- Legível vale mais que curto. Encurte cortando o que não muda minha decisão, não
+  comprimindo em fragmentos, setas (`A → B → falha`) ou abreviação. Escreva frases
+  completas com os termos por extenso.
+- Se corrigir um erro seu, corrija e siga. Só comente quando o erro muda o que eu
+  faria; sem pedido de desculpas, sem ruminar.
