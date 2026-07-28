@@ -147,7 +147,7 @@
       </section>
 
       <!-- ===================================================================
-           LOCALIZAÇÃO — endereço, horário e mapa (placeholder)
+           LOCALIZAÇÃO — endereço, horário e mapa
            =================================================================== -->
       <section class="section">
         <div class="wrap">
@@ -207,6 +207,34 @@
           </div>
         </div>
       </section>
+
+      <!-- ===================================================================
+           TOUR 360 — a foto esférica que a gente tem no Google Maps. Vem logo
+           depois do mapa: primeiro a pessoa vê ONDE fica, aí entra e dá a volta.
+           Mesmo esquema do mapa: o gradiente do .tour-wrap segura o quadro
+           enquanto o iframe carrega.
+           =================================================================== -->
+      <section class="section">
+        <div class="wrap">
+          <div class="section-head reveal">
+            <div>
+              <span class="eyebrow coral">Uma espiada por dentro</span>
+              <h2 class="title md" style="margin-top: 10px">Entra, dá uma volta</h2>
+            </div>
+          </div>
+
+          <div class="tour-wrap reveal">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!4v1785260463860!6m8!1m7!1sCAoSHENJQUJJaEFNanRjc0lfanQxbHNOa2xid2UzM2E.!2m2!1d-29.6774921!2d-51.1191605!3f100!4f0!5f0.7820865974627469"
+              title="Passeio de 360 graus pelo salão do Casa Coffee Colab"
+              loading="lazy"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            ></iframe>
+          </div>
+          <p class="tour-dica reveal">Arrasta pra girar o salão e olha de onde tu quiser 💛</p>
+        </div>
+      </section>
     </main>
 
     <!-- Footer injetado pelo app.js -->
@@ -219,6 +247,13 @@
       .map-wrap { position: relative; border-radius: 14px; overflow: hidden; min-height: 300px; background: linear-gradient(155deg, #e7ddc9, #c6b898) }
       @media (min-width: 900px) { .map-wrap { min-height: 380px } }
       .map-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block }
+      /* Tour 360: quadro largo pra caber o giro. A proporção abre conforme a tela —
+         num celular de 320px um 21/9 viraria uma fresta de 170px de altura. */
+      .tour-wrap { position: relative; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; background: linear-gradient(155deg, #e7ddc9, #c6b898) }
+      @media (min-width: 640px) { .tour-wrap { aspect-ratio: 16 / 10 } }
+      @media (min-width: 900px) { .tour-wrap { aspect-ratio: 21 / 9 } }
+      .tour-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block }
+      .tour-dica { margin-top: 14px; text-align: center; color: var(--ink-2); font-size: 14px }
       /* .row nasce como linha de extrato (rótulo numa ponta, valor na outra). Aqui é
          ícone + texto: o texto encosta no ícone e as duas linhas dividem a mesma margem. */
       .duo-info .row { justify-content: flex-start }
