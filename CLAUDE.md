@@ -182,8 +182,11 @@ A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
   item ativo com `aria-current="page"` + `text-terracota font-semibold`
   (produto → "Loja"; raiz/`index` → "Home").
 - **Loja está com selo "em breve" e SEM link** (`semLink: true` na NAV): o item aparece no
-  header, no menu mobile e no rodapé como texto morto (`.nav-off`). A página continua no
-  ar — dá pra abrir digitando `/loja`. Pra religar o link, é só tirar o `semLink`.
+  header, no menu mobile e no rodapé como texto morto (`.nav-off`) e na **tab bar do
+  mobile** como `.tab-off` (ícone e rótulo apagados, carimbo "em breve" sobre o ícone —
+  `renderTabbar` consulta a NAV pelo href, então religar vale pros quatro lugares de uma
+  vez). A página continua no ar — dá pra abrir digitando `/loja`. Pra religar o link, é
+  só tirar o `semLink`.
 - **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
   "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) chama a
   `create-checkout-session` e leva pro Checkout hospedado do Asaas.
@@ -532,7 +535,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Ao gerar migrations, SEMPRE diga ao humano exatamente quais arquivos rodar e em que ordem.
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
-- **A aplicar pelo humano no SQL Editor:** da `0011_asaas` em diante (`0011` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock`). Todas idempotentes.
+- **Banco em dia:** o humano aplicou a última leva (`0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock`) no SQL Editor em **28/jul/2026**. Não há migration pendente; a próxima mudança de schema entra como arquivo novo numerado.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

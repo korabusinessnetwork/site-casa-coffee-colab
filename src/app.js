@@ -651,24 +651,28 @@ function renderTabbar() {
   const HOME = '/home';
   const on = (href) => (href === ativo ? ' aria-current="page"' : '');
 
+  // Mesmo critério do header, do menu mobile e do rodapé: item com semLink na NAV
+  // (hoje a Loja) vira texto morto aqui também, com o carimbo "em breve". Senão a
+  // tab bar — que é A navegação no celular — abriria a porta que os outros fecharam.
+  // O rótulo vem à parte porque aqui a nav usa nome curto ("Clube" pra /planos).
+  const tab = (href, icone, rotulo) => {
+    const item = NAV.find((n) => n.href === href) || {};
+    const corpo = `<i data-lucide="${icone}"></i><span>${rotulo}</span>`;
+    if (!item.semLink) return `<a href="${href}"${on(href)}>${corpo}</a>`;
+    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
+    return `<span class="tab-off">${corpo}${selo}</span>`;
+  };
+
   const el = document.createElement('nav');
   el.className = 'tabbar';
   el.setAttribute('data-tabbar', '');
   el.setAttribute('aria-label', 'Navegação rápida');
   el.innerHTML = `
-    <a href="/cardapio"${on('/cardapio')}>
-      <i data-lucide="utensils"></i><span>Cardápio</span>
-    </a>
-    <a href="/loja"${on('/loja')}>
-      <i data-lucide="shopping-bag"></i><span>Loja</span>
-    </a>
+    ${tab('/cardapio', 'utensils', 'Cardápio')}
+    ${tab('/loja', 'shopping-bag', 'Loja')}
     <a href="${HOME}" class="center" aria-label="Início"${on(HOME)}>C</a>
-    <a href="/planos"${on('/planos')}>
-      <i data-lucide="sparkles"></i><span>Clube</span>
-    </a>
-    <a href="/colab"${on('/colab')}>
-      <i data-lucide="users"></i><span>Colab</span>
-    </a>
+    ${tab('/planos', 'sparkles', 'Clube')}
+    ${tab('/colab', 'users', 'Colab')}
   `;
   document.body.appendChild(el);
 }

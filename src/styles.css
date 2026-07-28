@@ -290,18 +290,31 @@ a.txt-link.gold { color: var(--gold) }
 .hero .wrap { position: relative; z-index: 2; color: var(--cream); padding-top: 40px; padding-bottom: 60px }
 .hero h1 { font-size: clamp(54px, 8.5vw, 116px); line-height: .98; letter-spacing: -.02em; font-weight: 500; color: var(--cream) }
 .hero h1 .coral { color: var(--coral) }
-/* Entrada do título: cada linha entra deslizando, bem devagar, uma atrás da
-   outra. As linhas em creme vêm da direita; a coral vem da esquerda. O hero tem
-   overflow: hidden, então o texto começa fora da tela sem criar barra lateral.
-   Cada <span class="ln"> substitui um <br> — é o bloco que dá pra animar. */
-.hero h1 .ln { display: block; opacity: 0; transform: translate3d(var(--de, 0), 0, 0); animation: hero-linha 1.9s var(--e) var(--atraso, 0s) forwards }
-.hero h1 .ln.dir { --de: 18vw }
-.hero h1 .ln.esq { --de: -18vw }
+/* Entrada do hero: cada peça do bloco de texto entra deslizando, bem devagar,
+   uma atrás da outra, trocando de lado no caminho — as duas linhas em creme vêm
+   da direita, a coral da esquerda, e daí segue alternando até o link do fim. O
+   hero tem overflow: hidden, então o texto começa fora da tela sem criar barra
+   lateral. No título, cada <span class="ln"> substitui um <br> (é o bloco que dá
+   pra animar); nos outros, a classe vai no próprio elemento.
+   O fill-mode é both (não forwards) de propósito: sem ele, a peça fica visível
+   durante o próprio atraso e só então some pra deslizar — piscava. E o keyframe
+   termina em var(--op) porque o filete e o subtítulo não são opacos por design;
+   fechar em 1 os deixaria mais fortes do que devem. */
+.hero .ln { animation: hero-linha 1.9s var(--e) var(--atraso, 0s) both }
+.hero h1 .ln { display: block }
+.hero .ln.dir { --de: 18vw }
+.hero .ln.esq { --de: -18vw }
 .hero h1 .ln:nth-child(2) { --atraso: .26s }
 .hero h1 .ln:nth-child(3) { --atraso: .52s }
-@keyframes hero-linha { to { opacity: 1; transform: none } }
+.hero .rule.ln { --atraso: .78s; --op: .55 }
+.hero p.sub.ln { --atraso: 1.04s; --op: .92 }
+.hero .txt-link.ln { --atraso: 1.3s }
+@keyframes hero-linha {
+  from { opacity: 0; transform: translate3d(var(--de, 0), 0, 0) }
+  to { opacity: var(--op, 1); transform: none }
+}
 @media (prefers-reduced-motion: reduce) {
-  .hero h1 .ln { opacity: 1; transform: none; animation: none }
+  .hero .ln { opacity: var(--op, 1); transform: none; animation: none }
 }
 .hero .rule { width: 52px; height: 2px; background: var(--cream); opacity: .55; margin: 30px 0 18px }
 .hero p.sub { max-width: 30ch; font-size: clamp(15px, 1.5vw, 17px); color: #e7dfce; opacity: .92 }
@@ -402,6 +415,12 @@ a.txt-link.gold { color: var(--gold) }
   .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--ink-2); border-top: 1px solid var(--line-dark); align-items: center; justify-content: space-around; padding: 9px 8px calc(9px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, .8) }
   .tabbar a { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--cream-soft); text-decoration: none; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600 }
   .tabbar a[aria-current] { color: var(--gold-2) }
+  /* .tab-off é o item que perdeu o link (semLink no NAV do app.js): mesmo lugar na
+     fila, ícone e rótulo apagados, e o carimbo "em breve" por cima do ícone — a
+     barra é baixa demais pra ele caber embaixo do rótulo. */
+  .tabbar .tab-off { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--cream-soft); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; cursor: default; user-select: none }
+  .tabbar .tab-off > i, .tabbar .tab-off > svg, .tabbar .tab-off > span:not(.nav-selo) { opacity: .42 }
+  .tabbar .tab-off .nav-selo { position: absolute; top: -7px; left: 50%; transform: translateX(-50%) rotate(-7deg); font-size: 6.5px; letter-spacing: .14em; padding: 2px 4px 1.5px; background: var(--ink-2); pointer-events: none }
   .tabbar .center { width: 52px; height: 52px; border-radius: 50%; background: var(--coral); color: #fff; display: grid; place-items: center; font-family: var(--serif); font-size: 22px; margin-top: -26px; box-shadow: 0 8px 20px -8px var(--coral) }
   .tabbar svg { width: 20px; height: 20px }
 }

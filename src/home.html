@@ -76,17 +76,18 @@
         <div class="scrim"></div>
         <div class="wrap">
           <div class="reveal">
-            <!-- Uma linha por <span class="ln">: é o que permite cada uma entrar
-                 de um lado (ver .hero h1 .ln no styles.css). .dir = vem da
-                 direita, .esq = vem da esquerda. -->
+            <!-- .ln marca cada peça que entra deslizando, na ordem em que aparece
+                 (ver .hero .ln no styles.css). .dir = vem da direita, .esq = vem
+                 da esquerda — o lado alterna do título até o link. No <h1>, cada
+                 <span class="ln"> faz o papel de um <br>. -->
             <h1>
               <span class="ln dir">Slow coffee.</span>
               <span class="ln dir">Good food.</span>
               <span class="ln esq coral">Better days.</span>
             </h1>
-            <div class="rule"></div>
-            <p class="sub">Um lugar para desacelerar, se conectar e aproveitar os bons momentos.</p>
-            <a class="txt-link" href="/o-casa">Conheça o Casa <span class="arrow">→</span></a>
+            <div class="rule ln dir"></div>
+            <p class="sub ln esq">Um lugar para desacelerar, se conectar e aproveitar os bons momentos.</p>
+            <a class="txt-link ln dir" href="/o-casa">Conheça o Casa <span class="arrow">→</span></a>
           </div>
         </div>
         <!-- Botão de pular: discreto, canto de baixo. O app.js esconde ele
