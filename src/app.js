@@ -128,11 +128,12 @@ const MARCA = {
 };
 
 // Navegação principal. Aponta pras páginas reais (cada uma é uma URL).
+// `selo` é opcional: vira um carimbo sobre o rótulo (ver .nav-selo no styles.css).
 const NAV = [
   { rotulo: 'Home', href: '/pages/home.html' },
   { rotulo: 'O Casa', href: '/pages/o-casa.html' },
   { rotulo: 'Cardápio', href: '/pages/cardapio.html' },
-  { rotulo: 'Loja', href: '/pages/loja.html' },
+  { rotulo: 'Loja', href: '/pages/loja.html', selo: 'em breve' },
   { rotulo: 'Planos', href: '/pages/planos.html' },
   { rotulo: 'Colab', href: '/pages/colab.html' },
 ];
@@ -453,12 +454,14 @@ function renderHeader() {
   // marca a página atual; o CSS pinta em dourado.
   const linksDesktop = NAV.map((item) => {
     const on = item.href === ativo;
-    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''}>${item.rotulo}</a>`;
+    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
+    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''}${item.selo ? ' class="tem-selo"' : ''}>${item.rotulo}${selo}</a>`;
   }).join('');
 
   const linksMobile = NAV.map((item) => {
     const on = item.href === ativo;
-    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''} data-menu-link>${item.rotulo}</a>`;
+    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
+    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''} data-menu-link>${item.rotulo}${selo}</a>`;
   }).join('');
 
   slot.innerHTML = `
