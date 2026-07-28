@@ -42,9 +42,18 @@
            =================================================================== -->
       <section class="hero" data-hero-transparent data-hero-carousel>
         <div class="hero-media" data-hero-media>
-          <!-- 1. abertura: o gradiente da casa, sem peso de download -->
-          <div class="hero-slide is-on" data-hero-slide data-duracao="5000">
-            <div class="ph-hero"></div>
+          <!-- 1. abertura: o vídeo do Casa. Sem data-duracao de propósito — o
+               app.js deixa o vídeo rodar até o fim e só então vira o slide.
+               O poster é o primeiro frame, pra não piscar preto enquanto carrega. -->
+          <div class="hero-slide is-on" data-hero-slide>
+            <video
+              src="/videos/hero-casa.mp4"
+              poster="/videos/hero-casa.jpg"
+              preload="auto"
+              muted
+              playsinline
+              aria-label="Um casal sentado à mesa do Casa, conversando na luz da janela"
+            ></video>
           </div>
           <!-- 2 e 3: fotos reais. TODO: trocar pelas definitivas do hero -->
           <div class="hero-slide" data-hero-slide>
