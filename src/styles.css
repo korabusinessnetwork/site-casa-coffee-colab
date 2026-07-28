@@ -300,15 +300,15 @@ a.txt-link.gold { color: var(--gold) }
    durante o próprio atraso e só então some pra deslizar — piscava. E o keyframe
    termina em var(--op) porque o filete e o subtítulo não são opacos por design;
    fechar em 1 os deixaria mais fortes do que devem. */
-.hero .ln { animation: hero-linha 1.9s var(--e) var(--atraso, 0s) both }
+.hero .ln { animation: hero-linha 3s var(--e) var(--atraso, 0s) both }
 .hero h1 .ln { display: block }
 .hero .ln.dir { --de: 18vw }
 .hero .ln.esq { --de: -18vw }
-.hero h1 .ln:nth-child(2) { --atraso: .26s }
-.hero h1 .ln:nth-child(3) { --atraso: .52s }
-.hero .rule.ln { --atraso: .78s; --op: .55 }
-.hero p.sub.ln { --atraso: 1.04s; --op: .92 }
-.hero .txt-link.ln { --atraso: 1.3s }
+.hero h1 .ln:nth-child(2) { --atraso: .5s }
+.hero h1 .ln:nth-child(3) { --atraso: 1s }
+.hero .rule.ln { --atraso: 1.5s; --op: .55 }
+.hero p.sub.ln { --atraso: 2s; --op: .92 }
+.hero .txt-link.ln { --atraso: 2.5s }
 @keyframes hero-linha {
   from { opacity: 0; transform: translate3d(var(--de, 0), 0, 0) }
   to { opacity: var(--op, 1); transform: none }
