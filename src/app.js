@@ -579,8 +579,7 @@ function renderFooter() {
         <!-- Marca + bio -->
         <div>
           <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab, início">
-            <span class="big">CASA</span>
-            <span class="small">COFFEE COLAB</span>
+            <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
           </a>
           <p class="decor">${MARCA.bio}</p>
         </div>

@@ -327,7 +327,12 @@ a.txt-link.gold { color: var(--gold) }
 @media (max-width: 860px) { .foot .wrap { grid-template-columns: 1fr 1fr; gap: 30px } }
 @media (max-width: 460px) { .foot .wrap { grid-template-columns: 1fr } }
 .foot .brand { color: var(--cream) }
-.foot .brand .big { color: var(--cream) }
+/* Mesma logo do header. O PNG já vem creme, então no fundo escuro do rodapé
+   ele entra sem filtro — e sem encolher no mobile, que aqui sobra largura.
+   O align-self é obrigatório: .brand é flex-direction:column, e no rodapé ele
+   ocupa a coluna inteira do grid, então o stretch padrão esticaria a logo. */
+.foot .brand-logo { height: 46px; align-self: flex-start }
+@media (max-width: 820px) { .foot .brand-logo { height: 46px } }
 .foot .decor { font-family: var(--sans); font-size: 14px; color: var(--cream-soft); margin: 16px 0 0; max-width: 30ch; line-height: 1.7 }
 .foot .ft-label { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-2); font-weight: 700; margin-bottom: 12px }
 .foot a, .foot p { color: var(--cream-soft); text-decoration: none; font-size: 13.5px; line-height: 1.9; margin: 0; transition: color .2s var(--e) }
