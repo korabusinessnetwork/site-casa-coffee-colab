@@ -7,10 +7,10 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
     />
-    <title>O Casa — Casa Coffee Colab</title>
+    <title>O Casa, Casa Coffee Colab</title>
     <meta
       name="description"
-      content="A história do Casa Coffee Colab: um café-casa de encontros na Hamburgo Velho — café, afeto e comida boa."
+      content="A história do Casa Coffee Colab: um café-casa de encontros na Hamburgo Velho, café, afeto e comida boa."
     />
   </head>
   <body>
@@ -34,7 +34,7 @@
             <p class="lede">
               Nascemos na Hamburgo Velho como um café-casa de encontros: mesa comprida,
               luz da manhã pela janela e um café que não tem pressa. Aqui ninguém é
-              cliente de passagem — é gente que senta, conversa e fica um pouco.
+              cliente de passagem, é gente que senta, conversa e fica um pouco.
             </p>
           </div>
         </div>
@@ -76,7 +76,7 @@
               <h3 class="title sm" style="margin-top: 16px">Autoralidade</h3>
               <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
                 Blends, receitas e cantos pensados por aqui. Cada detalhe tem a mão de
-                alguém — nada de fórmula pronta.
+                alguém, nada de fórmula pronta.
               </p>
             </article>
 
@@ -160,7 +160,7 @@
                   <div>
                     <div class="lbl">Onde</div>
                     <p style="margin-top: 4px; color: var(--ink); line-height: 1.6">
-                      R. Victor Hugo Kunz, 411 — Hamburgo Velho<br />Novo Hamburgo/RS
+                      R. Victor Hugo Kunz, 411, Hamburgo Velho<br />Novo Hamburgo/RS
                     </p>
                   </div>
                 </div>
@@ -203,7 +203,7 @@
                 </span>
                 <p class="title sm" style="margin-top: 14px">Hamburgo Velho</p>
                 <p style="margin-top: 4px; color: var(--ink-2); font-size: 13.5px">
-                  o mapa chega já já — por ora, é só chegar 💛
+                  o mapa chega já já, por ora, é só chegar 💛
                 </p>
               </div>
             </div>
@@ -223,6 +223,9 @@
       @media (min-width: 900px) { .map-ph { min-height: 380px } }
       .map-ph-inner { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center }
       .map-ph.ph::after { display: none }
+      /* .row nasce como linha de extrato (rótulo numa ponta, valor na outra). Aqui é
+         ícone + texto: o texto encosta no ícone e as duas linhas dividem a mesma margem. */
+      .duo-info .row { justify-content: flex-start }
     </style>
 
     <script type="module" src="../app.js"></script>

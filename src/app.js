@@ -465,7 +465,7 @@ function renderHeader() {
     <header id="topo" class="site-header" data-site-header>
       <div class="wrap">
         <!-- Marca (logo oficial; o texto acessível vive no aria-label do link) -->
-        <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab — início">
+        <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab, início">
           <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
         </a>
 
@@ -578,7 +578,7 @@ function renderFooter() {
       <div class="wrap">
         <!-- Marca + bio -->
         <div>
-          <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab — início">
+          <a href="/pages/home.html" class="brand" aria-label="Casa Coffee Colab, início">
             <span class="big">CASA</span>
             <span class="small">COFFEE COLAB</span>
           </a>
@@ -588,7 +588,7 @@ function renderFooter() {
         <!-- Navegação -->
         <div>
           <p class="ft-label">Navegar</p>
-          <nav aria-label="Rodapé — navegação">${linksNav}</nav>
+          <nav aria-label="Rodapé, navegação">${linksNav}</nav>
         </div>
 
         <!-- A casa -->
@@ -605,7 +605,7 @@ function renderFooter() {
         <!-- Redes -->
         <div>
           <p class="ft-label">Redes</p>
-          <nav aria-label="Rodapé — redes sociais">${linksRedes}</nav>
+          <nav aria-label="Rodapé, redes sociais">${linksRedes}</nav>
         </div>
       </div>
 
