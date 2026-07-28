@@ -217,8 +217,11 @@ a.txt-link.gold { color: var(--gold) }
 .site-header.scrolled .brand-logo { filter: brightness(0); opacity: .88 }
 .mainnav { display: flex; gap: 30px; margin-left: 20px }
 @media (max-width: 1080px) { .mainnav { display: none } }
-.mainnav a { color: var(--cream); text-decoration: none; font-size: 11.5px; letter-spacing: .2em; text-transform: uppercase; font-weight: 500; opacity: .9; transition: color .2s var(--e), opacity .2s var(--e) }
+.mainnav a, .mainnav .nav-off { color: var(--cream); text-decoration: none; font-size: 11.5px; letter-spacing: .2em; text-transform: uppercase; font-weight: 500; opacity: .9; transition: color .2s var(--e), opacity .2s var(--e) }
 .mainnav a:hover, .mainnav a[aria-current] { color: var(--gold-2); opacity: 1 }
+/* .nav-off é o item que perdeu o link (semLink no NAV do app.js): mesma aparência
+   dos vizinhos, só sem clique e sem hover — a página segue no ar por URL direta. */
+.nav-off { cursor: default; user-select: none }
 /* Selo "em breve" — carimbo torto por cima do item da nav (item.selo no NAV do
    app.js). Feito em CSS, não em imagem: fica nítido em qualquer densidade de
    tela e a tinta sai do token --coral, que aguenta os dois fundos do header
@@ -226,7 +229,7 @@ a.txt-link.gold { color: var(--gold) }
    O carimbo cruza a BASE da palavra, não o meio: na navbar o rótulo tem 11.5px,
    e cruzado no meio nem o rótulo nem o carimbo seriam legíveis. */
 .nav-selo { font-family: var(--sans); font-weight: 700; text-transform: uppercase; color: var(--coral); border: 1.5px solid var(--coral); border-radius: 2px; white-space: nowrap }
-.mainnav a.tem-selo { position: relative }
+.mainnav .tem-selo { position: relative }
 .mainnav .nav-selo { position: absolute; left: 50%; top: 72%; transform: translateX(-50%) rotate(-7deg); font-size: 7px; letter-spacing: .16em; padding: 2.5px 5px 2px; pointer-events: none }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 16px }
 .btn-visit { background: var(--gold); color: #231a0c; border: 0; cursor: pointer; font-family: var(--sans); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; padding: 12px 22px; border-radius: 4px; text-decoration: none; transition: background .25s var(--e), transform .2s var(--e); white-space: nowrap }
@@ -255,7 +258,7 @@ a.txt-link.gold { color: var(--gold) }
 
 /* header sólido ao rolar (ou já sólido nas páginas internas via .scrolled) */
 .site-header.scrolled { background: color-mix(in srgb, var(--paper) 95%, transparent); backdrop-filter: blur(10px); box-shadow: 0 10px 30px -24px rgba(27, 22, 17, .7); border-bottom: 1px solid var(--line) }
-.site-header.scrolled .brand, .site-header.scrolled .mainnav a, .site-header.scrolled .auth-desktop, .site-header.scrolled .hdr-icon { color: var(--ink) }
+.site-header.scrolled .brand, .site-header.scrolled .mainnav a, .site-header.scrolled .mainnav .nav-off, .site-header.scrolled .auth-desktop, .site-header.scrolled .hdr-icon { color: var(--ink) }
 .site-header.scrolled .mainnav a:hover, .site-header.scrolled .mainnav a[aria-current] { color: var(--coral) }
 .site-header.scrolled .hdr-auth-link:hover { color: var(--coral) }
 .site-header.scrolled .hdr-icon:hover { background: rgba(27, 22, 17, .06) }
@@ -266,7 +269,7 @@ a.txt-link.gold { color: var(--gold) }
    sticky é o bloco de contexto do posicionamento. */
 .menu-mobile { position: absolute; left: 0; right: 0; top: var(--hh); background: var(--paper); border-top: 1px solid var(--line); box-shadow: 0 20px 40px -30px rgba(27, 22, 17, .8) }
 .menu-mobile .menu-inner { max-width: 1240px; margin: 0 auto; padding: 8px 22px 22px }
-.menu-mobile a[data-menu-link] { display: block; padding: 13px 2px; color: var(--ink); text-decoration: none; font-size: 15px; letter-spacing: .04em; border-bottom: 1px solid var(--line) }
+.menu-mobile a[data-menu-link], .menu-mobile .nav-off { display: block; padding: 13px 2px; color: var(--ink); text-decoration: none; font-size: 15px; letter-spacing: .04em; border-bottom: 1px solid var(--line) }
 .menu-mobile a[data-menu-link][aria-current] { color: var(--coral); font-weight: 600 }
 /* No menu mobile a linha é larga e sobra espaço à direita, então o carimbo fica
    ao lado do rótulo em vez de por cima — mesma tinta, mesma inclinação. */
@@ -285,6 +288,22 @@ a.txt-link.gold { color: var(--gold) }
 .hero .rule { width: 52px; height: 2px; background: var(--cream); opacity: .55; margin: 30px 0 18px }
 .hero p.sub { max-width: 30ch; font-size: clamp(15px, 1.5vw, 17px); color: #e7dfce; opacity: .92 }
 .hero .txt-link { margin-top: 30px; color: var(--cream) }
+
+/* Carrossel de fundo do hero (setupHeroCarousel no app.js). As mídias ficam
+   empilhadas no mesmo lugar e trocam só em opacity: nada se desloca, então o
+   texto por cima não treme. Foto e vídeo usam exatamente o mesmo encaixe. */
+.hero-media { position: absolute; inset: 0 }
+.hero-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .9s var(--e) }
+.hero-slide.is-on { opacity: 1 }
+.hero-slide > img, .hero-slide > video { display: block; width: 100%; height: 100%; object-fit: cover }
+.hero-slide > .ph-hero { position: absolute; inset: 0 }
+/* Botão de pular: encostado no canto, quase apagado até o mouse chegar perto. */
+.hero-skip { position: absolute; right: 22px; bottom: 26px; z-index: 3; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(239, 233, 221, .26); background: rgba(12, 8, 4, .3); backdrop-filter: blur(6px); color: var(--cream); font-family: var(--sans); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; cursor: pointer; opacity: .68; transition: opacity .2s var(--e), border-color .2s var(--e) }
+.hero-skip:hover, .hero-skip:focus-visible { opacity: 1; border-color: rgba(239, 233, 221, .6) }
+.hero-skip svg { width: 13px; height: 13px }
+/* No mobile a tab bar fixa come os últimos ~74px da tela; o botão sobe pra não
+   ficar embaixo dela. */
+@media (max-width: 820px) { .hero-skip { right: 16px; bottom: 86px; padding: 7px 12px } }
 
 /* ---------- agenda ---------- */
 .agenda { padding: clamp(56px, 7vw, 88px) 0 }
@@ -347,8 +366,11 @@ a.txt-link.gold { color: var(--gold) }
 @media (max-width: 820px) { .foot .brand-logo { height: 46px } }
 .foot .decor { font-family: var(--sans); font-size: 14px; color: var(--cream-soft); margin: 16px 0 0; max-width: 30ch; line-height: 1.7 }
 .foot .ft-label { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--gold-2); font-weight: 700; margin-bottom: 12px }
-.foot a, .foot p { color: var(--cream-soft); text-decoration: none; font-size: 13.5px; line-height: 1.9; margin: 0; transition: color .2s var(--e) }
+.foot a, .foot p, .foot .nav-off { color: var(--cream-soft); text-decoration: none; font-size: 13.5px; line-height: 1.9; margin: 0; transition: color .2s var(--e) }
 .foot a:hover { color: var(--gold-2) }
+/* No rodapé o carimbo também fica ao lado do rótulo — a coluna é estreita, então
+   ele vem menor que no menu mobile. */
+.foot .nav-selo { display: inline-block; margin-left: 9px; transform: rotate(-6deg); font-size: 7.5px; letter-spacing: .16em; padding: 2px 5px; vertical-align: 2px }
 /* colunas de links/contato empilhadas (os <a>/<p> viram itens flex = bloco) */
 .foot nav, .foot address { display: flex; flex-direction: column; font-style: normal }
 .foot .bottom { border-top: 1px solid var(--line-dark) }
@@ -367,11 +389,14 @@ a.txt-link.gold { color: var(--gold) }
 }
 
 /* reveal on scroll */
-.reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--e), transform .7s var(--e) }
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .38s var(--e), transform .38s var(--e) }
 .reveal.in { opacity: 1; transform: none }
+/* Bloco que já estava na tela quando a página abriu: entra pronto, sem fade.
+   Quem abre a página não deve esperar animação pra ler o que está na frente. */
+.reveal.ja-visivel { transition: none }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none }
-  .arrow, .btn-visit, .circle-arrow, .mainnav a, .hdr-icon, .hdr-user-trigger { transition: none }
+  .arrow, .btn-visit, .circle-arrow, .mainnav a, .mainnav .nav-off, .hdr-icon, .hdr-user-trigger { transition: none }
 }
 
 /* =============================================================================

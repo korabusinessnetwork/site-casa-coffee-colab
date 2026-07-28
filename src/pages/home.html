@@ -21,9 +21,49 @@
       <!-- ===================================================================
            HERO — [data-hero-transparent] deixa o header transparente sobre o
            fundo escuro (o app.js troca pra sólido ao rolar).
+
+           O fundo é um carrossel (setupHeroCarousel no app.js): cada
+           [data-hero-slide] é uma mídia full-bleed, foto OU vídeo, e elas
+           trocam com crossfade. O texto NÃO troca — ele fica parado por cima,
+           a mídia é que respira atrás.
+
+           Pra somar uma foto:
+             <div class="hero-slide" data-hero-slide>
+               <img src="/fotos/arquivo.jpg" alt="descrição" />
+             </div>
+           Pra somar um vídeo (mudo, em loop de carrossel — avança quando acaba):
+             <div class="hero-slide" data-hero-slide data-video>
+               <video src="/videos/arquivo.mp4" poster="/fotos/capa.jpg"
+                      muted playsinline preload="metadata"></video>
+             </div>
+           O primeiro slide leva .is-on pra já aparecer no primeiro frame.
+           Foto fica 6s (ajustável por slide com data-duracao="8000"); vídeo
+           fica até terminar.
            =================================================================== -->
-      <section class="hero" data-hero-transparent>
-        <div class="ph-hero"></div>
+      <section class="hero" data-hero-transparent data-hero-carousel>
+        <div class="hero-media" data-hero-media>
+          <!-- 1. abertura: o gradiente da casa, sem peso de download -->
+          <div class="hero-slide is-on" data-hero-slide data-duracao="5000">
+            <div class="ph-hero"></div>
+          </div>
+          <!-- 2 e 3: fotos reais. TODO: trocar pelas definitivas do hero -->
+          <div class="hero-slide" data-hero-slide>
+            <img
+              src="/fotos/o-casa-fachada.jpg"
+              alt="Fachada do Casa Coffee Colab na Hamburgo Velho, com mesas na calçada e gente sentada conversando"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <div class="hero-slide" data-hero-slide>
+            <img
+              src="/fotos/clube-abraco.jpg"
+              alt="Duas amigas se abraçando e rindo dentro do Casa"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        </div>
         <div class="scrim"></div>
         <div class="wrap">
           <div class="reveal">
@@ -33,6 +73,20 @@
             <a class="txt-link" href="/pages/o-casa.html">Conheça o Casa <span class="arrow">→</span></a>
           </div>
         </div>
+        <!-- Botão de pular: discreto, canto de baixo. O app.js esconde ele
+             sozinho quando só existe um slide. -->
+        <button
+          type="button"
+          class="hero-skip"
+          data-hero-skip
+          aria-label="Pular pra próxima imagem"
+        >
+          <span>pular</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 4l10 8-10 8z" />
+            <path d="M19 5v14" />
+          </svg>
+        </button>
       </section>
 
       <!-- ===================================================================

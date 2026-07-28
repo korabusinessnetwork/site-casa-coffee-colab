@@ -128,12 +128,15 @@ const MARCA = {
 };
 
 // Navegação principal. Aponta pras páginas reais (cada uma é uma URL).
-// `selo` é opcional: vira um carimbo sobre o rótulo (ver .nav-selo no styles.css).
+// Dois campos opcionais por item:
+//   selo    — carimbo sobre o rótulo (ver .nav-selo no styles.css).
+//   semLink — o item vira texto, sem clique. A PÁGINA CONTINUA NO AR: quem
+//             souber a URL entra direto. É só o menu que para de oferecer.
 const NAV = [
   { rotulo: 'Home', href: '/pages/home.html' },
   { rotulo: 'O Casa', href: '/pages/o-casa.html' },
   { rotulo: 'Cardápio', href: '/pages/cardapio.html' },
-  { rotulo: 'Loja', href: '/pages/loja.html', selo: 'em breve' },
+  { rotulo: 'Loja', href: '/pages/loja.html', selo: 'em breve', semLink: true },
   { rotulo: 'Planos', href: '/pages/planos.html' },
   { rotulo: 'Colab', href: '/pages/colab.html' },
 ];
@@ -452,17 +455,20 @@ function renderHeader() {
 
   // Nav editorial (uppercase/letter-spacing vêm do CSS .mainnav a). aria-current
   // marca a página atual; o CSS pinta em dourado.
-  const linksDesktop = NAV.map((item) => {
+  // Item semLink vira <span class="nav-off"> em vez de <a>: mesmo tipo, mesmo
+  // lugar na fila, só não clica. O CSS estiliza os dois juntos.
+  const navItem = (item, extra = '') => {
     const on = item.href === ativo;
     const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
-    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''}${item.selo ? ' class="tem-selo"' : ''}>${item.rotulo}${selo}</a>`;
-  }).join('');
+    const marca = on ? ' aria-current="page"' : '';
+    if (item.semLink) {
+      return `<span class="nav-off${item.selo ? ' tem-selo' : ''}"${marca}>${item.rotulo}${selo}</span>`;
+    }
+    return `<a href="${item.href}"${marca}${item.selo ? ' class="tem-selo"' : ''}${extra}>${item.rotulo}${selo}</a>`;
+  };
 
-  const linksMobile = NAV.map((item) => {
-    const on = item.href === ativo;
-    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
-    return `<a href="${item.href}"${on ? ' aria-current="page"' : ''} data-menu-link>${item.rotulo}${selo}</a>`;
-  }).join('');
+  const linksDesktop = NAV.map((item) => navItem(item)).join('');
+  const linksMobile = NAV.map((item) => navItem(item, ' data-menu-link')).join('');
 
   slot.innerHTML = `
     <header id="topo" class="site-header" data-site-header>
@@ -568,9 +574,14 @@ function renderFooter() {
 
   const { contato, redes } = MARCA;
 
-  const linksNav = NAV.map(
-    (item) => `<a href="${item.href}">${item.rotulo}</a>`
-  ).join('');
+  // Mesmo critério do header: item semLink não vira link aqui também, senão o
+  // rodapé abriria a porta que o menu de cima fechou.
+  const linksNav = NAV.map((item) => {
+    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
+    return item.semLink
+      ? `<span class="nav-off">${item.rotulo}${selo}</span>`
+      : `<a href="${item.href}">${item.rotulo}</a>`;
+  }).join('');
 
   const linksRedes = redes
     .map((r) => `<a href="${r.href}" aria-label="${r.nome}">${r.nome}</a>`)
@@ -653,6 +664,93 @@ function renderTabbar() {
   document.body.appendChild(el);
 }
 
+// --- Carrossel do hero (foto ou vídeo) -----------------------------------------
+// Contrato de DOM: [data-hero-carousel] › [data-hero-media] › N [data-hero-slide].
+// Cada slide carrega uma <img>, um <video> (com data-video) ou o gradiente. O
+// avanço é por tempo (data-duracao, padrão 6s) pra foto e pelo fim do arquivo
+// pra vídeo. [data-hero-skip] pula pro próximo.
+function setupHeroCarousel() {
+  const hero = document.querySelector('[data-hero-carousel]');
+  if (!hero) return;
+
+  const slides = Array.from(hero.querySelectorAll('[data-hero-slide]'));
+  const skip = hero.querySelector('[data-hero-skip]');
+  if (!slides.length) return;
+
+  // Um slide só não é carrossel: nada pra pular, nada pra agendar.
+  if (slides.length < 2) {
+    slides[0].classList.add('is-on');
+    if (skip) skip.hidden = true;
+    return;
+  }
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let atual = Math.max(0, slides.findIndex((s) => s.classList.contains('is-on')));
+  let timer = null;
+
+  const videoDe = (slide) => slide.querySelector('video');
+
+  const mostrar = (i) => {
+    const anterior = slides[atual];
+    atual = (i + slides.length) % slides.length;
+
+    if (anterior && anterior !== slides[atual]) {
+      anterior.classList.remove('is-on');
+      const v = videoDe(anterior);
+      if (v) v.pause();
+    }
+    slides[atual].classList.add('is-on');
+    agendar();
+  };
+
+  const agendar = () => {
+    clearTimeout(timer);
+    if (semMovimento) return; // sem autoplay: só o botão avança
+
+    const slide = slides[atual];
+    const video = videoDe(slide);
+    if (video) {
+      // O vídeo manda no tempo dele. Se o navegador barrar o autoplay (acontece
+      // sem interação prévia), cai no tempo de foto pra não travar o carrossel.
+      video.currentTime = 0;
+      const tocando = video.play();
+      if (tocando && typeof tocando.catch === 'function') {
+        tocando.catch(() => {
+          timer = setTimeout(() => mostrar(atual + 1), 6000);
+        });
+      }
+      return;
+    }
+    const espera = Number(slide.getAttribute('data-duracao')) || 6000;
+    timer = setTimeout(() => mostrar(atual + 1), espera);
+  };
+
+  slides.forEach((slide) => {
+    const v = videoDe(slide);
+    if (v) {
+      v.muted = true; // sem áudio: é fundo, não filme
+      v.playsInline = true;
+      v.addEventListener('ended', () => mostrar(atual + 1));
+    }
+  });
+
+  if (skip) skip.addEventListener('click', () => mostrar(atual + 1));
+
+  // Aba escondida não gasta bateria tocando vídeo pra ninguém.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearTimeout(timer);
+      const v = videoDe(slides[atual]);
+      if (v) v.pause();
+    } else {
+      agendar();
+    }
+  });
+
+  slides[atual].classList.add('is-on');
+  agendar();
+}
+
 // --- Reveal on scroll ----------------------------------------------------------
 // Revela elementos .reveal ao entrarem na viewport (adiciona .in). Respeita
 // prefers-reduced-motion (o CSS já deixa tudo visível nesse caso).
@@ -666,6 +764,21 @@ function initReveal() {
     return;
   }
 
+  // O que já está na tela quando a página abre aparece NA HORA e sem animação
+  // (.ja-visivel zera a transição). Só quem vem de baixo ganha o fade ao rolar —
+  // animar o que a pessoa já está olhando é atraso, não charme.
+  const altura = window.innerHeight || document.documentElement.clientHeight;
+  const pendentes = [];
+  alvos.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.top < altura && r.bottom > 0) el.classList.add('in', 'ja-visivel');
+    else pendentes.push(el);
+  });
+  if (!pendentes.length) return;
+
+  // threshold 0: basta encostar na viewport. Um bloco alto (o grid da loja tem
+  // várias linhas de produto) nunca chega a mostrar uma fração grande de si
+  // mesmo, então qualquer threshold acima de zero o deixaria invisível.
   const obs = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
@@ -675,9 +788,9 @@ function initReveal() {
         }
       });
     },
-    { threshold: 0.12, rootMargin: '0px 0px -6% 0px' }
+    { threshold: 0, rootMargin: '0px 0px -40px 0px' }
   );
-  alvos.forEach((el) => obs.observe(el));
+  pendentes.forEach((el) => obs.observe(el));
 }
 
 // =============================================================================
@@ -3254,6 +3367,7 @@ export function initSite() {
   initAchievementToast(); // toast de conquista nova (qualquer página, se logado)
   initAuthConfirmadoPage(); // só age se houver [data-auth-confirmado-root]
   initCarousels(); // só age se houver [data-carousel]
+  setupHeroCarousel(); // fundo do hero em foto/vídeo (só age se houver [data-hero-carousel])
   renderIcons(); // ícones do header/footer + conteúdo estático restante
   initReveal(); // revela .reveal ao rolar (respeita prefers-reduced-motion)
 }
