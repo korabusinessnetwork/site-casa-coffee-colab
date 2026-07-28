@@ -1,7 +1,7 @@
 # Edge Functions — Casa Coffee Colab (ASAAS · Pontos Fase 3)
 
 Gateway de pagamento: **Asaas** (Checkout hospedado — loja: Pix + Cartão;
-assinatura: cartão-só). Cinco functions (Supabase, Deno) + a lib compartilhada:
+assinatura: cartão-só). **Seis** functions (Supabase, Deno) + a lib compartilhada:
 
 ```
 supabase/functions/
@@ -16,6 +16,8 @@ supabase/functions/
 │                              # até current_period_end. Nunca deleta; exige JWT
 ├── resume-subscription/       # RETOMA a assinatura pausada (PUT status=ACTIVE): reativa a MESMA
 │                              # assinatura sem cobrar do zero na graça; exige JWT
+├── downgrade-subscription/    # AGENDA a descida de plano pro próximo ciclo (PUT value menor +
+│                              # scheduled_downgrade_to) ou DESFAZ ({acao:'cancelar'}); exige JWT
 ├── redeem-reward/             # resgata recompensa por pontos (rpc redeem_reward); exige JWT
 └── asaas-webhook/             # eventos do Asaas; token no header + idempotência + pontos
 ```
@@ -34,6 +36,13 @@ supabase/functions/
 > `value` recorrente pro preço cheio do tier novo no próximo vencimento. Se a
 > diferença ficar abaixo do mínimo cobrável do Asaas (~R$5), aplica na hora sem
 > cobrar (retorna `{ applied: true }`). Tudo server-side (nunca confia no client).
+>
+> **Downgrade = agendado, sem reembolso.** O espelho invertido do upgrade:
+> `downgrade-subscription { tier_slug }` baixa o `value` recorrente no Asaas (só a
+> PRÓXIMA cobrança vem menor) e grava `subscriptions.scheduled_downgrade_to` — a
+> pessoa **mantém o tier atual até `current_period_end`**. Quem troca o tier de fato
+> é o webhook, quando o pagamento da renovação cai. `{ acao: 'cancelar' }` desfaz o
+> agendamento e restaura o `value` cheio.
 
 > **SANDBOX primeiro.** A chave de sandbox (`$aact_hmlg_…`) é de homologação. O
 > código é **agnóstico de ambiente** — no go-live troca só os secrets
@@ -96,6 +105,7 @@ supabase secrets list
 supabase functions deploy create-checkout-session
 supabase functions deploy cancel-subscription
 supabase functions deploy resume-subscription
+supabase functions deploy downgrade-subscription
 supabase functions deploy redeem-reward
 # o webhook NÃO usa JWT (quem chama é o Asaas, autenticado pelo token no header):
 supabase functions deploy asaas-webhook --no-verify-jwt
@@ -124,11 +134,22 @@ webhook) → **Adicionar**:
 
 ## 4) Migration
 
-Roda a **`0011_asaas.sql`** no **SQL Editor** (depois da 0010). Ela adiciona os
-ids do Asaas (`profiles.asaas_customer_id`, `subscriptions.asaas_*`,
-`orders.asaas_*`) e a tabela de idempotência `asaas_events`. É idempotente e não
-mexe em nada das migrations anteriores (as colunas `stripe_*` continuam no banco,
-só param de ser usadas).
+Roda no **SQL Editor**, nesta ordem, o que ainda faltar depois da 0010:
+
+1. **`0011_asaas.sql`** — os ids do Asaas (`profiles.asaas_customer_id`,
+   `subscriptions.asaas_*`, `orders.asaas_*`) e a tabela de idempotência
+   `asaas_events`.
+2. **`0012_asaas_checkout_link.sql`** — `subscriptions.asaas_checkout_id`, o elo
+   que liga o `CHECKOUT_PAID` (sabe user+tier) ao `PAYMENT_*` (sabe o id da
+   assinatura).
+3. **`0012_downgrade.sql`** — `subscriptions.scheduled_downgrade_to`, sem a qual a
+   `downgrade-subscription` não funciona.
+4. **`0013_redeem_reward_user_lock.sql`** — corrige gasto duplo de pontos em
+   resgates simultâneos (trava a linha do usuário antes de ler o saldo).
+
+Todas são idempotentes e não mexem em nada das migrations anteriores (as colunas
+`stripe_*` continuam no banco, só param de ser usadas). Os dois arquivos com
+prefixo `0012` são independentes entre si — a ordem entre eles não importa.
 
 ## Logs
 
@@ -136,6 +157,7 @@ só param de ser usadas).
 supabase functions logs create-checkout-session
 supabase functions logs cancel-subscription
 supabase functions logs resume-subscription
+supabase functions logs downgrade-subscription
 supabase functions logs redeem-reward
 supabase functions logs asaas-webhook
 ```
@@ -144,9 +166,9 @@ supabase functions logs asaas-webhook
 
 1. Abre a conta **sandbox** do Asaas, gera a `ASAAS_API_KEY` (`$aact_hmlg_…`) e
    escolhe um `ASAAS_WEBHOOK_TOKEN` (passo 0).
-2. Roda a **`0011_asaas.sql`** no SQL Editor (passo 4).
+2. Roda as migrations `0011` → `0013` no SQL Editor (passo 4).
 3. `supabase secrets set` de `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` e `SITE_URL`.
-4. `supabase functions deploy` das **cinco** functions (webhook com `--no-verify-jwt`).
+4. `supabase functions deploy` das **seis** functions (webhook com `--no-verify-jwt`).
 5. Cadastra o webhook no Asaas (sandbox) com o token e os eventos de checkout +
    pagamento (passo 3).
 6. No client: `.env` com o Supabase (sem nenhuma chave de pagamento).
@@ -193,8 +215,18 @@ function calcula a diferença proporcional server-side:
   (Pix+Cartão) da diferença; ao pagar, o webhook `upg:` sobe o `value` recorrente
   pro preço cheio e espelha o tier. Volta pra `checkout-sucesso.html?upgrade=1`.
 - Diferença < mínimo → aplica na hora (`PUT value` + tier), retorna `{ applied: true }`.
-Sem crédito de pontos no upgrade (é ajuste, não compra). Só upgrade (preço maior);
-downgrade fica fora de escopo por ora.
+Sem crédito de pontos no upgrade (é ajuste, não compra). Preço maior só entra por aqui.
+
+**Downgrade de plano:** com assinatura ATIVA, o perfil também lista os tiers **abaixo**
+do atual → `downgrade-subscription { tier_slug }`. A function exige destino mais barato
+(preços do BANCO), baixa o `value` no Asaas e grava `scheduled_downgrade_to` — **sem
+mexer no tier atual**. Nada é cobrado nem reembolsado agora: o benefício segue até
+`current_period_end` e a renovação vem no valor menor. Quem troca o tier de fato é o
+`asaas-webhook` quando o pagamento da renovação cai (troca ANTES de creditar pontos, pra
+já valer o multiplicador novo, e limpa a coluna). "Manter o plano atual" →
+`{ acao: 'cancelar' }` limpa o agendamento e restaura o `value` cheio. Se um dos dois
+passos (Asaas / banco) falhar, o outro é revertido — nunca sobra `value` baixo sem
+downgrade agendado.
 
 **Pontos (Fase 3):**
 - Após uma compra/assinatura paga, os pontos = `floor(valor × points_multiplier)`
@@ -221,7 +253,7 @@ downgrade fica fora de escopo por ora.
    cadastro/KYC, e gera a chave de produção (`$aact_prod_…`).
 2. Troca os secrets: `supabase secrets set ASAAS_API_KEY='$aact_prod_…'`,
    um `ASAAS_WEBHOOK_TOKEN` novo, e `SITE_URL=https://<teu-domínio>`. Re-deploy das
-   **cinco** functions.
+   **seis** functions.
 3. Cadastra o webhook na conta de **produção** (mesmos eventos), com o token novo.
 4. Habilita Pix e Cartão na conta de produção (se ainda não estiverem).
 5. O client não muda (não tem chave de pagamento).

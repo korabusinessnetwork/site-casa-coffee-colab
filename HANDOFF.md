@@ -179,6 +179,8 @@ vai com `--no-verify-jwt` porque quem chama é o Asaas, não um usuário logado)
 ```bash
 supabase functions deploy create-checkout-session --project-ref shqmtddhktcxfsccubay --use-api
 supabase functions deploy cancel-subscription      --project-ref shqmtddhktcxfsccubay --use-api
+supabase functions deploy resume-subscription      --project-ref shqmtddhktcxfsccubay --use-api
+supabase functions deploy downgrade-subscription   --project-ref shqmtddhktcxfsccubay --use-api
 supabase functions deploy redeem-reward            --project-ref shqmtddhktcxfsccubay --use-api
 supabase functions deploy asaas-webhook            --project-ref shqmtddhktcxfsccubay --use-api --no-verify-jwt
 ```
@@ -265,8 +267,13 @@ na ordem numérica. Hoje são estas (confira a pasta — pode haver novas):
 0001_init            0005_profiles_phone   0009_achievements
 0002_rls             0006_stripe           0010_achievement_hints
 0003_seed            0007_orders_stripe    0011_asaas
-0004_reconcile       0008_points
+0004_reconcile       0008_points           0012_asaas_checkout_link
+                                           0012_downgrade
+                                           0013_redeem_reward_user_lock
 ```
+
+> Os dois arquivos com prefixo `0012` são independentes entre si — a ordem **entre eles**
+> não importa, só precisam vir depois da `0011`.
 
 > As `0006_stripe`/`0007_orders_stripe` criam colunas `stripe_*` que **não são mais
 > usadas** (migramos pro Asaas), mas rodam mesmo assim — migrations são append-only,
@@ -295,6 +302,8 @@ supabase secrets set SITE_URL='https://<domínio-final>' --project-ref <NOVO_PRO
 ```bash
 supabase functions deploy create-checkout-session --project-ref <NOVO_PROJECT_REF> --use-api
 supabase functions deploy cancel-subscription      --project-ref <NOVO_PROJECT_REF> --use-api
+supabase functions deploy resume-subscription      --project-ref <NOVO_PROJECT_REF> --use-api
+supabase functions deploy downgrade-subscription   --project-ref <NOVO_PROJECT_REF> --use-api
 supabase functions deploy redeem-reward            --project-ref <NOVO_PROJECT_REF> --use-api
 supabase functions deploy asaas-webhook            --project-ref <NOVO_PROJECT_REF> --use-api --no-verify-jwt
 ```

@@ -16,7 +16,7 @@ Construído em fases. Esta é a fundação visual — sem backend ainda.
 
 Fases seguintes (ainda **não** implementadas):
 - **Supabase** — auth, banco, RLS, edge functions.
-- **Stripe** — pagamentos.
+- **Asaas** — pagamentos (checkout hospedado).
 - **Deploy** na **Vercel**.
 
 ---
@@ -139,9 +139,10 @@ cores da marca, via utilitários no `styles.css`:
   Sincroniza entre abas via evento `storage`.
 - **Drawer**: painel lateral reutilizável, injetado uma vez no `<body>`; abre pelo ícone
   `shopping-bag` do header (com badge de contagem). Fecha por X, Esc e clique no backdrop.
-  Botão "finalizar compra" é **placeholder** — o **checkout via Stripe vem na Fase 2**.
+  Botão "finalizar compra" chama a `create-checkout-session` e manda pro **Checkout
+  hospedado do Asaas** (ver "Pagamentos"); deslogado, passa pelo login e volta pro carrinho.
 - **Preços**: sempre cheios, via `formatBRL(centavos)` (ex.: `R$ 49,90`). O **desconto por tier
-  de assinatura NÃO é aplicado aqui** — ele entra no checkout (Fase 2).
+  de assinatura NÃO é aplicado aqui** — quem aplica é a Edge Function, pelo banco, no checkout.
 
 ---
 
@@ -184,8 +185,8 @@ A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
   header, no menu mobile e no rodapé como texto morto (`.nav-off`). A página continua no
   ar — dá pra abrir digitando `/loja`. Pra religar o link, é só tirar o `semLink`.
 - **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
-  "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) só revela um aviso
-  gentil — o checkout via Stripe vem na Fase 2.
+  "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) chama a
+  `create-checkout-session` e leva pro Checkout hospedado do Asaas.
 - **Colab** reutiliza o `setupCarousel` via `data-carousel="cards"` (mesmo contrato da home).
 
 ---
@@ -269,6 +270,13 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 > (R$5,00 / 500 centavos), a gente **não cobra** — aplica o upgrade na hora de graça e
 > só ajusta o `value` da assinatura pro preço novo.
 
+> **Downgrade = agendado, sem reembolso.** O espelho invertido do upgrade: descer de
+> plano **não cobra nem devolve nada agora**. A gente baixa o `value` recorrente no Asaas
+> (só a PRÓXIMA cobrança vem menor) e grava `subscriptions.scheduled_downgrade_to` — a
+> pessoa **mantém o tier atual até `current_period_end`**. Quem troca o tier de fato é o
+> `asaas-webhook`, quando o pagamento da renovação cai. Dá pra desfazer enquanto não
+> renova ("manter o plano atual"), e um upgrade também cancela a descida agendada.
+
 - **Redirect 100% hospedado:** NÃO existe chave pública de pagamento no bundle. O
   client só chama a function e redireciona pro `link` que ela devolve.
 - **Código agnóstico de ambiente:** sandbox e prod rodam o MESMO código — muda só a
@@ -327,6 +335,15 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   vencido → `nextDueDate = hoje` (o Asaas cobra o cartão salvo e recomeça o ciclo).
   Marca `subscriptions.status='ativa'` + garante `profiles.tier_slug`. Retorna
   `{ ok, retomada:true, proxima_cobranca }`.
+- **`downgrade-subscription`** (o espelho invertido do upgrade): exige JWT, lê a assinatura
+  **`ativa`** do próprio usuário. **AGENDAR** (`{ tier_slug }`): exige destino mais barato
+  (os dois preços vêm do BANCO), faz `asaasPut` baixando o `value` — só a PRÓXIMA cobrança
+  vem menor, o ciclo já pago não muda — e grava `subscriptions.scheduled_downgrade_to`
+  **sem tocar no tier atual**; nada é cobrado nem reembolsado. Retorna
+  `{ ok, agendado:true, efetivo_em, novo_plano, novo_slug }`. **DESFAZER**
+  (`{ acao:'cancelar' }`): limpa a coluna e restaura o `value` cheio. Os dois passos
+  (Asaas ↔ banco) se revertem mutuamente em caso de falha, pra nunca sobrar `value` baixo
+  sem downgrade agendado. Quem troca o tier de fato é o webhook, na renovação.
 - **`asaas-webhook`** (deploy com `--no-verify-jwt`): auth = **token compartilhado** no
   header `asaas-access-token` (comparado com `ASAAS_WEBHOOK_TOKEN`; NÃO é HMAC).
   Idempotência via `asaas_events` (PK = `id` do evento, `evt_…`). Em erro → 500 sem gravar
@@ -345,8 +362,14 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   - **upgrade** (`externalReference` começa com `upg:`): `CHECKOUT_PAID` do delta aplica o
     upgrade — `asaasPut` o `value` da assinatura (id vem no próprio ref) pro preço cheio do
     tier novo, atualiza `subscriptions.tier_slug`/`profiles.tier_slug` e roda
-    `checkAchievements` — **sem creditar pontos pelo delta**. `CHECKOUT_EXPIRED`/
-    `CHECKOUT_CANCELED` ignoram refs `sub:`/`upg:` (só cancelam pedidos de loja pendentes).
+    `checkAchievements` — **sem creditar pontos pelo delta**. Também **limpa
+    `scheduled_downgrade_to`**: subir de plano cancela uma descida agendada.
+    `CHECKOUT_EXPIRED`/`CHECKOUT_CANCELED` ignoram refs `sub:`/`upg:` (só cancelam pedidos
+    de loja pendentes).
+  - **downgrade agendado**: no `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED` da renovação, se a
+    linha tem `scheduled_downgrade_to`, o handler troca o `tier_slug` pro plano leve
+    **antes** de creditar os pontos (pra já valer o multiplicador novo) e limpa a coluna
+    no mesmo update — idempotente, o reenvio do evento não desce duas vezes.
 - **Migration `0011_asaas`**: `profiles.asaas_customer_id`; `subscriptions.asaas_customer_id`
   + `asaas_subscription_id` (UNIQUE); `orders.asaas_checkout_id` (UNIQUE) + `asaas_payment_id`;
   tabela `asaas_events(id text pk, event, processed_at)` com RLS (SELECT só do owner).
@@ -368,6 +391,14 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
     ao escolher, chama `create-checkout-session {upgrade_to_tier}` → se `data.url` redireciona
     pro checkout do delta, se `data.applied` mostra "a diferença ficou por nossa conta" e
     recarrega) **e** "pausar assinatura" (confirma → `cancel-subscription`).
+  - **ativa, no modal de pausar** → antes de confirmar a pausa, um desvio gentil oferece
+    **descer de plano** em vez de sair (`[data-modal-downgrade]`, só com os tiers de `ordem`
+    menor). Escolher um abre um passo de confirmação com o preço e a data em que passa a
+    valer; confirmar chama `downgrade-subscription { tier_slug }`. Com downgrade já agendado,
+    o texto vira "teu {plano} segue ativo até {data}, e a partir daí vira {plano leve}" e
+    aparece **"manter o {plano}"** (`[data-manter-plano]` → `downgrade-subscription
+    { acao:'cancelar' }`, sem confirmação — é a ação positiva). O upgrade continua ofertado
+    e desfaz a descida agendada.
   - **pausada** → "retomar plano" (`resume-subscription`; dentro do período não cobra nada).
   - **cancelada** (Asaas 404 — sumiu do gateway, não dá pra "retomar") → "voltar pro {plano}"
     (`[data-reassinar]`): chama `create-checkout-session {tier_slug}` do MESMO tier — é uma
@@ -380,7 +411,7 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 >   `$aact_prod_…`.
 > - Trocar os secrets das functions: `supabase secrets set` de `ASAAS_API_KEY`
 >   (`$aact_prod_…`), um `ASAAS_WEBHOOK_TOKEN` novo e `SITE_URL` (domínio de prod).
->   Re-deploy das **cinco** functions.
+>   Re-deploy das **seis** functions.
 > - **Cadastrar o webhook na conta LIVE** (o token/endpoint de sandbox não vale em
 >   prod), com os eventos de checkout (`CHECKOUT_PAID`/`EXPIRED`/`CANCELED`) e de
 >   pagamento (`PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`).
@@ -409,12 +440,14 @@ só LÊ (RLS: cada um lê o próprio ledger).
   `for update`), `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas. O
   `motivo` do ledger virou texto livre em PT (`'compra na loja'`, `'assinatura'`,
   `'renovação da assinatura'`, `'resgate: <nome>'`) — o CHECK restritivo foi removido.
-- **Crédito (stripe-webhook, via `creditPoints` de `_shared/lib.ts`)**: loja →
-  `checkout.session.completed`/`async_payment_succeeded` (só quando `pago`), ref `order`;
-  assinatura → `checkout.session.completed` (1ª mensalidade), ref `subscription_start`;
-  renovação → **`invoice.paid`** com `billing_reason='subscription_cycle'` (a
-  `subscription_create` é ignorada — já creditada), ref `subscription_renewal`. Idempotente
-  por `(ref_type, ref_id)` + `stripe_events`. Crédito **nunca** vem do client.
+- **Crédito (`asaas-webhook`, via `creditPoints` de `_shared/lib.ts`)**: loja →
+  `CHECKOUT_PAID` (só quando o pedido vira `pago`), `ref_type='order'` / `ref_id=order.id`,
+  motivo `'compra na loja'`; assinatura → `PAYMENT_CONFIRMED`/`PAYMENT_RECEIVED`,
+  `ref_type='subscription'` / `ref_id=payment.id`, motivo `'assinatura'` — o MESMO caminho
+  serve a 1ª mensalidade e as renovações (o `payment.id` novo de cada ciclo é o que
+  diferencia). O `CHECKOUT_PAID` de assinatura **não** credita ponto (senão a 1ª cobrança
+  contaria duas vezes), e o delta de upgrade também não. Idempotente por
+  `(ref_type, ref_id)` + `asaas_events`. Crédito **nunca** vem do client.
 - **Resgate (`redeem-reward` → RPC `redeem_reward`)**: valida JWT, chama a função SQL via
   service_role com o id do PRÓPRIO usuário. A função (revogada de anon/authenticated) trava
   a linha do reward, valida saldo pelo LEDGER/estoque, lança o negativo, cria `redemptions`,
@@ -422,10 +455,13 @@ só LÊ (RLS: cada um lê o próprio ledger).
   impossível (lock). Saldo insuficiente → erro gentil, sem débito.
 - **Front**: `conta/pontos.html` (`initPontosPage`, atrás do `requireAuth`) — saldo,
   multiplicador do tier, extrato do ledger e grid de recompensas com "resgatar" (desabilitado
-  gentil "faltam X pontos" quando não dá). O perfil linka pro extrato; a `checkout-sucesso`
-  sonda o ledger pelo `session_id` e mostra "+X pontos 💛". Tom acolhedor, ZERO cara de cassino.
-- **Go-live:** adicionar o evento **`invoice.paid`** ao endpoint de webhook (test e live) e
-  fazer deploy do `redeem-reward`. Nenhuma regra de pontos muda entre test e live.
+  gentil "faltam X pontos" quando não dá). O perfil linka pro extrato; na loja a
+  `checkout-sucesso` sonda o ledger pelo `?ref=` (id da order) e mostra "+X pontos 💛" —
+  na assinatura não sonda, porque o `ref_id` é o `payment.id`, que o client não conhece.
+  Tom acolhedor, ZERO cara de cassino.
+- **Go-live:** garantir que o webhook do Asaas (sandbox e live) escuta **`PAYMENT_CONFIRMED`
+  e `PAYMENT_RECEIVED`** além dos eventos de checkout — sem eles a assinatura nunca pontua —
+  e fazer deploy do `redeem-reward`. Nenhuma regra de pontos muda entre sandbox e live.
 
 ---
 
@@ -495,7 +531,8 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Cada migration deve ser autocontida e, quando possível, idempotente (IF NOT EXISTS / CREATE OR REPLACE).
 - Ao gerar migrations, SEMPRE diga ao humano exatamente quais arquivos rodar e em que ordem.
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
-- Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS — **o humano ainda precisa aplicar esta no SQL Editor, depois da 0010**).
+- Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
+- **A aplicar pelo humano no SQL Editor:** da `0011_asaas` em diante (`0011` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock`). Todas idempotentes.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
