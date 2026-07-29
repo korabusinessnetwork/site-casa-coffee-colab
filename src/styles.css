@@ -258,7 +258,11 @@ a.txt-link.gold { color: var(--gold) }
 .hdr-auth-link:hover { color: var(--gold-2); opacity: 1 }
 .hdr-user-trigger { display: inline-flex; align-items: center; gap: 9px; background: none; border: 0; cursor: pointer; color: inherit; font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 3px 4px; border-radius: 999px; transition: opacity .2s var(--e) }
 .hdr-user-trigger:hover { opacity: .78 }
-.hdr-user-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--coral); color: #fff; font-family: var(--serif); font-size: 12.5px; flex: 0 0 auto }
+/* Nasce com as iniciais no fundo coral; quando a pessoa tem foto de perfil, o
+   `pintarAvatarHeader` troca o conteúdo por um <img> que cobre o círculo todo
+   (daí o overflow escondido). */
+.hdr-user-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; background: var(--coral); color: #fff; font-family: var(--serif); font-size: 12.5px; flex: 0 0 auto }
+.hdr-user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover }
 .hdr-user-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 
 /* header sólido ao rolar (ou já sólido nas páginas internas via .scrolled) */
@@ -328,22 +332,21 @@ a.txt-link.gold { color: var(--gold) }
 .hero-slide > .ph-hero { position: absolute; inset: 0 }
 /* Controles do carrossel: um em cada canto de baixo (voltar na esquerda, pular
    na direita — cada um do lado pra onde leva), quase apagados até o mouse
-   chegar perto. Os dois dividem a mesma pílula; muda só o recheio — o de pular
-   leva o rótulo, o de voltar é quadrado e só com a seta. Como agora moram em
-   cantos opostos, a altura do quadrado não pode mais vir do irmão: é fixa, e
-   casada com a pílula do "pular" (2px de borda + 16px de padding + 16px de
-   conteúdo). Se o padding do "pular" mudar, esse número muda junto. */
-.hero-skip, .hero-prev { position: absolute; bottom: 26px; z-index: 3; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; border: 1px solid rgba(239, 233, 221, .26); background: rgba(12, 8, 4, .3); backdrop-filter: blur(6px); color: var(--cream); font-family: var(--sans); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; cursor: pointer; opacity: .68; transition: opacity .2s var(--e), border-color .2s var(--e) }
-.hero-skip { right: 22px; padding: 8px 14px }
-.hero-prev { left: 22px; padding: 0; width: 34px; height: 34px }
+   chegar perto. Os dois são a MESMA pílula, com o mesmo recheio: muda só de que
+   lado a seta fica — no "voltar" ela vem antes do rótulo, no "pular" depois,
+   sempre apontando pro lado pra onde o botão leva. Por dividirem padding e
+   fonte, os dois nascem da mesma altura sem número mágico. */
+.hero-skip, .hero-prev { position: absolute; bottom: 26px; z-index: 3; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(239, 233, 221, .26); background: rgba(12, 8, 4, .3); backdrop-filter: blur(6px); color: var(--cream); font-family: var(--sans); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-weight: 600; cursor: pointer; opacity: .68; transition: opacity .2s var(--e), border-color .2s var(--e) }
+.hero-skip { right: 22px }
+.hero-prev { left: 22px }
 .hero-skip:hover, .hero-skip:focus-visible, .hero-prev:hover, .hero-prev:focus-visible { opacity: 1; border-color: rgba(239, 233, 221, .6) }
 .hero-skip svg, .hero-prev svg { width: 13px; height: 13px }
 /* No mobile a tab bar fixa come os últimos ~74px da tela; os botões sobem pra
    não ficar embaixo dela. */
 @media (max-width: 820px) {
-  .hero-skip, .hero-prev { bottom: 86px }
-  .hero-skip { right: 16px; padding: 7px 12px }
-  .hero-prev { left: 16px; width: 32px; height: 32px }
+  .hero-skip, .hero-prev { bottom: 86px; padding: 7px 12px }
+  .hero-skip { right: 16px }
+  .hero-prev { left: 16px }
 }
 
 /* ---------- agenda ---------- */

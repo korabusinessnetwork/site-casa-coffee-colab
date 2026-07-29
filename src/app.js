@@ -219,7 +219,7 @@ async function getProfile() {
   if (!user) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('full_name, telefone, role, points_balance, tier_slug')
+    .select('full_name, telefone, role, points_balance, tier_slug, avatar_url')
     .eq('id', user.id)
     .single();
   if (error) return null;
@@ -1724,7 +1724,7 @@ function updateAuthUI(session) {
       panel?.dataset.aberto === 'true' ? closeUserPanel() : openUserPanel();
     });
     initUserPanelGlobal(); // fecha por Esc/clique-fora (uma vez só)
-    hydrateAuthSaldo();    // preenche o saldo no drawer mobile
+    hydrateAuthHeader();   // completa saldo (drawer) e foto de perfil (avatares)
   }
   renderIcons();
 }
@@ -1734,7 +1734,7 @@ function authDesktopLogado(nome, inicial) {
   return `
     <div class="relative" data-user-panel-wrap>
       <button type="button" data-user-panel-trigger aria-haspopup="true" aria-expanded="false" class="hdr-user-trigger">
-        <span class="hdr-user-avatar">${inicial}</span>
+        <span class="hdr-user-avatar" data-hdr-avatar>${inicial}</span>
         <span class="hdr-user-name">${nome}</span>
         <i data-lucide="chevron-down" style="width:15px;height:15px;opacity:.55"></i>
       </button>
@@ -1749,7 +1749,7 @@ function authDesktopLogado(nome, inicial) {
 function authMobileLogado(nome) {
   return `
     <div class="flex items-center gap-2 py-1 text-lg text-ink">
-      <span class="grid h-8 w-8 place-items-center rounded-full bg-coral/10 text-coral"><i data-lucide="user" class="h-4 w-4"></i></span>
+      <span class="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-coral/10 text-coral" data-hdr-avatar><i data-lucide="user" class="h-4 w-4"></i></span>
       <span class="truncate">${nome}</span>
     </div>
     <p class="pb-1 pl-10 text-sm text-muted"><span data-auth-saldo>—</span> pontos</p>
@@ -1945,13 +1945,39 @@ function irParaAssinatura() {
   window.location.href = '/conta/perfil';
 }
 
-// Preenche o saldo nos slots [data-auth-saldo] (drawer mobile). Uma leitura leve.
-async function hydrateAuthSaldo() {
-  const els = document.querySelectorAll('[data-auth-saldo]');
-  if (!els.length || !supabase) return;
+// Uma leitura só do perfil pra completar o header depois que ele já apareceu:
+// o saldo no drawer mobile e a foto nos dois avatares. O header nasce com as
+// iniciais e a foto entra por cima quando chega — assim ninguém espera o banco
+// pra ver o topo montado.
+async function hydrateAuthHeader() {
+  if (!supabase) return;
   const profile = await getProfile();
-  const saldo = Number(profile?.points_balance || 0).toLocaleString('pt-BR');
-  els.forEach((el) => (el.textContent = saldo));
+  if (!profile) return;
+
+  const saldo = Number(profile.points_balance || 0).toLocaleString('pt-BR');
+  document.querySelectorAll('[data-auth-saldo]').forEach((el) => (el.textContent = saldo));
+
+  pintarAvatarHeader(profile.avatar_url);
+}
+
+// Troca as iniciais (desktop) e o ícone genérico (drawer) pela foto de perfil.
+// Sem foto, não mexe em nada — as iniciais seguem sendo o estado normal. O
+// `/conta/perfil` chama isto de novo ao subir uma foto nova, pra o topo mudar
+// na hora, sem recarregar.
+export function pintarAvatarHeader(url) {
+  if (!url) return;
+  document.querySelectorAll('[data-hdr-avatar]').forEach((el) => {
+    let img = el.querySelector('img');
+    if (!img) {
+      el.textContent = ''; // sai a inicial / o <i> do lucide
+      img = document.createElement('img');
+      img.alt = ''; // decorativa: o nome da pessoa já vem escrito do lado
+      img.className = 'h-full w-full rounded-full object-cover';
+      el.appendChild(img);
+    }
+    // Via propriedade, não innerHTML: a URL vem do banco e nunca é parseada como markup.
+    img.src = String(url);
+  });
 }
 
 // Header reflete o estado de auth e reage a login/logout (inclusive entre abas).
@@ -3206,6 +3232,7 @@ async function initPerfilPage() {
         avatarBox.prepend(img);
       }
       if (img) img.src = url;
+      pintarAvatarHeader(url); // o avatar do topo troca junto, sem recarregar
       toast('pronto, tua foto tá no ar 💛');
     } catch {
       toast('não deu pra subir tua foto agora. tenta de novo daqui a pouco?');
