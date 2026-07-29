@@ -44,6 +44,7 @@ import {
   Settings2,
   ArrowUpCircle,
   PlayCircle,
+  Camera,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -84,6 +85,7 @@ const LUCIDE_ICONS = {
   Settings2,
   ArrowUpCircle,
   PlayCircle,
+  Camera,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -2140,7 +2142,13 @@ function initLoginPage() {
 // quem coleta CPF é a página hospedada do Asaas, a gente não guarda.
 const PERFIL_CAMPOS_EXTRA =
   'apelido, nascimento, cafe_metodo, cafe_torra, cafe_leite, cafe_restricoes, cafe_horario, ' +
-  'end_cep, end_rua, end_numero, end_complemento, end_bairro, end_cidade, end_uf, avisos';
+  'end_cep, end_rua, end_numero, end_complemento, end_bairro, end_cidade, end_uf, avisos, avatar_url';
+
+// Foto de perfil (migration 0015_avatar). Os mesmos limites estão no bucket do
+// Storage — aqui é só pra avisar a pessoa antes de subir 10 MB à toa.
+const AVATAR_BUCKET = 'avatares';
+const AVATAR_MAX_BYTES = 3 * 1024 * 1024; // 3 MB
+const AVATAR_TIPOS = ['image/jpeg', 'image/png', 'image/webp'];
 
 // Opções das preferências de café. Os `valor` batem com os CHECKs da migration.
 const CAFE_METODOS = [
@@ -2297,6 +2305,7 @@ async function initPerfilPage() {
   // atributo/texto no DOM (o site é JS vanilla, não tem escape automático).
   const val = (v) => escapeHtml(v == null ? '' : String(v));
   const iniciais = escapeHtml(iniciaisDoNome(profile?.full_name || nomeDeExibicao(session)));
+  const avatarUrl = extra?.avatar_url || '';
   const emailVerificado = Boolean(session.user.email_confirmed_at || session.user.confirmed_at);
   // Default da migration primeiro, o que estiver salvo por cima.
   const avisos = {
@@ -2316,7 +2325,23 @@ async function initPerfilPage() {
   root.innerHTML = `
     <div class="pf">
       <header class="pf-hero">
-        <div class="pf-avatar" aria-hidden="true">${iniciais}</div>
+        <div class="pf-avatar" data-avatar>
+          ${
+            avatarUrl
+              ? `<img src="${val(avatarUrl)}" alt="tua foto de perfil" data-avatar-img />`
+              : `<span aria-hidden="true" data-avatar-iniciais>${iniciais}</span>`
+          }
+          <button type="button" class="pf-avatar-btn" data-avatar-btn aria-label="trocar tua foto">
+            <i data-lucide="camera"></i>
+          </button>
+          <input
+            type="file"
+            class="sr-only"
+            accept="${AVATAR_TIPOS.join(',')}"
+            data-avatar-input
+            aria-label="escolher uma foto tua"
+          />
+        </div>
         <div class="pf-hero-txt">
           <p class="pf-script">que bom te ver</p>
           <h1 class="pf-name">oi, ${nome}</h1>
@@ -3015,6 +3040,77 @@ async function initPerfilPage() {
     }, 2600);
   }
 
+  // ── Foto de perfil ────────────────────────────────────────────────────────
+  // Sobe pro bucket `avatares` num caminho fechado em `{user_id}/avatar` — a
+  // policy do Storage só deixa escrever na pasta do próprio uuid, então nem
+  // adianta o client tentar outro caminho. O arquivo é sempre o MESMO (upsert),
+  // pra não acumular foto velha; como a URL não muda, a gente carimba `?v=`
+  // pra furar o cache do CDN e do navegador.
+  const avatarBox = root.querySelector('[data-avatar]');
+  const avatarInput = root.querySelector('[data-avatar-input]');
+  const avatarBtn = root.querySelector('[data-avatar-btn]');
+
+  avatarBtn?.addEventListener('click', () => avatarInput?.click());
+
+  avatarInput?.addEventListener('change', async () => {
+    const arquivo = avatarInput.files?.[0];
+    if (!arquivo) return;
+    // Deixa o input limpo já: se der erro e a pessoa escolher o MESMO arquivo de
+    // novo, o `change` precisa disparar outra vez.
+    avatarInput.value = '';
+
+    if (!AVATAR_TIPOS.includes(arquivo.type)) {
+      toast('essa a gente não abre. manda jpg, png ou webp?');
+      return;
+    }
+    if (arquivo.size > AVATAR_MAX_BYTES) {
+      const mb = (arquivo.size / 1024 / 1024).toFixed(1).replace('.', ',');
+      toast(`essa tem ${mb} MB e o limite é 3. dá uma diminuída?`);
+      return;
+    }
+    if (!supabase) {
+      toast('a conta ainda não tá ligada por aqui');
+      return;
+    }
+
+    avatarBtn.disabled = true;
+    avatarBox?.classList.add('enviando');
+    try {
+      const caminho = `${session.user.id}/avatar`;
+      const { error: upErr } = await supabase.storage.from(AVATAR_BUCKET).upload(caminho, arquivo, {
+        upsert: true,
+        contentType: arquivo.type,
+        cacheControl: '3600',
+      });
+      if (upErr) throw upErr;
+
+      const { data: pub } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(caminho);
+      const url = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: dbErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: url })
+        .eq('id', session.user.id);
+      if (dbErr) throw dbErr;
+
+      // Troca as iniciais pela foto (ou só atualiza o src, se já era foto).
+      let img = avatarBox?.querySelector('[data-avatar-img]');
+      if (!img && avatarBox) {
+        avatarBox.querySelector('[data-avatar-iniciais]')?.remove();
+        img = document.createElement('img');
+        img.setAttribute('data-avatar-img', '');
+        img.alt = 'tua foto de perfil';
+        avatarBox.prepend(img);
+      }
+      if (img) img.src = url;
+      toast('pronto, tua foto tá no ar 💛');
+    } catch {
+      toast('não deu pra subir tua foto agora. tenta de novo daqui a pouco?');
+    } finally {
+      avatarBtn.disabled = false;
+      avatarBox?.classList.remove('enviando');
+    }
+  });
+
   // ── Erros de campo ────────────────────────────────────────────────────────
   const campo = (id) => root.querySelector(`#${id}`);
   function limparErros(form) {
@@ -3225,7 +3321,9 @@ async function initPerfilPage() {
             data: { full_name: patch.full_name, telefone: patch.telefone },
           });
           updateAuthUI(await getSession());
-          const av = root.querySelector('.pf-avatar');
+          // Só o span das iniciais — escrever no .pf-avatar inteiro levaria
+          // junto o botão de trocar foto e o input.
+          const av = root.querySelector('[data-avatar-iniciais]');
           const h1 = root.querySelector('.pf-name');
           if (av) av.textContent = iniciaisDoNome(patch.full_name);
           if (h1) h1.textContent = `oi, ${patch.full_name}`;
@@ -3314,6 +3412,20 @@ async function initPerfilPage() {
     contaMsg.classList.remove('hidden');
   }
 
+  // Recado de "encerra o plano primeiro" + leva a pessoa até onde se encerra.
+  // O nome do tier vem cru (sem escapeHtml) porque aqui vira textContent.
+  function avisarAssinaturaAtiva() {
+    const nome = tiers.find((t) => t.slug === planoSlug)?.nome;
+    dizerConta(
+      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura" — aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
+      'text-coral',
+    );
+    root.querySelector('[data-gerenciar]')?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'center',
+    });
+  }
+
   let excluirArmado = false;
   let excluirTimer;
   root.querySelectorAll('[data-acao]').forEach((btn) => {
@@ -3380,6 +3492,14 @@ async function initPerfilPage() {
       }
 
       if (acao === 'excluir') {
+        // Com assinatura ATIVA a gente não apaga: primeiro encerra o plano, aí
+        // sim a conta. Aqui é só cortesia pra não fazer a pessoa clicar duas
+        // vezes à toa — quem trava de verdade é a Edge Function.
+        if (ativa) {
+          avisarAssinaturaAtiva();
+          return;
+        }
+
         // Dois toques de propósito: apagar a conta não tem volta.
         if (!excluirArmado) {
           excluirArmado = true;
@@ -3399,7 +3519,18 @@ async function initPerfilPage() {
         btn.querySelector('span').textContent = 'apagando…';
         try {
           const { error } = await supabase.functions.invoke('delete-account');
-          if (error) throw error;
+          if (error) {
+            // A function recusa (409) quando a assinatura ainda tá ativa — pode
+            // acontecer se a pessoa assinou em outra aba depois desta carregar.
+            const corpo = await error.context?.json?.().catch(() => null);
+            if (corpo?.assinatura_ativa) {
+              btn.disabled = false;
+              btn.querySelector('span').textContent = 'excluir minha conta';
+              avisarAssinaturaAtiva();
+              return;
+            }
+            throw error;
+          }
           await supabase.auth.signOut();
           window.location.href = '/home';
         } catch {

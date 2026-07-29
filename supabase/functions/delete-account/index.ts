@@ -4,6 +4,9 @@
 // por cascata (profiles.id → auth.users on delete cascade, e todo o resto
 // referencia profiles.id on delete cascade).
 //
+// COM ASSINATURA ATIVA A GENTE NÃO APAGA (409): encerrar o plano é um passo
+// separado e consciente. Pausada não barra — pausar já É o encerrar da nossa UI.
+//
 // ORDEM IMPORTA: primeiro a gente ENCERRA as assinaturas no Asaas, só depois
 // apaga a conta. Se apagasse antes e o DELETE no gateway falhasse, a pessoa
 // continuaria sendo cobrada todo mês sem conta pra reclamar — e a gente não
@@ -38,8 +41,39 @@ Deno.serve(async (req) => {
   const user = await getUserFromRequest(req);
   if (!user) return jsonResponse({ error: 'não autenticado' }, 401);
 
-  // 1) Toda assinatura que ainda pode gerar cobrança (ativa ou pausada dentro do
-  // período). Cancelada já não cobra — mas listar não custa e evita fantasma.
+  // 1) Assinatura ATIVA barra a exclusão. Encerrar o plano é um passo separado e
+  // consciente (a tela de "gerenciar assinatura" faz isso) — ninguém apaga a
+  // conta no meio de um ciclo pago sem saber que tá abrindo mão do que pagou.
+  //
+  // Pausada NÃO barra: pausar já é o "encerrar" da nossa UI (PUT status=INACTIVE
+  // no Asaas, não cobra mais). Se barrasse, a pessoa ficaria presa até o fim do
+  // período sem ação nenhuma capaz de destravar.
+  const { data: ativa, error: ativaErr } = await supabaseAdmin
+    .from('subscriptions')
+    .select('id, tier_slug')
+    .eq('user_id', user.id)
+    .eq('status', 'ativa')
+    .limit(1)
+    .maybeSingle();
+
+  if (ativaErr) {
+    console.error('[delete-account] erro ao checar assinatura ativa', ativaErr);
+    return jsonResponse({ error: 'não deu pra apagar agora' }, 500);
+  }
+
+  if (ativa) {
+    return jsonResponse(
+      {
+        error: 'encerra tua assinatura antes de apagar a conta',
+        assinatura_ativa: true,
+        tier_slug: ativa.tier_slug ?? null,
+      },
+      409,
+    );
+  }
+
+  // 2) Toda assinatura que ainda pode gerar cobrança (pausada dentro do período).
+  // Cancelada já não cobra — mas listar não custa e evita fantasma.
   const { data: subs, error: subErr } = await supabaseAdmin
     .from('subscriptions')
     .select('id, asaas_subscription_id')
@@ -51,7 +85,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'não deu pra apagar agora' }, 500);
   }
 
-  // 2) Encerra cada uma no gateway. 404 = já não existe lá, segue o baile.
+  // 3) Encerra cada uma no gateway. 404 = já não existe lá, segue o baile.
   // Qualquer outro erro ABORTA: melhor a conta continuar de pé do que existir
   // uma cobrança recorrente sem dono.
   try {
@@ -71,7 +105,25 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'não deu pra apagar agora' }, 500);
   }
 
-  // 3) Apaga o usuário. O cascata leva profiles, orders, points_ledger,
+  // 4) Apaga a foto de perfil. O cascata do banco NÃO alcança o Storage — sem
+  // isso sobraria o rosto de alguém que pediu pra sumir. Vai ANTES do delete:
+  // se falhar aqui, a conta continua de pé e dá pra tentar de novo; se fosse
+  // depois, uma falha deixaria a foto órfã sem dono pra reclamar.
+  const { data: fotos, error: listErr } = await supabaseAdmin.storage
+    .from('avatares')
+    .list(user.id);
+
+  if (!listErr && fotos?.length) {
+    const { error: rmErr } = await supabaseAdmin.storage
+      .from('avatares')
+      .remove(fotos.map((f) => `${user.id}/${f.name}`));
+    if (rmErr) {
+      console.error('[delete-account] erro ao apagar avatar', rmErr);
+      return jsonResponse({ error: 'não deu pra apagar agora' }, 500);
+    }
+  }
+
+  // 5) Apaga o usuário. O cascata leva profiles, orders, points_ledger,
   // subscriptions, redemptions e as conquistas junto.
   const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(user.id);
   if (delErr) {

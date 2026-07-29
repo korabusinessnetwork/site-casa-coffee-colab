@@ -679,7 +679,14 @@ a.txt-link.gold { color: var(--gold) }
 
 /* ---------- hero ---------- */
 .pf-hero { display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap }
-.pf-avatar { flex: 0 0 auto; display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: color-mix(in srgb, var(--gold) 22%, var(--paper-2)); border: 1px solid var(--line); font-family: var(--serif); font-size: 30px; font-weight: 600; color: #8a6a46 }
+.pf-avatar { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: color-mix(in srgb, var(--gold) 22%, var(--paper-2)); border: 1px solid var(--line); font-family: var(--serif); font-size: 30px; font-weight: 600; color: #8a6a46 }
+/* A foto ocupa o círculo inteiro; o botão de troca fica por cima, no canto. */
+.pf-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover }
+.pf-avatar.enviando { opacity: .55 }
+.pf-avatar-btn { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); cursor: pointer; transition: color .15s, border-color .15s, background-color .15s }
+.pf-avatar-btn:hover { background: #fff; border-color: var(--coral); color: var(--coral) }
+.pf-avatar-btn:disabled { cursor: default; opacity: .5 }
+.pf-avatar-btn svg { width: 15px; height: 15px }
 .pf-hero-txt { display: flex; flex-direction: column; gap: 2px }
 .pf-script { font-family: 'Caveat', cursive; font-size: 26px; line-height: 1; color: var(--gold); margin: 0 }
 .pf-name { font-family: var(--serif); font-size: clamp(32px, 5vw, 42px); font-weight: 500; line-height: 1.1; letter-spacing: -.01em; color: var(--ink); margin: 0 }
