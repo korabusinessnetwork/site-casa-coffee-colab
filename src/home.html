@@ -107,34 +107,34 @@
             <a class="txt-link ln dir" href="/o-casa">Conheça o Casa <span class="arrow">→</span></a>
           </div>
         </div>
-        <!-- Controles do carrossel: discretos, canto de baixo. O de voltar é só
-             a seta, pra não pesar o canto com dois rótulos. O app.js esconde os
-             dois sozinho quando só existe um slide. -->
-        <div class="hero-nav">
-          <button
-            type="button"
-            class="hero-prev"
-            data-hero-prev
-            aria-label="Voltar pra imagem anterior"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M19 4l-10 8 10 8z" />
-              <path d="M5 5v14" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="hero-skip"
-            data-hero-skip
-            aria-label="Pular pra próxima imagem"
-          >
-            <span>pular</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M5 4l10 8-10 8z" />
-              <path d="M19 5v14" />
-            </svg>
-          </button>
-        </div>
+        <!-- Controles do carrossel: discretos, um em cada canto de baixo — o de
+             voltar na esquerda, o de pular na direita, cada um do lado pra onde
+             leva. O de voltar é só a seta, pra não pesar a tela com dois
+             rótulos. O app.js esconde os dois sozinho quando só existe um
+             slide. -->
+        <button
+          type="button"
+          class="hero-prev"
+          data-hero-prev
+          aria-label="Voltar pra imagem anterior"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 4l-10 8 10 8z" />
+            <path d="M5 5v14" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="hero-skip"
+          data-hero-skip
+          aria-label="Pular pra próxima imagem"
+        >
+          <span>pular</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 4l10 8-10 8z" />
+            <path d="M19 5v14" />
+          </svg>
+        </button>
       </section>
 
       <!-- ===================================================================
