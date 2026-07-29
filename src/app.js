@@ -48,6 +48,8 @@ import {
   Monitor,
   Smartphone,
   Tablet,
+  Utensils,
+  Users,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -92,6 +94,8 @@ const LUCIDE_ICONS = {
   Monitor,
   Smartphone,
   Tablet,
+  Utensils,
+  Users,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -222,7 +226,13 @@ async function getProfile() {
   return data;
 }
 
+// Marca que o "sair" partiu da própria pessoa. Serve pro onAuthStateChange
+// distinguir isso de uma sessão que caiu sozinha (refresh token vencido ou
+// revogado noutro aparelho) — ver `initAuth`.
+let saindoDeProposito = false;
+
 async function signOut() {
+  saindoDeProposito = true;
   if (supabase) await supabase.auth.signOut();
 }
 
@@ -1948,7 +1958,21 @@ async function hydrateAuthSaldo() {
 async function initAuth() {
   updateAuthUI(await getSession());
   if (supabase) {
-    supabase.auth.onAuthStateChange((_evento, session) => updateAuthUI(session));
+    supabase.auth.onAuthStateChange((evento, session) => {
+      updateAuthUI(session);
+      // Sessão caiu sozinha numa página logada (refresh token vencido, ou o
+      // aparelho foi encerrado de outro lugar): sem isto a pessoa fica numa
+      // tela logada morta, e todo botão que chama Edge Function volta 401.
+      // O `saindoDeProposito` evita brigar com o "sair", que já navega sozinho.
+      if (
+        evento === 'SIGNED_OUT' &&
+        !saindoDeProposito &&
+        window.location.pathname.startsWith('/conta/')
+      ) {
+        const destino = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.replace(`/login?redirect=${destino}&expirou=1`);
+      }
+    });
   }
 }
 
@@ -2091,6 +2115,12 @@ function initLoginPage() {
     erroEl.textContent = '';
     erroEl.classList.add('hidden');
   };
+
+  // Veio de uma sessão que caiu sozinha (ver `initAuth`): explica o motivo, em
+  // vez de deixar a pessoa achar que foi deslogada à toa.
+  if (new URLSearchParams(window.location.search).get('expirou') === '1') {
+    mostrarErro('tua sessão expirou por segurança. entra de novo que a gente te leva de volta. 💛');
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3513,6 +3543,7 @@ async function initPerfilPage() {
       </button>`;
     sessoesLista.querySelector('[data-sessoes-todos]')?.addEventListener('click', async (ev) => {
       ev.currentTarget.disabled = true;
+      saindoDeProposito = true;
       await supabase.auth.signOut({ scope: 'global' });
       window.location.href = '/login';
     });
@@ -3728,6 +3759,7 @@ async function initPerfilPage() {
             }
             throw error;
           }
+          saindoDeProposito = true;
           await supabase.auth.signOut();
           window.location.href = '/home';
         } catch {
