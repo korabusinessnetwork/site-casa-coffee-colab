@@ -45,6 +45,9 @@ import {
   ArrowUpCircle,
   PlayCircle,
   Camera,
+  Monitor,
+  Smartphone,
+  Tablet,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -86,6 +89,9 @@ const LUCIDE_ICONS = {
   ArrowUpCircle,
   PlayCircle,
   Camera,
+  Monitor,
+  Smartphone,
+  Tablet,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -2207,6 +2213,66 @@ function iniciaisDoNome(nome) {
   return (primeira + ultima).toUpperCase();
 }
 
+// Nome legível do aparelho a partir do user-agent que o GoTrue guardou. É
+// heurística mesmo — user-agent é string livre, não dá pra ter certeza. Serve
+// só pra pessoa reconhecer ("ah, esse é o meu celular"); nada depende disso.
+function nomeDoAparelho(ua) {
+  const s = String(ua || '');
+  if (!s.trim()) return 'aparelho desconhecido';
+
+  // Ordem importa: Edge e Opera se disfarçam de Chrome, Chrome se disfarça de Safari.
+  const navegador = /\bEdgA?\//.test(s)
+    ? 'Edge'
+    : /\bOPR\/|\bOpera\//.test(s)
+      ? 'Opera'
+      : /SamsungBrowser\//.test(s)
+        ? 'Samsung Internet'
+        : /\bFirefox\/|\bFxiOS\//.test(s)
+          ? 'Firefox'
+          : /\bChrome\/|\bCriOS\//.test(s)
+            ? 'Chrome'
+            : /\bSafari\//.test(s)
+              ? 'Safari'
+              : '';
+
+  const sistema = /\biPhone\b/.test(s)
+    ? 'iPhone'
+    : /\biPad\b/.test(s)
+      ? 'iPad'
+      : /\bAndroid\b/.test(s)
+        ? 'Android'
+        : /\bWindows\b/.test(s)
+          ? 'Windows'
+          : /\bMac OS X\b|\bMacintosh\b/.test(s)
+            ? 'Mac'
+            : /\bLinux\b/.test(s)
+              ? 'Linux'
+              : '';
+
+  if (navegador && sistema) return `${navegador} no ${sistema}`;
+  return navegador || sistema || 'aparelho desconhecido';
+}
+
+function iconeDoAparelho(ua) {
+  const s = String(ua || '');
+  if (/\biPad\b|\bTablet\b/.test(s)) return 'tablet';
+  if (/\biPhone\b|\biPod\b|\bAndroid\b|\bMobile\b/.test(s)) return 'smartphone';
+  return 'monitor';
+}
+
+// "hoje às 14:30" / "ontem às 09:12" / "12/07 às 20:05" — data curta e gentil.
+function quandoCurto(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const dia = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const hoje = dia(new Date());
+  const diff = Math.round((hoje - dia(d)) / 86400000);
+  if (diff === 0) return `hoje às ${hora}`;
+  if (diff === 1) return `ontem às ${hora}`;
+  return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${hora}`;
+}
+
 async function initPerfilPage() {
   const root = document.querySelector('[data-perfil-root]');
   if (!root) return;
@@ -2678,9 +2744,17 @@ async function initPerfilPage() {
           <button type="button" class="pf-link" data-acao="senha">
             <span>trocar a senha</span><span class="arw" aria-hidden="true">→</span>
           </button>
-          <button type="button" class="pf-link" data-acao="sessoes">
-            <span>sair de todos os aparelhos</span><span class="arw" aria-hidden="true">→</span>
+          <button type="button" class="pf-link" data-acao="sessoes" aria-expanded="false" aria-controls="pf-sessoes">
+            <span>aparelhos conectados</span><span class="arw" aria-hidden="true">→</span>
           </button>
+          <div class="pf-sessoes" id="pf-sessoes" data-sessoes hidden>
+            <p class="pf-sessoes-intro">
+              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele — e,
+              por garantia, troca a senha depois.
+            </p>
+            <div data-sessoes-lista></div>
+            <p class="hidden text-sm" data-sessoes-msg aria-live="polite"></p>
+          </div>
           <button type="button" class="pf-link" data-acao="dados">
             <span>baixar meus dados</span><span class="arw" aria-hidden="true">→</span>
           </button>
@@ -3412,6 +3486,127 @@ async function initPerfilPage() {
     contaMsg.classList.remove('hidden');
   }
 
+  // ── Aparelhos conectados ──────────────────────────────────────────────────
+  // A lista vem da RPC `minhas_sessoes` (migration 0016): o schema `auth` não é
+  // exposto pelo PostgREST, então quem lê `auth.sessions` é uma função SECURITY
+  // DEFINER que filtra por `auth.uid()`. O client nunca diz de quem é a sessão —
+  // nem qual é a atual (isso sai da claim `session_id` do JWT, no servidor).
+  const sessoesPainel = root.querySelector('[data-sessoes]');
+  const sessoesLista = root.querySelector('[data-sessoes-lista]');
+  const sessoesMsg = root.querySelector('[data-sessoes-msg]');
+  let sessoesCarregadas = false;
+
+  function dizerSessoes(texto, cor = 'text-ink-2') {
+    if (!sessoesMsg) return;
+    sessoesMsg.textContent = texto;
+    sessoesMsg.className = `text-sm ${cor}`;
+    sessoesMsg.classList.toggle('hidden', !texto);
+  }
+
+  // Saída de emergência quando a lista não carrega (migration ainda não aplicada,
+  // por exemplo): o botão tudo-ou-nada de antes, que só depende do supabase-js.
+  function sairDeTodos() {
+    if (!sessoesLista) return;
+    sessoesLista.innerHTML = `
+      <button type="button" class="pf-device-btn danger" data-sessoes-todos>
+        sair de todos os aparelhos
+      </button>`;
+    sessoesLista.querySelector('[data-sessoes-todos]')?.addEventListener('click', async (ev) => {
+      ev.currentTarget.disabled = true;
+      await supabase.auth.signOut({ scope: 'global' });
+      window.location.href = '/login';
+    });
+  }
+
+  function renderSessoes(linhas) {
+    if (!sessoesLista) return;
+    if (!linhas.length) {
+      sessoesLista.innerHTML = '<p class="pf-device-vazio">só este aparelho por aqui.</p>';
+      return;
+    }
+    const outras = linhas.filter((s) => !s.atual).length;
+    sessoesLista.innerHTML = `
+      <div class="pf-devices">
+        ${linhas
+          .map((s) => {
+            const nome = escapeHtml(nomeDoAparelho(s.aparelho));
+            const onde = s.endereco ? escapeHtml(s.endereco) : 'endereço não registrado';
+            const quando = quandoCurto(s.vista_em);
+            return `
+              <div class="pf-device${s.atual ? ' atual' : ''}">
+                <i data-lucide="${iconeDoAparelho(s.aparelho)}" class="pf-device-ico h-5 w-5"></i>
+                <div class="pf-device-txt">
+                  <p class="pf-device-nome">
+                    ${nome}${s.atual ? '<span class="pf-device-tag">este aqui</span>' : ''}
+                  </p>
+                  <p class="pf-device-meta">${onde}${quando ? ` · visto ${escapeHtml(quando)}` : ''}</p>
+                </div>
+                ${
+                  s.atual
+                    ? ''
+                    : `<button type="button" class="pf-device-btn" data-encerrar="${escapeHtml(s.id)}">encerrar</button>`
+                }
+              </div>`;
+          })
+          .join('')}
+      </div>
+      ${
+        outras > 1
+          ? `<button type="button" class="pf-device-btn danger" data-sessoes-outras>
+               encerrar os outros ${outras} aparelhos
+             </button>`
+          : ''
+      }`;
+    renderIcons();
+
+    sessoesLista.querySelectorAll('[data-encerrar]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        dizerSessoes('');
+        const { data, error } = await supabase.rpc('encerrar_sessao', {
+          p_session_id: b.dataset.encerrar,
+        });
+        if (error || !data) {
+          b.disabled = false;
+          dizerSessoes('não deu pra encerrar esse agora. tenta de novo?', 'text-coral');
+          return;
+        }
+        dizerSessoes('pronto, esse aparelho saiu da tua conta.', 'text-olive');
+        await carregarSessoes();
+      });
+    });
+
+    sessoesLista.querySelector('[data-sessoes-outras]')?.addEventListener('click', async (ev) => {
+      const b = ev.currentTarget;
+      b.disabled = true;
+      dizerSessoes('');
+      const { data, error } = await supabase.rpc('encerrar_outras_sessoes');
+      if (error) {
+        b.disabled = false;
+        dizerSessoes('não deu pra encerrar agora. tenta de novo?', 'text-coral');
+        return;
+      }
+      dizerSessoes(
+        data ? 'pronto, só este aparelho continua conectado.' : 'nada pra encerrar por aqui.',
+        'text-olive',
+      );
+      await carregarSessoes();
+    });
+  }
+
+  async function carregarSessoes() {
+    if (!sessoesLista) return;
+    sessoesLista.innerHTML = '<p class="pf-device-vazio">buscando teus aparelhos…</p>';
+    const { data, error } = await supabase.rpc('minhas_sessoes');
+    if (error) {
+      dizerSessoes('não deu pra listar teus aparelhos agora.', 'text-coral');
+      sairDeTodos();
+      return;
+    }
+    sessoesCarregadas = true;
+    renderSessoes(Array.isArray(data) ? data : []);
+  }
+
   // Recado de "encerra o plano primeiro" + leva a pessoa até onde se encerra.
   // O nome do tier vem cru (sem escapeHtml) porque aqui vira textContent.
   function avisarAssinaturaAtiva() {
@@ -3452,9 +3647,11 @@ async function initPerfilPage() {
       }
 
       if (acao === 'sessoes') {
-        btn.disabled = true;
-        await supabase.auth.signOut({ scope: 'global' });
-        window.location.href = '/login';
+        if (!sessoesPainel) return;
+        const abrindo = sessoesPainel.hidden;
+        sessoesPainel.hidden = !abrindo;
+        btn.setAttribute('aria-expanded', String(abrindo));
+        if (abrindo && !sessoesCarregadas) await carregarSessoes();
         return;
       }
 
