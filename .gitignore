@@ -10,6 +10,10 @@ dist/
 # Supabase CLI: estado local de link/temp (não versionar)
 supabase/.temp/
 
+# Atalhos locais que carregam segredo em texto puro (ex.: o wrapper do varredor
+# de avatares, que guarda a service_role). NUNCA versionar.
+scripts/*.local.cmd
+
 # Config local de tooling (Claude Code launch.json etc.)
 .claude/
 
