@@ -259,10 +259,15 @@ a.txt-link.gold { color: var(--gold) }
 .hdr-user-trigger { display: inline-flex; align-items: center; gap: 9px; background: none; border: 0; cursor: pointer; color: inherit; font-family: var(--sans); font-size: 13px; font-weight: 500; padding: 3px 4px; border-radius: 999px; transition: opacity .2s var(--e) }
 .hdr-user-trigger:hover { opacity: .78 }
 /* Nasce com as iniciais no fundo coral; quando a pessoa tem foto de perfil, o
-   `pintarAvatarHeader` troca o conteúdo por um <img> que cobre o círculo todo
-   (daí o overflow escondido). */
+   `pintarAvatarHeader` põe a `.tem-foto` e o coral sai de cena — senão ele
+   escapa por baixo da foto como um anel fininho, porque o arredondamento do
+   círculo e o da imagem nunca caem no mesmo pixel. Pela mesma razão quem
+   recorta é só o pai (`overflow: hidden`): a foto entra quadrada.
+   As duas regras miram o `[data-hdr-avatar]` pra valer também no avatar do
+   drawer mobile, que é montado com classes do Tailwind e não com `.hdr-*`. */
 .hdr-user-avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; background: var(--coral); color: #fff; font-family: var(--serif); font-size: 12.5px; flex: 0 0 auto }
-.hdr-user-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover }
+[data-hdr-avatar].tem-foto { background: none }
+[data-hdr-avatar] img { display: block; width: 100%; height: 100%; object-fit: cover }
 .hdr-user-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 
 /* header sólido ao rolar (ou já sólido nas páginas internas via .scrolled) */

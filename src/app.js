@@ -1972,8 +1972,10 @@ export function pintarAvatarHeader(url) {
       el.textContent = ''; // sai a inicial / o <i> do lucide
       img = document.createElement('img');
       img.alt = ''; // decorativa: o nome da pessoa já vem escrito do lado
-      img.className = 'h-full w-full rounded-full object-cover';
       el.appendChild(img);
+      // Apaga o fundo coral das iniciais: com a foto por cima ele só apareceria
+      // como um anel na borda. O tamanho e o recorte redondo vêm do CSS.
+      el.classList.add('tem-foto');
     }
     // Via propriedade, não innerHTML: a URL vem do banco e nunca é parseada como markup.
     img.src = String(url);
