@@ -2136,6 +2136,69 @@ function initLoginPage() {
 }
 
 // --- Perfil (área logada) ------------------------------------------------------
+// Colunas do perfil estendido (migration 0014_perfil). Não tem CPF de propósito:
+// quem coleta CPF é a página hospedada do Asaas, a gente não guarda.
+const PERFIL_CAMPOS_EXTRA =
+  'apelido, nascimento, cafe_metodo, cafe_torra, cafe_leite, cafe_restricoes, cafe_horario, ' +
+  'end_cep, end_rua, end_numero, end_complemento, end_bairro, end_cidade, end_uf, avisos';
+
+// Opções das preferências de café. Os `valor` batem com os CHECKs da migration.
+const CAFE_METODOS = [
+  { valor: 'coado', rotulo: 'coado' },
+  { valor: 'prensa', rotulo: 'prensa' },
+  { valor: 'aeropress', rotulo: 'aeropress' },
+  { valor: 'espresso', rotulo: 'espresso' },
+  { valor: 'moka', rotulo: 'moka' },
+];
+const CAFE_TORRAS = [
+  { valor: 'clara', rotulo: 'clara e frutada' },
+  { valor: 'media', rotulo: 'média' },
+  { valor: 'escura', rotulo: 'escura' },
+];
+const CAFE_LEITES = [
+  { valor: 'puro', rotulo: 'puro, sempre' },
+  { valor: 'integral', rotulo: 'integral' },
+  { valor: 'vegetal', rotulo: 'vegetal' },
+  { valor: 'tanto', rotulo: 'tanto faz' },
+];
+const CAFE_HORARIOS = [
+  { valor: 'manha', rotulo: 'de manhã cedo' },
+  { valor: 'almoco', rotulo: 'na hora do almoço' },
+  { valor: 'tarde', rotulo: 'meio da tarde' },
+  { valor: 'fim', rotulo: 'no fim do dia' },
+];
+
+// Avisos (jsonb `profiles.avisos`). `padrao` espelha o default da migration.
+const PERFIL_AVISOS = [
+  { chave: 'lotes', titulo: 'lote novo na casa', sub: 'quando chega um café novo no balcão', padrao: true },
+  { chave: 'pontos', titulo: 'pontos pra vencer', sub: 'a gente te avisa uma semana antes', padrao: true },
+  { chave: 'cobranca', titulo: 'cobrança da assinatura', sub: 'recibo e lembrete antes de cada renovação', padrao: true },
+  { chave: 'eventos', titulo: 'eventos e cursos', sub: 'cupping, aulas e noites de música', padrao: false },
+  { chave: 'whats', titulo: 'whatsapp', sub: 'prefiro ser avisado por lá, não por e-mail', padrao: true },
+];
+
+// Máscaras de digitação (o banco guarda o texto formatado, como já fazia o telefone).
+function mascaraTelefone(v) {
+  const d = String(v || '').replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+function mascaraCep(v) {
+  const d = String(v || '').replace(/\D/g, '').slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+}
+
+// Iniciais pro avatar (no máximo duas letras, da primeira e da última palavra).
+function iniciaisDoNome(nome) {
+  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return '☕';
+  const primeira = partes[0][0] || '';
+  const ultima = partes.length > 1 ? partes[partes.length - 1][0] || '' : '';
+  return (primeira + ultima).toUpperCase();
+}
+
 async function initPerfilPage() {
   const root = document.querySelector('[data-perfil-root]');
   if (!root) return;
@@ -2163,9 +2226,14 @@ async function initPerfilPage() {
   let ativoAte = ''; // DD/MM (current_period_end formatado)
   let agendadoSlug = null; // scheduled_downgrade_to (downgrade agendado pro próximo ciclo)
   let tiers = []; // [{ slug, nome, preco_centavos, ordem, ativo }]
+  // Campos do perfil estendido (apelido, café, endereço, avisos — migration 0014).
+  // Consulta separada e TOLERANTE de propósito: se a migration ainda não foi
+  // aplicada no banco, o select falha, `extra` fica null e a página segue de pé
+  // com os campos vazios, em vez de derrubar o perfil inteiro.
+  let extra = null;
 
   if (supabase) {
-    const [subRes, tiersRes] = await Promise.all([
+    const [subRes, tiersRes, extraRes] = await Promise.all([
       supabase
         .from('subscriptions')
         .select('tier_slug, status, current_period_end, scheduled_downgrade_to')
@@ -2175,8 +2243,10 @@ async function initPerfilPage() {
         .limit(1)
         .maybeSingle(),
       supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo').order('ordem'),
+      supabase.from('profiles').select(PERFIL_CAMPOS_EXTRA).eq('id', session.user.id).maybeSingle(),
     ]);
     tiers = Array.isArray(tiersRes.data) ? tiersRes.data : [];
+    extra = extraRes.data || null;
     const sub = subRes.data;
     if (sub) {
       subStatus = sub.status;
@@ -2223,41 +2293,221 @@ async function initPerfilPage() {
   const tiersDowngrade =
     ativa && !agendadoSlug ? tiers.filter((t) => t.ativo !== false && (t.ordem ?? 0) < ordemAtual) : [];
 
-  root.innerHTML = `
-    <div class="mx-auto max-w-2xl">
-      <p class="decor text-2xl sm:text-3xl">que bom te ver</p>
-      <h1 class="mt-1 font-titulo text-3xl sm:text-4xl">oi, ${nome}</h1>
+  // Valores do formulário. Tudo que vem do banco é escapado antes de virar
+  // atributo/texto no DOM (o site é JS vanilla, não tem escape automático).
+  const val = (v) => escapeHtml(v == null ? '' : String(v));
+  const iniciais = escapeHtml(iniciaisDoNome(profile?.full_name || nomeDeExibicao(session)));
+  const emailVerificado = Boolean(session.user.email_confirmed_at || session.user.confirmed_at);
+  // Default da migration primeiro, o que estiver salvo por cima.
+  const avisos = {
+    ...Object.fromEntries(PERFIL_AVISOS.map((a) => [a.chave, a.padrao])),
+    ...(extra?.avisos && typeof extra.avisos === 'object' ? extra.avisos : {}),
+  };
+  const chips = (grupo, opcoes, atual) =>
+    opcoes
+      .map(
+        (o) =>
+          `<button type="button" class="pf-chip" data-chip="${grupo}" data-value="${o.valor}" aria-pressed="${
+            atual === o.valor ? 'true' : 'false'
+          }">${o.rotulo}</button>`,
+      )
+      .join('');
 
-      <dl class="mt-8 grid gap-4 sm:grid-cols-3">
-        <div class="card">
-          <dt class="lbl">teus pontos</dt>
-          <dd class="mt-1 font-titulo text-2xl text-coral">${pontos}</dd>
-          <a href="/conta/pontos" class="mt-1 inline-block text-xs font-medium text-coral hover:underline">ver extrato e resgatar</a>
+  root.innerHTML = `
+    <div class="pf">
+      <header class="pf-hero">
+        <div class="pf-avatar" aria-hidden="true">${iniciais}</div>
+        <div class="pf-hero-txt">
+          <p class="pf-script">que bom te ver</p>
+          <h1 class="pf-name">oi, ${nome}</h1>
         </div>
-        <div class="card">
-          <dt class="lbl">teu plano</dt>
-          <dd class="mt-1 font-titulo text-lg">${plano}</dd>
+      </header>
+
+      <section class="pf-stats" aria-label="resumo da conta">
+        <div class="pf-stat">
+          <p class="lbl">teus pontos</p>
+          <p class="pf-n">${pontos}</p>
+          <a href="/conta/pontos">ver extrato e resgatar</a>
+        </div>
+        <div class="pf-stat">
+          <p class="lbl">teu plano</p>
+          <p class="pf-plano">${plano}</p>
           ${
             ativa
-              ? `<p class="status mt-1"><span class="dot green"></span>ativo</p>`
+              ? `<p class="status"><span class="dot green"></span>ativo</p>`
               : emGraca
-                ? `<p class="status mt-1"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
+                ? `<p class="status"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
                 : pausada
-                  ? `<p class="status mt-1"><span class="dot muted"></span>pausado</p>`
+                  ? `<p class="status"><span class="dot muted"></span>pausado</p>`
                   : reassinavel
-                    ? `<p class="status mt-1"><span class="dot muted"></span>encerrado</p>`
-                    : `<a href="/planos" class="mt-2 inline-block text-xs font-medium text-coral hover:underline">ver os planos</a>`
+                    ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
+                    : `<a href="/planos">ver os planos</a>`
           }
         </div>
-        <div class="card">
-          <dt class="lbl">e-mail</dt>
-          <dd class="mt-1 break-all text-sm text-ink">${email}</dd>
+        <div class="pf-stat">
+          <p class="lbl">e-mail</p>
+          <p class="pf-email">${email}</p>
+          ${
+            emailVerificado
+              ? `<p class="status"><span class="dot green"></span>verificado</p>`
+              : `<p class="status"><span class="dot gold"></span>falta confirmar</p>`
+          }
         </div>
-      </dl>
+      </section>
+
+      <section class="pf-prog" aria-label="perfil completo">
+        <div class="pf-prog-top">
+          <p class="pf-prog-title">teu perfil tá <em data-progress-pct>0%</em> completo</p>
+          <p class="pf-prog-hint">quanto mais tu contar, melhor a gente acerta teu café</p>
+        </div>
+        <div class="pf-prog-track" role="progressbar" aria-label="perfil completo" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="pf-prog-bar" data-progress-bar style="width:0%"></div>
+        </div>
+      </section>
+
+      <form class="card pf-sec" data-section="dados" novalidate>
+        <div class="pf-head">
+          <h2>teus dados</h2>
+          <p>atualiza quando quiser, é só teu.</p>
+        </div>
+        <div class="pf-grid">
+          <label class="field" for="pf-nome">
+            <span class="lbl">nome completo</span>
+            <input id="pf-nome" name="nome" type="text" value="${nome}" autocomplete="name" />
+          </label>
+          <label class="field" for="pf-apelido">
+            <span class="lbl">como te chamar</span>
+            <input id="pf-apelido" name="apelido" type="text" value="${val(extra?.apelido)}" placeholder="do jeito que teus amigos te chamam" autocomplete="nickname" />
+          </label>
+          <label class="field" for="pf-telefone">
+            <span class="lbl">celular / whatsapp</span>
+            <input id="pf-telefone" name="telefone" type="tel" value="${telefone}" inputmode="tel" autocomplete="tel" data-mask="phone" />
+          </label>
+          <label class="field" for="pf-nascimento">
+            <span class="lbl">aniversário</span>
+            <input id="pf-nascimento" name="nascimento" type="date" value="${val(extra?.nascimento)}" autocomplete="bday" />
+            <span class="hint">no teu dia tem café por nossa conta</span>
+          </label>
+          <label class="field pf-wide" for="pf-email">
+            <span class="lbl">e-mail</span>
+            <input id="pf-email" name="email" type="email" value="${email}" readonly />
+            <button type="button" class="pf-inline-link" data-trocar-email>trocar e-mail</button>
+          </label>
+        </div>
+        <div class="hidden" data-email-painel>
+          <label class="field" for="pf-email-novo">
+            <span class="lbl">e-mail novo</span>
+            <input id="pf-email-novo" type="email" inputmode="email" autocomplete="email" placeholder="teu e-mail novo" />
+            <span class="hint">a gente manda um link pro endereço novo. ele só passa a valer depois que tu confirmar por lá.</span>
+          </label>
+          <div class="pf-actions">
+            <button type="button" class="btn solid sm" data-email-enviar>mandar o link</button>
+            <button type="button" class="btn ghost sm" data-email-cancelar>deixa quieto</button>
+          </div>
+          <p class="hidden text-sm" data-email-msg aria-live="polite"></p>
+        </div>
+        <p class="hidden text-sm" data-perfil-msg aria-live="polite"></p>
+        <div><button type="submit" class="btn solid">salvar teus dados</button></div>
+      </form>
+
+      <form class="card pf-sec g-lg" data-section="cafe" novalidate>
+        <div class="pf-head">
+          <h2>teu café</h2>
+          <p>o barista dá uma olhada aqui antes de moer.</p>
+        </div>
+        <div class="pf-chip-group">
+          <span class="lbl">método de casa</span>
+          <div class="pf-chips" role="group" aria-label="método de casa">${chips('metodo', CAFE_METODOS, extra?.cafe_metodo)}</div>
+        </div>
+        <div class="pf-chip-group">
+          <span class="lbl">torra preferida</span>
+          <div class="pf-chips" role="group" aria-label="torra preferida">${chips('torra', CAFE_TORRAS, extra?.cafe_torra)}</div>
+        </div>
+        <div class="pf-chip-group">
+          <span class="lbl">com leite?</span>
+          <div class="pf-chips" role="group" aria-label="com leite">${chips('leite', CAFE_LEITES, extra?.cafe_leite)}</div>
+        </div>
+        <div class="pf-grid">
+          <label class="field" for="pf-restricoes">
+            <span class="lbl">restrições / alergias</span>
+            <input id="pf-restricoes" name="restricoes" type="text" value="${val(extra?.cafe_restricoes)}" placeholder="sem lactose, sem castanha…" />
+          </label>
+          <label class="field" for="pf-horario">
+            <span class="lbl">costuma passar</span>
+            <select id="pf-horario" name="horario">
+              <option value="">quando dá</option>
+              ${CAFE_HORARIOS.map(
+                (o) =>
+                  `<option value="${o.valor}"${extra?.cafe_horario === o.valor ? ' selected' : ''}>${o.rotulo}</option>`,
+              ).join('')}
+            </select>
+          </label>
+        </div>
+        <div><button type="submit" class="btn solid">salvar teu café</button></div>
+      </form>
+
+      <form class="card pf-sec" data-section="entrega" novalidate>
+        <div class="pf-head">
+          <h2>onde te entregamos</h2>
+          <p>endereço da tua assinatura. dá pra retirar aqui na casa também.</p>
+        </div>
+        <div class="pf-grid addr">
+          <label class="field" for="pf-cep">
+            <span class="lbl">cep</span>
+            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" />
+          </label>
+          <label class="field pf-wide" for="pf-rua">
+            <span class="lbl">rua</span>
+            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" />
+          </label>
+          <label class="field" for="pf-numero">
+            <span class="lbl">número</span>
+            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" />
+          </label>
+          <label class="field" for="pf-complemento">
+            <span class="lbl">complemento</span>
+            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" />
+          </label>
+          <label class="field" for="pf-bairro">
+            <span class="lbl">bairro</span>
+            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" />
+          </label>
+          <label class="field" for="pf-cidade">
+            <span class="lbl">cidade</span>
+            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" />
+          </label>
+          <label class="field" for="pf-uf">
+            <span class="lbl">uf</span>
+            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf />
+          </label>
+        </div>
+        <div><button type="submit" class="btn solid">salvar endereço</button></div>
+      </form>
+
+      <section class="card pf-sec">
+        <div class="pf-head">
+          <h2>teus avisos</h2>
+          <p>a gente fala pouco, e só do que importa.</p>
+        </div>
+        <div class="pf-toggles">
+          ${PERFIL_AVISOS.map(
+            (a) => `<div class="pf-toggle">
+                      <div class="pf-toggle-txt">
+                        <b>${a.titulo}</b>
+                        <span>${a.sub}</span>
+                      </div>
+                      <button type="button" class="pf-switch" role="switch" data-aviso="${a.chave}" aria-checked="${
+                        avisos[a.chave] ? 'true' : 'false'
+                      }" aria-label="${a.titulo}"><span></span></button>
+                    </div>`,
+          ).join('')}
+        </div>
+        <p class="hidden text-sm" data-avisos-msg aria-live="polite"></p>
+      </section>
 
       ${
         temGerenciar
-          ? `<section class="mt-8 card" data-gerenciar>
+          ? `<section class="card pf-sec" data-gerenciar>
               <div class="flex items-center gap-2">
                 <i data-lucide="settings-2" class="h-5 w-5 text-coral"></i>
                 <h2 class="font-titulo text-xl">gerenciar assinatura</h2>
@@ -2387,38 +2637,43 @@ async function initPerfilPage() {
           : ''
       }
 
-      <div class="mt-4">
-        <a href="/conta/conquistas" class="inline-flex items-center gap-2 text-sm font-medium text-coral hover:underline">
-          <i data-lucide="award" class="h-4 w-4"></i>minhas conquistas
+      <div class="pf-links">
+        <a class="pf-link" href="/conta/conquistas">
+          <span><i data-lucide="award" class="h-4 w-4"></i>minhas conquistas</span>
+          <span class="arw" aria-hidden="true">→</span>
         </a>
       </div>
 
-      <form class="form mt-10" data-perfil-form novalidate>
-        <div>
-          <h2 class="font-titulo text-xl">teus dados</h2>
-          <p class="mt-1 text-sm text-muted">atualiza quando quiser, é só teu.</p>
+      <section>
+        <div class="pf-head">
+          <h2>conta e privacidade</h2>
+          <p>teus dados são teus. leva contigo quando quiser.</p>
         </div>
-
-        <div class="field">
-          <label for="perfil-nome">nome</label>
-          <input id="perfil-nome" name="nome" type="text" value="${nome}" autocomplete="name" class="inp" />
+        <div class="pf-links">
+          <button type="button" class="pf-link" data-acao="senha">
+            <span>trocar a senha</span><span class="arw" aria-hidden="true">→</span>
+          </button>
+          <button type="button" class="pf-link" data-acao="sessoes">
+            <span>sair de todos os aparelhos</span><span class="arw" aria-hidden="true">→</span>
+          </button>
+          <button type="button" class="pf-link" data-acao="dados">
+            <span>baixar meus dados</span><span class="arw" aria-hidden="true">→</span>
+          </button>
+          <button type="button" class="pf-link danger" data-acao="excluir">
+            <span>excluir minha conta</span><span class="arw" aria-hidden="true">→</span>
+          </button>
         </div>
+        <p class="hidden text-sm" data-conta-msg aria-live="polite"></p>
+      </section>
 
-        <div class="field">
-          <label for="perfil-telefone">telefone</label>
-          <input id="perfil-telefone" name="telefone" type="tel" value="${telefone}" autocomplete="tel" class="inp" />
-        </div>
-
-        <p class="hidden text-sm" data-perfil-msg aria-live="polite"></p>
-        <button type="submit" class="btn solid mt-5">salvar</button>
-      </form>
-
-      <div class="mt-10 border-t border-line pt-6">
+      <div class="pf-signout">
         <button type="button" data-signout class="btn ghost">
           <i data-lucide="log-out" class="h-4 w-4"></i>sair da conta
         </button>
+        <p class="pf-script">até a próxima ☕</p>
       </div>
-    </div>`;
+    </div>
+    <div class="pf-toast" role="status" aria-live="polite" data-toast hidden></div>`;
 
   renderIcons();
 
@@ -2747,55 +3002,413 @@ async function initPerfilPage() {
     }
   });
 
-  // Editar nome/telefone, update na PRÓPRIA linha (RLS garante id = auth.uid()).
-  const perfilForm = root.querySelector('[data-perfil-form]');
-  const msg = root.querySelector('[data-perfil-msg]');
-  const salvarBtn = perfilForm?.querySelector('[type="submit"]');
-  perfilForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (msg) msg.classList.add('hidden');
-    const novoNome = perfilForm.nome.value.trim();
-    const novoTel = perfilForm.telefone.value.trim();
-    if (!novoNome) {
-      if (msg) {
-        msg.textContent = 'conta pra gente teu nome? 💛';
-        msg.className = 'mt-3 text-sm text-coral';
-        msg.classList.remove('hidden');
+  // ── Toast (recado curto no rodapé, some sozinho) ──────────────────────────
+  const toastEl = root.querySelector('[data-toast]');
+  let toastTimer;
+  function toast(texto) {
+    if (!toastEl) return;
+    toastEl.textContent = texto;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.hidden = true;
+    }, 2600);
+  }
+
+  // ── Erros de campo ────────────────────────────────────────────────────────
+  const campo = (id) => root.querySelector(`#${id}`);
+  function limparErros(form) {
+    form.querySelectorAll('.field.invalid').forEach((f) => f.classList.remove('invalid'));
+    form.querySelectorAll('.field-err').forEach((e) => e.remove());
+  }
+  function marcarErro(input, texto) {
+    const field = input?.closest('.field');
+    if (!field) return;
+    field.classList.add('invalid');
+    const span = document.createElement('span');
+    span.className = 'field-err';
+    span.textContent = texto;
+    field.appendChild(span);
+    return false;
+  }
+
+  // ── Máscaras de digitação ─────────────────────────────────────────────────
+  root.querySelectorAll('[data-mask]').forEach((input) => {
+    input.addEventListener('input', () => {
+      input.value = input.dataset.mask === 'cep' ? mascaraCep(input.value) : mascaraTelefone(input.value);
+    });
+  });
+  const ufInput = root.querySelector('[data-uf]');
+  ufInput?.addEventListener('input', () => {
+    ufInput.value = ufInput.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2);
+  });
+
+  // Busca do CEP: preenche rua/bairro/cidade/uf pra pessoa não digitar de novo.
+  // Serviço público (ViaCEP); se estiver fora do ar, a pessoa preenche na mão.
+  const cepInput = campo('pf-cep');
+  cepInput?.addEventListener('blur', async () => {
+    const digitos = cepInput.value.replace(/\D/g, '');
+    if (digitos.length !== 8) return;
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${digitos}/json/`);
+      const d = await r.json();
+      if (!d || d.erro) return;
+      const preencher = (id, valor) => {
+        const el = campo(id);
+        if (el && !el.value.trim() && valor) el.value = valor;
+      };
+      preencher('pf-rua', d.logradouro);
+      preencher('pf-bairro', d.bairro);
+      preencher('pf-cidade', d.localidade);
+      preencher('pf-uf', d.uf);
+      atualizarProgresso();
+    } catch {
+      /* sem internet ou serviço fora: segue com o que a pessoa digitar */
+    }
+  });
+
+  // ── Chips (uma escolha por grupo; clicar no escolhido desmarca) ────────────
+  root.querySelectorAll('[data-chip]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const jaEstava = btn.getAttribute('aria-pressed') === 'true';
+      root
+        .querySelectorAll(`[data-chip="${btn.dataset.chip}"]`)
+        .forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', jaEstava ? 'false' : 'true');
+      atualizarProgresso();
+    });
+  });
+  const chipEscolhido = (grupo) =>
+    root.querySelector(`[data-chip="${grupo}"][aria-pressed="true"]`)?.dataset.value || null;
+
+  // ── Barra "perfil completo" ───────────────────────────────────────────────
+  // Sem CPF na conta: quem coleta é a página do Asaas, então ele não entra aqui.
+  const CAMPOS_PROGRESSO = [
+    'pf-nome', 'pf-apelido', 'pf-telefone', 'pf-nascimento', 'pf-cep', 'pf-rua',
+    'pf-numero', 'pf-bairro', 'pf-cidade', 'pf-uf', 'pf-restricoes', 'pf-horario',
+  ];
+  const progPct = root.querySelector('[data-progress-pct]');
+  const progBar = root.querySelector('[data-progress-bar]');
+  function atualizarProgresso() {
+    const preenchidos = CAMPOS_PROGRESSO.filter((id) => (campo(id)?.value || '').trim()).length;
+    const chipsMarcados = root.querySelectorAll('[data-chip][aria-pressed="true"]').length;
+    const total = CAMPOS_PROGRESSO.length + 3 + 1; // 3 grupos de chips + e-mail confirmado
+    const pct = Math.round(((preenchidos + chipsMarcados + (emailVerificado ? 1 : 0)) / total) * 100);
+    if (progPct) progPct.textContent = `${pct}%`;
+    if (progBar) {
+      progBar.style.width = `${pct}%`;
+      progBar.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', String(pct));
+    }
+  }
+  root
+    .querySelectorAll('.field input, .field select')
+    .forEach((el) => el.addEventListener('input', atualizarProgresso));
+  atualizarProgresso();
+
+  // ── Salvar por seção ──────────────────────────────────────────────────────
+  // Cada form grava só as colunas da própria seção, na PRÓPRIA linha do profiles
+  // (a RLS garante `id = auth.uid()`; o client nunca manda o id de outra pessoa).
+  const RECADOS = {
+    dados: 'pronto, teus dados tão salvos',
+    cafe: 'anotado, o barista já sabe',
+    entrega: 'endereço salvo',
+  };
+
+  function montarDados(form) {
+    limparErros(form);
+    const v = (id) => (campo(id)?.value || '').trim();
+    let ok = true;
+
+    if (form.dataset.section === 'dados') {
+      const nomeNovo = v('pf-nome');
+      const tel = v('pf-telefone');
+      const nasc = v('pf-nascimento');
+      if (!nomeNovo) {
+        marcarErro(campo('pf-nome'), 'conta pra gente teu nome? 💛');
+        ok = false;
       }
+      const digitos = tel.replace(/\D/g, '');
+      if (tel && (digitos.length < 10 || digitos.length > 11)) {
+        marcarErro(campo('pf-telefone'), 'faltou um pedaço do número');
+        ok = false;
+      }
+      if (nasc && new Date(nasc) >= new Date()) {
+        marcarErro(campo('pf-nascimento'), 'essa data ainda não chegou');
+        ok = false;
+      }
+      if (!ok) return null;
+      return { full_name: nomeNovo, telefone: tel, apelido: v('pf-apelido') || null, nascimento: nasc || null };
+    }
+
+    if (form.dataset.section === 'cafe') {
+      return {
+        cafe_metodo: chipEscolhido('metodo'),
+        cafe_torra: chipEscolhido('torra'),
+        cafe_leite: chipEscolhido('leite'),
+        cafe_restricoes: v('pf-restricoes') || null,
+        cafe_horario: v('pf-horario') || null,
+      };
+    }
+
+    // entrega: ou o endereço está inteiro, ou está vazio — meio endereço não entrega.
+    const end = {
+      end_cep: v('pf-cep'),
+      end_rua: v('pf-rua'),
+      end_numero: v('pf-numero'),
+      end_complemento: v('pf-complemento'),
+      end_bairro: v('pf-bairro'),
+      end_cidade: v('pf-cidade'),
+      end_uf: v('pf-uf'),
+    };
+    const algumPreenchido = Object.values(end).some(Boolean);
+    if (algumPreenchido) {
+      const obrigatorios = [
+        ['pf-cep', end.end_cep, 'o cep ajuda a gente a chegar'],
+        ['pf-rua', end.end_rua, 'falta a rua'],
+        ['pf-numero', end.end_numero, 'falta o número'],
+        ['pf-bairro', end.end_bairro, 'falta o bairro'],
+        ['pf-cidade', end.end_cidade, 'falta a cidade'],
+        ['pf-uf', end.end_uf, 'falta o estado'],
+      ];
+      obrigatorios.forEach(([id, valor, recado]) => {
+        if (!valor) {
+          marcarErro(campo(id), recado);
+          ok = false;
+        }
+      });
+      if (end.end_cep && end.end_cep.replace(/\D/g, '').length !== 8) {
+        marcarErro(campo('pf-cep'), 'o cep tem 8 números');
+        ok = false;
+      }
+      if (end.end_uf && end.end_uf.length !== 2) {
+        marcarErro(campo('pf-uf'), 'são 2 letras, tipo RS');
+        ok = false;
+      }
+      if (!ok) return null;
+    }
+    return Object.fromEntries(Object.entries(end).map(([coluna, valor]) => [coluna, valor || null]));
+  }
+
+  root.querySelectorAll('form[data-section]').forEach((form) => {
+    const botao = form.querySelector('[type="submit"]');
+    const secao = form.dataset.section;
+    const msgSecao = form.querySelector('[data-perfil-msg]');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msgSecao?.classList.add('hidden');
+      const patch = montarDados(form);
+      if (!patch) return;
+      if (!supabase) {
+        toast('a conta ainda não tá ligada por aqui');
+        return;
+      }
+      const textoBtn = botao?.textContent;
+      if (botao) {
+        botao.disabled = true;
+        botao.textContent = 'salvando…';
+      }
+      try {
+        const { error } = await supabase.from('profiles').update(patch).eq('id', session.user.id);
+        if (error) {
+          if (msgSecao) {
+            msgSecao.textContent = 'não deu pra salvar agora. tenta de novo daqui a pouco?';
+            msgSecao.className = 'text-sm text-coral';
+            msgSecao.classList.remove('hidden');
+          } else {
+            toast('não deu pra salvar agora');
+          }
+          return;
+        }
+        if (secao === 'dados') {
+          // Espelha no metadata do auth — é de lá que o header tira o nome.
+          await supabase.auth.updateUser({
+            data: { full_name: patch.full_name, telefone: patch.telefone },
+          });
+          updateAuthUI(await getSession());
+          const av = root.querySelector('.pf-avatar');
+          const h1 = root.querySelector('.pf-name');
+          if (av) av.textContent = iniciaisDoNome(patch.full_name);
+          if (h1) h1.textContent = `oi, ${patch.full_name}`;
+        }
+        toast(RECADOS[secao]);
+      } finally {
+        if (botao) {
+          botao.disabled = false;
+          botao.textContent = textoBtn;
+        }
+      }
+    });
+  });
+
+  // ── Avisos (gravam no clique, sem botão) ──────────────────────────────────
+  const avisosMsg = root.querySelector('[data-avisos-msg]');
+  root.querySelectorAll('[data-aviso]').forEach((sw) => {
+    sw.addEventListener('click', async () => {
+      if (sw.disabled) return;
+      const antes = sw.getAttribute('aria-checked') === 'true';
+      sw.setAttribute('aria-checked', antes ? 'false' : 'true');
+      avisos[sw.dataset.aviso] = !antes;
+      if (!supabase) return;
+      sw.disabled = true;
+      const { error } = await supabase.from('profiles').update({ avisos }).eq('id', session.user.id);
+      sw.disabled = false;
+      if (error) {
+        // Volta o botão pro que era: o que vale é o que está no banco.
+        sw.setAttribute('aria-checked', antes ? 'true' : 'false');
+        avisos[sw.dataset.aviso] = antes;
+        if (avisosMsg) {
+          avisosMsg.textContent = 'não deu pra mudar esse aviso agora.';
+          avisosMsg.className = 'text-sm text-coral';
+          avisosMsg.classList.remove('hidden');
+        }
+        return;
+      }
+      avisosMsg?.classList.add('hidden');
+      toast('combinado');
+    });
+  });
+
+  // ── Trocar e-mail ─────────────────────────────────────────────────────────
+  // O Supabase manda um link pro endereço novo; ele só passa a valer depois
+  // que a pessoa confirmar por lá.
+  const emailPainel = root.querySelector('[data-email-painel]');
+  const emailMsg = root.querySelector('[data-email-msg]');
+  root.querySelector('[data-trocar-email]')?.addEventListener('click', () => {
+    emailPainel?.classList.toggle('hidden');
+    if (!emailPainel?.classList.contains('hidden')) campo('pf-email-novo')?.focus();
+  });
+  root.querySelector('[data-email-cancelar]')?.addEventListener('click', () => {
+    emailPainel?.classList.add('hidden');
+    emailMsg?.classList.add('hidden');
+  });
+  root.querySelector('[data-email-enviar]')?.addEventListener('click', async (e) => {
+    const botao = e.currentTarget;
+    const novo = (campo('pf-email-novo')?.value || '').trim();
+    const dizer = (texto, cor) => {
+      if (!emailMsg) return;
+      emailMsg.textContent = texto;
+      emailMsg.className = `text-sm ${cor}`;
+      emailMsg.classList.remove('hidden');
+    };
+    if (!novo || !novo.includes('@')) {
+      dizer('esse e-mail não parece certo.', 'text-coral');
       return;
     }
-    const textoBtn = salvarBtn?.textContent;
-    if (salvarBtn) {
-      salvarBtn.disabled = true;
-      salvarBtn.textContent = 'salvando…';
-    }
-    try {
-      // Fonte da verdade dos dados: profiles (RLS: só a própria linha).
-      const { error } = await supabase
-        .from('profiles')
-        .update({ full_name: novoNome, telefone: novoTel })
-        .eq('id', session.user.id);
-      if (!error) {
-        // Espelha no metadata do auth (é o que o header usa pra mostrar o nome).
-        await supabase.auth.updateUser({ data: { full_name: novoNome, telefone: novoTel } });
+    if (!supabase) return;
+    botao.disabled = true;
+    const { error } = await supabase.auth.updateUser(
+      { email: novo },
+      { emailRedirectTo: `${siteBase()}/auth-confirmado` },
+    );
+    botao.disabled = false;
+    if (error) dizer('não deu pra mandar o link agora. tenta de novo daqui a pouco?', 'text-coral');
+    else dizer('te mandamos um link pro e-mail novo. confirma por lá que a gente troca. 💛', 'text-olive');
+  });
+
+  // ── Conta e privacidade ───────────────────────────────────────────────────
+  const contaMsg = root.querySelector('[data-conta-msg]');
+  function dizerConta(texto, cor = 'text-ink-2') {
+    if (!contaMsg) return;
+    contaMsg.textContent = texto;
+    contaMsg.className = `text-sm ${cor}`;
+    contaMsg.classList.remove('hidden');
+  }
+
+  let excluirArmado = false;
+  let excluirTimer;
+  root.querySelectorAll('[data-acao]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const acao = btn.dataset.acao;
+      if (!supabase) {
+        dizerConta('a conta ainda não tá ligada por aqui.');
+        return;
       }
-      if (msg) {
-        if (error) {
-          msg.textContent = 'não deu pra salvar agora. tenta de novo daqui a pouco?';
-          msg.className = 'mt-3 text-sm text-coral';
-        } else {
-          msg.textContent = 'prontinho, teus dados foram salvos. 💛';
-          msg.className = 'mt-3 text-sm text-olive';
-          updateAuthUI(await getSession()); // reflete o nome novo no header
+
+      if (acao === 'senha') {
+        btn.disabled = true;
+        const { error } = await supabase.auth.resetPasswordForEmail(session.user.email, {
+          redirectTo: `${siteBase()}/auth-confirmado`,
+        });
+        btn.disabled = false;
+        dizerConta(
+          error
+            ? 'não deu pra mandar o e-mail agora. tenta de novo daqui a pouco?'
+            : 'te mandamos um link pra criar a senha nova. dá uma olhada no e-mail. 💛',
+          error ? 'text-coral' : 'text-olive',
+        );
+        return;
+      }
+
+      if (acao === 'sessoes') {
+        btn.disabled = true;
+        await supabase.auth.signOut({ scope: 'global' });
+        window.location.href = '/login';
+        return;
+      }
+
+      if (acao === 'dados') {
+        btn.disabled = true;
+        try {
+          // Só leituras que a pessoa já pode fazer (RLS: a própria linha).
+          const [p, s, l] = await Promise.all([
+            supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle(),
+            supabase.from('subscriptions').select('*').eq('user_id', session.user.id),
+            supabase.from('points_ledger').select('*').eq('user_id', session.user.id),
+          ]);
+          const pacote = {
+            exportado_em: new Date().toISOString(),
+            conta: { id: session.user.id, email: session.user.email },
+            perfil: p.data || null,
+            assinaturas: s.data || [],
+            pontos: l.data || [],
+          };
+          const url = URL.createObjectURL(
+            new Blob([JSON.stringify(pacote, null, 2)], { type: 'application/json' }),
+          );
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'casa-coffee-colab-meus-dados.json';
+          a.click();
+          URL.revokeObjectURL(url);
+          toast('teus dados foram pro teu aparelho');
+        } catch {
+          dizerConta('não deu pra montar o arquivo agora.', 'text-coral');
+        } finally {
+          btn.disabled = false;
         }
-        msg.classList.remove('hidden');
+        return;
       }
-    } finally {
-      if (salvarBtn) {
-        salvarBtn.disabled = false;
-        salvarBtn.textContent = textoBtn;
+
+      if (acao === 'excluir') {
+        // Dois toques de propósito: apagar a conta não tem volta.
+        if (!excluirArmado) {
+          excluirArmado = true;
+          btn.querySelector('span').textContent = 'tem certeza? clica de novo pra apagar';
+          dizerConta('isso apaga teus dados pra sempre — pontos, histórico e assinatura.', 'text-coral');
+          clearTimeout(excluirTimer);
+          excluirTimer = setTimeout(() => {
+            excluirArmado = false;
+            btn.querySelector('span').textContent = 'excluir minha conta';
+            contaMsg?.classList.add('hidden');
+          }, 8000);
+          return;
+        }
+        clearTimeout(excluirTimer);
+        excluirArmado = false;
+        btn.disabled = true;
+        btn.querySelector('span').textContent = 'apagando…';
+        try {
+          const { error } = await supabase.functions.invoke('delete-account');
+          if (error) throw error;
+          await supabase.auth.signOut();
+          window.location.href = '/home';
+        } catch {
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'excluir minha conta';
+          dizerConta('não deu pra apagar agora. escreve pra gente que a gente resolve contigo. 💛', 'text-coral');
+        }
       }
-    }
+    });
   });
 
   root.querySelector('[data-signout]')?.addEventListener('click', doSignOut);

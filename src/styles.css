@@ -666,3 +666,104 @@ a.txt-link.gold { color: var(--gold) }
 .icon-badge.blue { background: color-mix(in srgb, var(--blue) 14%, var(--card)); color: var(--blue) }
 .icon-badge.lg { width: 68px; height: 68px }
 .icon-badge.lg svg { width: 32px; height: 32px }
+
+/* =============================================================================
+   PERFIL DA CONTA (/conta/perfil)
+   Namespace `pf-` de propósito: o handoff nomeia .card/.field/.label/.stat/.rows/
+   .chip/.switch/.row-link, e metade desses nomes já existe aqui com outro
+   significado. Onde o componente do app já é equivalente ao desenho, a gente
+   REUSA (.card, .field, .btn, .status) e só põe pf- no que é específico.
+   Cores/raios/tipos saem dos tokens do :root — o handoff manda usar os do app.
+   ============================================================================= */
+.pf { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px }
+
+/* ---------- hero ---------- */
+.pf-hero { display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap }
+.pf-avatar { flex: 0 0 auto; display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: color-mix(in srgb, var(--gold) 22%, var(--paper-2)); border: 1px solid var(--line); font-family: var(--serif); font-size: 30px; font-weight: 600; color: #8a6a46 }
+.pf-hero-txt { display: flex; flex-direction: column; gap: 2px }
+.pf-script { font-family: 'Caveat', cursive; font-size: 26px; line-height: 1; color: var(--gold); margin: 0 }
+.pf-name { font-family: var(--serif); font-size: clamp(32px, 5vw, 42px); font-weight: 500; line-height: 1.1; letter-spacing: -.01em; color: var(--ink); margin: 0 }
+
+/* ---------- cards de resumo ---------- */
+.pf-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px }
+.pf-stat { display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px }
+.pf-stat .pf-n { font-family: var(--serif); font-size: 34px; line-height: 1; color: var(--coral); font-variant-numeric: tabular-nums }
+.pf-stat .pf-plano { font-family: var(--serif); font-size: 22px; line-height: 1.2; color: var(--ink) }
+.pf-stat .pf-email { font-size: 15px; line-height: 1.35; color: var(--ink-2); word-break: break-word }
+.pf-stat a { color: var(--coral); font-size: 14px; text-decoration: none; text-underline-offset: 3px }
+.pf-stat a:hover { text-decoration: underline }
+
+/* ---------- perfil completo ---------- */
+.pf-prog { display: flex; flex-direction: column; gap: 12px; background: var(--paper-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px }
+.pf-prog-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap }
+.pf-prog-title { font-family: var(--serif); font-size: 18px; line-height: 1.2; color: var(--ink); margin: 0 }
+.pf-prog-title em { font-style: normal; color: var(--coral); font-variant-numeric: tabular-nums }
+.pf-prog-hint { font-size: 14px; line-height: 1.3; color: var(--muted); margin: 0 }
+.pf-prog-track { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--line) 78%, var(--ink)); overflow: hidden }
+.pf-prog-bar { height: 100%; border-radius: 999px; background: var(--coral); transition: width .3s var(--e) }
+
+/* ---------- seção (usa .card do app; isto só ajusta o miolo) ---------- */
+.pf-sec { display: flex; flex-direction: column; gap: 20px; border-radius: 16px }
+.pf-sec.g-lg { gap: 24px }
+.pf-head { display: flex; flex-direction: column; gap: 4px }
+.pf-head h2 { font-family: var(--serif); font-size: clamp(21px, 3vw, 24px); font-weight: 500; line-height: 1.2; color: var(--ink); margin: 0 }
+.pf-head p { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 0 }
+
+/* ---------- grade de campos (o .field do app já tem label/input/foco) ---------- */
+.pf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px }
+.pf-grid.addr { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) }
+.pf-wide { grid-column: span 2 }
+.pf-grid .field input[readonly] { background: var(--paper-2); color: var(--muted) }
+.pf-grid .field input[data-uf] { text-transform: uppercase }
+.pf-grid .field a { font-size: 13px; color: var(--coral); text-decoration: none; text-underline-offset: 3px; justify-self: start }
+.pf-grid .field a:hover { text-decoration: underline }
+
+/* ---------- chips (seleção única por grupo) ---------- */
+.pf-chip-group { display: flex; flex-direction: column; gap: 12px }
+.pf-chips { display: flex; flex-wrap: wrap; gap: 12px }
+.pf-chip { padding: 12px 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink-2); font-family: var(--sans); font-size: 14px; font-weight: 500; line-height: 1; cursor: pointer; transition: background .15s var(--e), border-color .15s var(--e), color .15s var(--e) }
+.pf-chip:hover { border-color: var(--coral) }
+.pf-chip[aria-pressed="true"] { background: var(--coral); border-color: var(--coral); color: #fff; font-weight: 600 }
+
+/* ---------- switches de aviso ---------- */
+.pf-toggles { display: flex; flex-direction: column }
+.pf-toggle { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0; border-top: 1px solid var(--line) }
+.pf-toggle-txt { display: flex; flex-direction: column; gap: 2px }
+.pf-toggle-txt b { font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--ink) }
+.pf-toggle-txt span { font-size: 14px; line-height: 1.4; color: var(--muted) }
+.pf-switch { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-start; width: 52px; height: 30px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-2); cursor: pointer; transition: background .18s var(--e), border-color .18s var(--e), justify-content .18s var(--e) }
+.pf-switch span { display: block; width: 22px; height: 22px; margin: 0 3px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px rgba(27, 22, 17, .2) }
+.pf-switch[aria-checked="true"] { background: var(--coral); border-color: var(--coral); justify-content: flex-end }
+.pf-switch[aria-checked="true"] span { background: #fff }
+.pf-switch[disabled] { opacity: .5; cursor: not-allowed }
+
+/* ---------- link em texto dentro de campo + linha de botões ---------- */
+.pf-inline-link { align-self: flex-start; padding: 0; border: 0; background: none; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--coral); text-decoration: underline; text-underline-offset: 3px; cursor: pointer }
+.pf-inline-link:hover { color: var(--coral-2) }
+.pf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px }
+
+/* ---------- linhas de conta e privacidade ---------- */
+.pf-links { display: flex; flex-direction: column; gap: 12px }
+.pf-link > span:first-child { display: inline-flex; align-items: center; gap: 10px }
+.pf-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 18px 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font-family: var(--sans); font-size: 16px; font-weight: 600; color: var(--ink); text-align: left; text-decoration: none; cursor: pointer; transition: border-color .2s var(--e), background .2s var(--e), color .2s var(--e) }
+.pf-link:hover { border-color: var(--coral) }
+.pf-link .arw { color: var(--muted); font-weight: 400 }
+.pf-link.danger { color: #a03a22 }
+.pf-link.danger:hover { border-color: #a03a22; background: color-mix(in srgb, var(--coral) 8%, var(--card)) }
+.pf-link[disabled] { opacity: .55; cursor: not-allowed }
+
+/* ---------- rodapé do conteúdo ---------- */
+.pf-signout { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 8px }
+
+/* ---------- toast (pílula que confirma o salvamento) ---------- */
+.pf-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); padding: 14px 24px; border-radius: 999px; background: var(--ink); color: var(--cream); font-family: var(--sans); font-size: 15px; font-weight: 600; line-height: 1; box-shadow: 0 10px 30px rgba(27, 22, 17, .25); z-index: 60; max-width: calc(100vw - 32px); text-align: center }
+.pf-toast[hidden] { display: none }
+/* Acima da tab bar do mobile, senão a pílula cai atrás dela. */
+@media (max-width: 767px) { .pf-toast { bottom: calc(72px + env(safe-area-inset-bottom, 0px)) } }
+
+@media (max-width: 560px) {
+  .pf { gap: 32px }
+  .pf-grid, .pf-grid.addr { grid-template-columns: 1fr }
+  .pf-wide { grid-column: span 1 }
+  .pf-avatar { width: 68px; height: 68px; font-size: 24px }
+}
