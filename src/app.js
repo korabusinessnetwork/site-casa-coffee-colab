@@ -681,19 +681,22 @@ function renderTabbar() {
 // Contrato de DOM: [data-hero-carousel] › [data-hero-media] › N [data-hero-slide].
 // Cada slide carrega uma <img>, um <video> (com data-video) ou o gradiente. O
 // avanço é por tempo (data-duracao, padrão 6s) pra foto e pelo fim do arquivo
-// pra vídeo. [data-hero-skip] pula pro próximo.
+// pra vídeo. [data-hero-skip] pula pro próximo e [data-hero-prev] volta pro
+// anterior — os dois dão a volta nas pontas e reiniciam a contagem do slide.
 function setupHeroCarousel() {
   const hero = document.querySelector('[data-hero-carousel]');
   if (!hero) return;
 
   const slides = Array.from(hero.querySelectorAll('[data-hero-slide]'));
   const skip = hero.querySelector('[data-hero-skip]');
+  const prev = hero.querySelector('[data-hero-prev]');
   if (!slides.length) return;
 
-  // Um slide só não é carrossel: nada pra pular, nada pra agendar.
+  // Um slide só não é carrossel: nada pra pular nem pra voltar, nada pra agendar.
   if (slides.length < 2) {
     slides[0].classList.add('is-on');
     if (skip) skip.hidden = true;
+    if (prev) prev.hidden = true;
     return;
   }
 
@@ -748,6 +751,7 @@ function setupHeroCarousel() {
   });
 
   if (skip) skip.addEventListener('click', () => mostrar(atual + 1));
+  if (prev) prev.addEventListener('click', () => mostrar(atual - 1));
 
   // Aba escondida não gasta bateria tocando vídeo pra ninguém.
   document.addEventListener('visibilitychange', () => {
