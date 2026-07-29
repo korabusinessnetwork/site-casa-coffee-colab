@@ -504,6 +504,32 @@ só LÊ (RLS: cada um lê o próprio ledger).
 - `npm run dev` — servidor de desenvolvimento (Vite).
 - `npm run build` — build de produção.
 - `npm run preview` — pré-visualiza o build.
+- `npm run avatares-orfaos` — varre o bucket `avatares` do Storage e lista as fotos
+  que ninguém usa. Ver "Fotos órfãs no Storage" abaixo.
+
+### Fotos órfãs no Storage (`scripts/avatares-orfaos.mjs`)
+
+O Storage **não tem cascata**: se uma conta some por fora da `delete-account`, ou se o
+upload sobe mas o `update` do perfil falha depois, o arquivo fica lá ocupando espaço sem
+dono. O script cruza o bucket com a **fonte da verdade — `profiles.avatar_url`** (extrai o
+caminho da URL pública, ignorando o `?v=`): todo arquivo que ninguém aponta é órfão, o que
+cobre de uma vez pasta de conta apagada, foto antiga e upload meio-caminho.
+
+Precisa da **service_role** (lê o bucket inteiro e o `profiles`), então ela vai **só no
+ambiente do comando** — nunca no `.env` do repo, nunca hardcoded:
+
+```powershell
+$env:SUPABASE_URL="https://<ref>.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="<service_role>"
+node scripts/avatares-orfaos.mjs            # só relata (dry-run, o padrão)
+node scripts/avatares-orfaos.mjs --apagar   # relata e limpa
+```
+
+- **Dry-run por padrão.** Sem `--apagar` nada é removido.
+- **Carência de 24h:** arquivo sem dono mas recém-subido não é apagado (pode ser upload em
+  andamento com o `update` do perfil ainda a caminho). Override: `--horas=0`.
+- Também avisa **referência quebrada** (perfil aponta pra arquivo que não existe mais) —
+  não é lixo, mas é avatar que não carrega.
 
 ## Segurança (regras obrigatórias — valem a partir da Fase 2)
 

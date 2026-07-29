@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "security-check": "node scripts/security-check.mjs"
+    "security-check": "node scripts/security-check.mjs",
+    "avatares-orfaos": "node scripts/avatares-orfaos.mjs"
   },
   "author": "",
   "license": "UNLICENSED",
