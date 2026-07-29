@@ -510,9 +510,6 @@ function renderHeader() {
       <div id="menu-mobile" class="menu-mobile hidden" data-menu-panel>
         <nav class="menu-inner" aria-label="Navegação mobile">
           ${linksMobile}
-          <div class="menu-cta">
-            <a href="/o-casa" class="btn-visit" data-menu-link>Visite-nos</a>
-          </div>
           <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
           <div data-auth-slot-mobile></div>
         </nav>
