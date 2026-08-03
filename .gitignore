@@ -19,3 +19,5 @@ scripts/*.local.cmd
 
 # Vercel: config/estado local do projeto (project id etc.) — não versionar
 .vercel/
+
+.claude/settings.local.json
