@@ -1760,6 +1760,182 @@ function initPresentearPage() {
   });
 }
 
+// Mural do Casa (/o-casa): recados de assinante como post-its na parede. Leitura
+// pública (qualquer um vê os 'aprovado'); escrita gated por assinatura na Edge
+// Function postar-mural (server-side). Aqui o client só LÊ, mostra o compose pra
+// quem pode, e chama a function pra postar. Todo texto do banco é escapado.
+async function initMuralPage() {
+  const root = document.querySelector('[data-mural]');
+  if (!root) return;
+
+  const lista = root.querySelector('[data-mural-lista]');
+  const vazio = root.querySelector('[data-mural-vazio]');
+  const compose = root.querySelector('[data-mural-compose]');
+  const ctaEl = root.querySelector('[data-mural-cta]');
+  const textoEl = root.querySelector('[data-mural-texto]');
+  const countEl = root.querySelector('[data-mural-count]');
+  const btn = root.querySelector('[data-mural-btn]');
+  const msgEl = root.querySelector('[data-mural-msg]');
+
+  const mostrarCta = (html) => {
+    if (!ctaEl) return;
+    ctaEl.innerHTML = html; // conteúdo controlado (só links internos fixos)
+    ctaEl.hidden = false;
+  };
+
+  if (!supabase) {
+    mostrarCta('o mural chega já já. 💛');
+    return;
+  }
+
+  // Data curta e gentil pro rodapé do post-it.
+  const dataCurta = (iso) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const hoje = new Date();
+    const umDia = 86_400_000;
+    const diff = Math.floor((hoje.setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / umDia);
+    if (diff <= 0) return 'hoje';
+    if (diff === 1) return 'ontem';
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
+  // Sessão + ids dos MEUS recados (pra mostrar o "apagar"). RLS deixa cada um ler
+  // os próprios (inclusive ocultos); no público a lista não traz user_id.
+  const session = await getSession();
+  const meusIds = new Set();
+  if (session) {
+    const { data: meus } = await supabase.from('mural_notes').select('id').eq('user_id', session.user.id);
+    (meus || []).forEach((r) => meusIds.add(r.id));
+  }
+
+  const cardHtml = (n) => {
+    const podeApagar = meusIds.has(n.id);
+    const apagar = podeApagar
+      ? `<button type="button" class="mural-apagar" data-apagar="${escapeHtml(n.id)}" aria-label="apagar teu recado">×</button>`
+      : '';
+    return `
+      <article class="mural-note">
+        ${apagar}
+        <p>${escapeHtml(n.texto || '')}</p>
+        <span class="mural-autor">— ${escapeHtml(n.autor_nome || 'alguém do Casa')} · ${dataCurta(n.created_at)}</span>
+      </article>`;
+  };
+
+  // Carrega a parede (aprovados, mais novos primeiro). Limite generoso.
+  const carregar = async () => {
+    const { data: notas, error } = await supabase
+      .from('mural_notes')
+      .select('id, autor_nome, texto, created_at')
+      .eq('status', 'aprovado')
+      .order('created_at', { ascending: false })
+      .limit(120);
+    if (error) {
+      // Migration 0020 ainda não aplicada? degrada gentil (a parede fica vazia).
+      if (vazio) { vazio.textContent = 'o mural chega já já. 💛'; vazio.hidden = false; }
+      return;
+    }
+    if (lista) lista.innerHTML = (notas || []).map(cardHtml).join('');
+    if (vazio) vazio.hidden = (notas || []).length > 0;
+  };
+  await carregar();
+
+  // Apagar o próprio recado (RLS garante que só o dono/staff apaga).
+  lista?.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-apagar]');
+    if (!b) return;
+    const id = b.getAttribute('data-apagar');
+    if (!id || !window.confirm('tirar teu recado da parede?')) return;
+    b.disabled = true;
+    const { error } = await supabase.from('mural_notes').delete().eq('id', id);
+    if (error) { b.disabled = false; return; }
+    b.closest('.mural-note')?.remove();
+    meusIds.delete(id);
+    if (lista && lista.children.length === 0 && vazio) vazio.hidden = false;
+  });
+
+  // Estado do compose: só assinante vigente escreve. Deslogado/sem plano → CTA.
+  if (!session) {
+    mostrarCta(
+      'o mural é de quem faz parte do Casa. <a href="/planos">assina um plano</a> e deixa teu recado na parede. 💛',
+    );
+    return;
+  }
+
+  // Assinatura vigente do próprio usuário (espelho da trava server-side). 'ativa'
+  // concede sempre; 'pausada' só no período pago. É só UX — o backend é a trava real.
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('status, current_period_end')
+    .eq('user_id', session.user.id)
+    .in('status', ['ativa', 'pausada'])
+    .order('current_period_end', { ascending: false, nullsFirst: false });
+  const agora = Date.now();
+  const vigente = (subs || []).some(
+    (r) =>
+      r.status === 'ativa' ||
+      (r.status === 'pausada' && !!r.current_period_end && Date.parse(r.current_period_end) > agora),
+  );
+
+  if (!vigente) {
+    mostrarCta(
+      'quase lá 💛 o mural é um agrado de quem tem plano. <a href="/planos">vem pro clube</a> e deixa teu recado.',
+    );
+    return;
+  }
+
+  // Assinante: libera o compose.
+  if (compose) compose.hidden = false;
+  const atualizarContador = () => {
+    if (countEl && textoEl) countEl.textContent = `${textoEl.value.length}/240`;
+  };
+  textoEl?.addEventListener('input', atualizarContador);
+  atualizarContador();
+
+  const mostrarMsg = (txt, tom = 'erro') => {
+    if (!msgEl) return;
+    msgEl.textContent = txt; // textContent → sem XSS
+    msgEl.className = 'mt-2 text-sm ' + (tom === 'ok' ? 'text-olive' : 'text-coral');
+    msgEl.classList.remove('hidden');
+  };
+
+  btn?.addEventListener('click', async () => {
+    const texto = (textoEl?.value || '').trim();
+    if (!texto) return mostrarMsg('escreve teu recado 💛');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'colando…';
+    try {
+      const { data, error } = await supabase.functions.invoke('postar-mural', { body: { texto } });
+      if (error || !data?.ok) {
+        let m = data?.error || '';
+        if (!m && typeof error?.context?.json === 'function') {
+          try {
+            const corpo = await error.context.json();
+            if (corpo?.error) m = String(corpo.error);
+          } catch {
+            /* corpo não-JSON */
+          }
+        }
+        mostrarMsg(m || 'não deu pra colar teu recado agora. tenta de novo? 💛');
+        return;
+      }
+      // Sucesso: cola o recado novo no topo da parede.
+      if (msgEl) msgEl.classList.add('hidden');
+      if (textoEl) textoEl.value = '';
+      atualizarContador();
+      meusIds.add(data.note.id);
+      if (lista) lista.insertAdjacentHTML('afterbegin', cardHtml(data.note));
+      if (vazio) vazio.hidden = true;
+    } catch {
+      mostrarMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+}
+
 // Página de sucesso do checkout: compra concluída → esvazia o carrinho local.
 // (A fonte da verdade do pedido é o banco, gravado pelo webhook; o carrinho é só UI.)
 // Também mostra "+X pontos" quando o webhook terminar de creditar (é assíncrono,
@@ -4953,6 +5129,7 @@ export function initSite() {
   initProductPage(); // só age se houver [data-product-root]
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
+  initMuralPage(); // só age se houver [data-mural] (/o-casa)
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]

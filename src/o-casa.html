@@ -248,6 +248,51 @@
           <p class="tour-dica reveal">Arrasta pra girar o salão e olha de onde tu quiser 💛</p>
         </div>
       </section>
+
+      <!-- ===================================================================
+           MURAL DO CASA — recados de quem é do Casa (assinante). Post-its na
+           parede. Escrita gated por assinatura (server-side, function postar-mural);
+           leitura pública. O app.js (initMuralPage) preenche a parede e o compose.
+           =================================================================== -->
+      <section class="section paper2" aria-label="Mural do Casa">
+        <div class="wrap">
+          <div class="section-head reveal">
+            <div>
+              <span class="eyebrow gold">recados na parede</span>
+              <h2 class="title md" style="margin-top: 10px">O Mural do Casa</h2>
+              <p class="lede">
+                um cantinho de quem faz parte. Deixa um recado, uma dica, um obrigado —
+                e cola um pouquinho de ti na parede da casa.
+              </p>
+            </div>
+          </div>
+
+          <div data-mural style="margin-top: 30px">
+            <!-- Compose (assinante). O app.js mostra/esconde conforme o estado. -->
+            <div class="mural-compose reveal" data-mural-compose hidden>
+              <textarea
+                data-mural-texto
+                class="mural-input"
+                rows="3"
+                maxlength="240"
+                placeholder="escreve teu recado pra parede…"
+              ></textarea>
+              <div class="mural-compose-row">
+                <span class="mural-count" data-mural-count>0/240</span>
+                <button type="button" class="btn solid sm" data-mural-btn>colar no mural</button>
+              </div>
+              <p class="hidden text-sm" data-mural-msg role="status" aria-live="polite"></p>
+            </div>
+
+            <!-- Estado alternativo (deslogado / logado sem plano). Preenchido pelo app.js. -->
+            <p class="mural-cta reveal" data-mural-cta hidden></p>
+
+            <!-- A parede -->
+            <div class="mural-grid" data-mural-lista aria-live="polite"></div>
+            <p class="mural-vazio reveal" data-mural-vazio hidden>a parede tá esperando o primeiro recado. 💛</p>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer injetado pelo app.js -->
@@ -270,6 +315,64 @@
       /* .row nasce como linha de extrato (rótulo numa ponta, valor na outra). Aqui é
          ícone + texto: o texto encosta no ícone e as duas linhas dividem a mesma margem. */
       .duo-info .row { justify-content: flex-start }
+
+      /* ── Mural do Casa: post-its na parede ─────────────────────────────── */
+      .mural-compose {
+        max-width: 640px; margin: 0 auto 34px; padding: 18px;
+        border-radius: 16px; background: var(--card);
+        border: 1.5px solid color-mix(in srgb, var(--ink) 12%, transparent);
+      }
+      .mural-input {
+        width: 100%; padding: 12px 14px; border-radius: 12px; resize: vertical;
+        min-height: 74px; border: 1.5px solid color-mix(in srgb, var(--ink) 12%, transparent);
+        background: var(--paper); color: var(--ink);
+        font-family: 'Caveat', 'Segoe Script', cursive; font-size: 20px; line-height: 1.35;
+      }
+      .mural-input:focus-visible { outline: none; border-color: var(--coral); box-shadow: 0 0 0 1.5px var(--coral) }
+      .mural-compose-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px }
+      .mural-count { color: var(--muted); font-size: 12px }
+      .mural-cta {
+        max-width: 560px; margin: 0 auto 30px; text-align: center;
+        color: var(--ink-2); font-size: 15px; line-height: 1.6;
+      }
+      .mural-cta a { color: var(--coral); font-weight: 600; text-decoration: underline; text-underline-offset: 2px }
+      .mural-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 20px; align-items: start;
+      }
+      .mural-note {
+        position: relative; padding: 20px 18px 16px; border-radius: 4px;
+        min-height: 130px; display: flex; flex-direction: column; gap: 10px;
+        box-shadow: 0 12px 24px -14px rgba(0, 0, 0, 0.45);
+        transition: transform 0.18s var(--e);
+      }
+      .mural-note:nth-child(4n+1) { background: #fff4c2; transform: rotate(-1.6deg) }
+      .mural-note:nth-child(4n+2) { background: #ffd9cf; transform: rotate(1.4deg) }
+      .mural-note:nth-child(4n+3) { background: #d8eccf; transform: rotate(-0.8deg) }
+      .mural-note:nth-child(4n+4) { background: #d7e6f5; transform: rotate(1.8deg) }
+      .mural-note:hover { transform: rotate(0) scale(1.03); z-index: 2 }
+      .mural-note::before {
+        content: ''; position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
+        width: 44px; height: 14px; border-radius: 3px;
+        background: color-mix(in srgb, var(--coral) 55%, transparent);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+      }
+      .mural-note p {
+        margin: 0; font-family: 'Caveat', 'Segoe Script', cursive;
+        font-size: 21px; line-height: 1.3; color: #2a2118; white-space: pre-wrap;
+        word-break: break-word; flex: 1;
+      }
+      .mural-note .mural-autor { font-family: var(--sans); font-size: 12px; color: #6b5c48; font-weight: 600 }
+      .mural-note .mural-apagar {
+        position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border: 0;
+        border-radius: 50%; background: rgba(0, 0, 0, 0.08); color: #4a3d2e; cursor: pointer;
+        font-size: 15px; line-height: 1; display: none; place-items: center;
+      }
+      .mural-note:hover .mural-apagar, .mural-note:focus-within .mural-apagar { display: grid }
+      .mural-vazio { margin-top: 24px; text-align: center; color: var(--muted); font-size: 15px }
+      @media (prefers-reduced-motion: reduce) {
+        .mural-note, .mural-note:hover { transform: none; transition: none }
+      }
     </style>
 
     <script type="module" src="/app.js"></script>

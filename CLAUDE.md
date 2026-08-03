@@ -605,6 +605,17 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   pedido de presente, que não existe até o front subir. **Falta só:** (1) aplicar esta
   migration no SQL Editor e (2) subir o front (merge `trabalho`→`main`). Nenhum secret novo;
   nenhum evento novo no webhook (usa `CHECKOUT_PAID/EXPIRED/CANCELED`).
+- **`0020_mural` — PENDENTE (aplicar no SQL Editor).** "Mural do Casa": tabela
+  `mural_notes` (recado curto ≤240, `autor_nome` snapshot, `status` aprovado|oculto) com
+  RLS — **leitura pública** dos `aprovado` (o `/o-casa` é aberto; autor vê os próprios,
+  staff vê tudo), **escrita só via Edge Function** (deny-by-default pro client), autor
+  apaga o próprio recado, staff modera (ocultar/apagar). Function **nova** `postar-mural`
+  (**já deployada em 03/ago/2026**): exige JWT, valida **assinante vigente** via
+  `getEffectiveSubscription` (perk exclusivo de assinante, igual aos pontos), sanitiza o
+  texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its) +
+  `initMuralPage` (lê a parede público; compose só pra assinante; deslogado/sem-plano vê
+  CTA pros planos; leitura tolerante se a migration ainda não foi aplicada). **Falta:**
+  aplicar esta migration + subir o front.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
