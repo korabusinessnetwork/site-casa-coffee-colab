@@ -927,7 +927,10 @@ function updateCartUI() {
   if (!wrap || !footer) return;
 
   const items = Cart.getCart();
-  if (items.length === 0) {
+  // Empty-check pela MESMA regra do subtotal/badge/checkout (getCount ignora
+  // produto sumido do catálogo) — senão um carrinho só de itens-fantasma escapa
+  // do estado vazio e mostra rodapé "R$ 0,00" + "finalizar compra" que não faz nada.
+  if (Cart.getCount() === 0) {
     wrap.innerHTML = `
       <div class="empty">
         <p class="e-title">teu carrinho tá vazio</p>
@@ -947,8 +950,8 @@ function updateCartUI() {
       <div class="flex gap-3 border-b border-line py-4" data-cart-row data-key="${it.key}">
         <div class="ph ${p.imagemPlaceholder} h-16 w-16 shrink-0" style="border-radius:8px"></div>
         <div class="min-w-0 flex-1">
-          <p class="truncate font-medium text-ink">${p.nome}</p>
-          ${it.variante ? `<p class="text-xs text-muted">${it.variante}</p>` : ''}
+          <p class="truncate font-medium text-ink">${escapeHtml(p.nome)}</p>
+          ${it.variante ? `<p class="text-xs text-muted">${escapeHtml(it.variante)}</p>` : ''}
           <div class="mt-2 flex items-center justify-between gap-2">
             <div class="inline-flex items-center rounded-full border border-line">
               <button type="button" data-cart-dec aria-label="Diminuir quantidade" class="grid h-7 w-7 place-items-center text-ink hover:text-coral">
@@ -1367,13 +1370,13 @@ function cardProdutoHTML(p) {
     : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
   return `
     <article class="prod" data-produto data-categoria="${p.categoria}">
-      <a href="/produto?slug=${p.slug}" class="block" aria-label="${p.nome}">
+      <a href="/produto?slug=${p.slug}" class="block" aria-label="${escapeHtml(p.nome)}">
         <div class="ph ${p.imagemPlaceholder}"></div>
       </a>
       <div class="prod-body">
-        <p class="prod-cat">${CATEGORIAS[p.categoria]}</p>
+        <p class="prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
         <h3 class="leading-tight">
-          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${p.nome}</a>
+          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${escapeHtml(p.nome)}</a>
         </h3>
         <p class="price">${formatBRL(p.preco_centavos)}</p>
         <div class="mt-2 flex gap-2">
@@ -1453,14 +1456,14 @@ function initProductPage() {
   const variantesHTML = p.variantes
     ? `
       <div class="mt-6">
-        <span class="lbl">${p.variantes.rotulo}</span>
+        <span class="lbl">${escapeHtml(p.variantes.rotulo)}</span>
         <div class="mt-2 flex flex-wrap gap-2" data-variantes>
           ${p.variantes.opcoes
             .map(
               (o, i) =>
-                `<button type="button" data-variante="${o}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
+                `<button type="button" data-variante="${escapeHtml(o)}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
                   i === 0 ? 'border-coral bg-coral/10 text-coral' : 'border-line text-ink hover:border-coral'
-                }">${o}</button>`
+                }">${escapeHtml(o)}</button>`
             )
             .join('')}
         </div>
@@ -1474,10 +1477,10 @@ function initProductPage() {
         <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
           <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
         </a>
-        <p class="mt-4 prod-cat">${CATEGORIAS[p.categoria]}</p>
-        <h1 class="title md mt-1">${p.nome}</h1>
+        <p class="mt-4 prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
+        <h1 class="title md mt-1">${escapeHtml(p.nome)}</h1>
         <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
-        <p class="mt-4 max-w-prose text-ink-2">${p.descricao}</p>
+        <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
         ${variantesHTML}
         <div class="mt-6">
           <span class="lbl">Quantidade</span>
@@ -1706,9 +1709,14 @@ function initPlanosPage() {
 async function initCheckoutSucessoPage() {
   const wrap = document.querySelector('[data-checkout-sucesso]');
   if (!wrap) return;
-  Cart.clearCart();
 
   const params = new URLSearchParams(window.location.search);
+  // Só esvazia o carrinho quando houver um sinal REAL de retorno de checkout
+  // (?ref= da loja, ?assinatura=1 ou ?upgrade=1). Abrir/reabrir /checkout-sucesso
+  // avulso (histórico, bookmark) não deve apagar o carrinho montado.
+  const voltaDeCheckout =
+    !!params.get('ref') || params.get('assinatura') === '1' || params.get('upgrade') === '1';
+  if (voltaDeCheckout) Cart.clearCart();
 
   // A copy do HTML é NEUTRA; aqui a gente especializa por fluxo. textContent em
   // tudo → sem risco de XSS. Fonte da verdade continua sendo o banco (webhook).

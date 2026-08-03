@@ -502,7 +502,7 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     // primeiro). LANÇA pra o Asaas reenviar — SEGURO: comprovado em log que um 500 NÃO
     // bloqueia a fila (um CHECKOUT_PAID em erro é reenviado sozinho enquanto PAYMENTs
     // seguem em 200). Na retentativa a linha já existe e resolve. Guard de idade: se o
-    // pagamento já é bem antigo (>6h) e ainda não há linha, o checkoutSession não deve
+    // pagamento já é bem antigo (>3 dias) e ainda não há linha, o checkoutSession não deve
     // ser o checkout.id esperado — desiste com graça (evita martelar 500 pra sempre; o
     // diag acima revela o checkoutSession real pra ajuste). Corridas normais resolvem em
     // minutos, muito dentro da janela.

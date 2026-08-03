@@ -144,8 +144,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
         const prevScheduled = subExtra?.scheduled_downgrade_to ?? null;
 
-        // 1) Sobe o value recorrente no Asaas.
+        // 1) Sobe o value recorrente no Asaas e garante ACTIVE. Se a assinatura
+        // vigente for uma 'pausada' em graça (INACTIVE no Asaas), aplicar só o value
+        // deixaria a recorrência inativa — o tier subiria no banco mas nada renovaria
+        // e o benefício cairia. Espelha o applyUpgrade do webhook (status:'ACTIVE' +
+        // value); em assinatura já ativa é idempotente.
         await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
+          status: 'ACTIVE',
           value: reaisFromCentavos(novo.preco_centavos),
         });
         // 2) Espelha o tier novo no banco: subscriptions PRIMEIRO (é dela que
