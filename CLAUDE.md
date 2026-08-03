@@ -486,6 +486,47 @@ só LÊ (RLS: cada um lê o próprio ledger).
 
 ---
 
+## Indica um amigo (Fase 3 — crescimento)
+
+Cada usuário ganha um **código de indicação**; quem é trazido cria conta pelo link
+`/cadastro?indica=CÓDIGO`, assina, e quando o **primeiro pagamento confirma** os **dois
+ganham pontos**. A recompensa cai no PAGAMENTO (não no cadastro) de propósito: só
+compensa quando entra gente de verdade pagando, matando conta-fantasma.
+
+- **Migration `0021_indicacoes` (PENDENTE — aplicar no SQL Editor):** coluna
+  `profiles.referral_code` (unique), tabela `referrals` (`referrer_id` ON DELETE SET
+  NULL, `referred_id` UNIQUE → cada conta é indicada no máx. 1 vez, `status`
+  pendente|premiado|invalido) com RLS (cada um lê só o que fez/recebeu; **sem escrita
+  pelo client**), e 3 RPCs SECURITY DEFINER: `meu_codigo_indicacao()` (gera/retorna o
+  código do próprio `auth.uid()`, granted a `authenticated`), `registrar_indicacao(codigo)`
+  (usa `auth.uid()` como INDICADO — o client nunca diz quem é; barra auto-indicação, quem
+  já foi indicado e quem já tem assinatura; granted a `authenticated`) e
+  `premiar_indicacao(referred_id, pts_indicador, pts_indicado)` (idempotente
+  pendente→premiado, credita os dois no `points_ledger`; granted **só a `service_role`**).
+- **Valores dos pontos = FICTÍCIOS**, provisórios: constantes `REFERRAL_PTS_INDICADOR`
+  (150) / `REFERRAL_PTS_INDICADO` (100) no topo do `asaas-webhook` — **uma fonte de
+  verdade**, passadas pra `premiar_indicacao`. A copy do `/conta/perfil` restata os
+  números (procurar "VALOR FICTÍCIO"). Ajustar depois.
+- **Pontos de indicação NÃO passam pelo multiplicador de tier** (é bônus fixo, não compra):
+  entram direto no ledger com `ref_type='indicacao'` (indicador) e `'indicacao_bonus'`
+  (indicado), ambos `ref_id = referral.id` — ref_type distinto deixa os dois coexistir no
+  UNIQUE `(ref_type, ref_id)`.
+- **`asaas-webhook` (já deployado em 03/ago/2026):** no `PAYMENT_CONFIRMED`/`RECEIVED` da
+  assinatura, depois de creditar os pontos da assinatura, chama `premiar_indicacao` com o
+  id do pagante. Sem indicação pendente → `rewarded:false` sem erro; erro de DB estoura
+  (o Asaas reenvia, tudo idempotente).
+- **Front:** `initIndicacao()` (boot, toda página) capta o `?indica=` pro localStorage e,
+  quando logado, registra o vínculo uma vez via `registrar_indicacao` (limpa o rastro só
+  na resposta definitiva do banco). `/cadastro` mostra um oi gentil se veio por convite.
+  `/conta/perfil` tem a seção "traz quem tu gosta" (`[data-indica]`): pega o código via
+  `meu_codigo_indicacao`, monta o link, botão "copiar" (com fallback de seleção), e conta
+  quantos amigos já entraram (`referrals` premiados). Tudo **tolerante**: se a 0021 ainda
+  não foi aplicada, a seção fica escondida e o registro só é adiado — nada quebra.
+- **Falta:** aplicar a `0021` no SQL Editor + subir o front. Nenhum secret novo; nenhum
+  evento novo no webhook.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -616,6 +657,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `initMuralPage` (lê a parede público; compose só pra assinante; deslogado/sem-plano vê
   CTA pros planos; leitura tolerante se a migration ainda não foi aplicada). **Falta:**
   aplicar esta migration + subir o front.
+- **`0021_indicacoes` — PENDENTE (aplicar no SQL Editor).** "Indica um amigo": coluna
+  `profiles.referral_code` (unique), tabela `referrals` (`referred_id` UNIQUE, `status`
+  pendente|premiado|invalido) com RLS (lê só o que fez/recebeu; sem escrita pelo client), e
+  as RPCs `meu_codigo_indicacao()`/`registrar_indicacao(text)` (granted a `authenticated`,
+  usam `auth.uid()`) + `premiar_indicacao(uuid,int,int)` (granted só a `service_role`,
+  idempotente pendente→premiado, credita os dois no ledger). O `asaas-webhook` (**já
+  deployado em 03/ago/2026**) chama `premiar_indicacao` no primeiro pagamento do indicado;
+  valores dos pontos são FICTÍCIOS nas constantes do webhook. Front tolerante à migration
+  pendente. **Falta:** aplicar esta migration + subir o front. Ver "Indica um amigo" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
