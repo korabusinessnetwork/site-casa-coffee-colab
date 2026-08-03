@@ -96,6 +96,15 @@ function parseUpgRef(
   return { userId, toTier, asaasSubId };
 }
 
+// externalReference de presente → gift_id. Formato: `gift:<gift_id>`. Null se não
+// for presente.
+function parseGiftRef(ref: unknown): { giftId: string } | null {
+  if (typeof ref !== 'string' || !ref.startsWith('gift:')) return null;
+  const giftId = ref.split(':')[1];
+  if (!giftId) return null;
+  return { giftId };
+}
+
 // Aceita string ('cus_…') ou objeto ({ id }) — o Asaas varia por endpoint.
 function idOf(v: unknown): string | null {
   if (!v) return null;
@@ -411,6 +420,46 @@ async function applyUpgrade(checkout: any): Promise<void> {
   await checkAchievements(userId); // best-effort
 }
 
+// =============================================================================
+// PRESENTE — em CHECKOUT_PAID de um checkout `gift:`: o comprador pagou. Marca o
+// presente como 'pago' e gera o código (via RPC atômica marcar_presente_pago).
+// SEM pontos aqui (o presente pontua pra quem RESGATA, na renovação... não — o
+// presente é avulso e não recorre; a pessoa que resgata ganha o BENEFÍCIO, não
+// pontos pela compra do comprador). Idempotente: a RPC devolve o código
+// existente num reenvio, sem regerar.
+// =============================================================================
+async function handleGiftPaid(checkout: any): Promise<void> {
+  const parsed = parseGiftRef(checkout?.externalReference);
+  if (!parsed) {
+    console.warn('[asaas-webhook] checkout de presente com externalReference inválido');
+    return;
+  }
+  // Presentes usam sempre gift.id (uuid). Não-UUID = checkout externo → descarta (200).
+  if (!isUuid(parsed.giftId)) {
+    console.warn('[asaas-webhook] externalReference de presente não é UUID, ignorando:', parsed.giftId);
+    return;
+  }
+  const paymentId = idOf(checkout?.payment);
+  const { error } = await supabaseAdmin.rpc('marcar_presente_pago', {
+    p_gift_id: parsed.giftId,
+    p_payment_id: paymentId,
+  });
+  if (error) throw error; // → 500 → Asaas reenvia (a RPC é idempotente)
+}
+
+// PRESENTE — CHECKOUT_EXPIRED/CANCELED de um `gift:`: cancela o presente ainda
+// 'pendente' (não pago). Nunca mexe num presente já 'pago'/'resgatado'.
+async function cancelGift(checkout: any): Promise<void> {
+  const parsed = parseGiftRef(checkout?.externalReference);
+  if (!parsed || !isUuid(parsed.giftId)) return;
+  const { error } = await supabaseAdmin
+    .from('gift_subscriptions')
+    .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+    .eq('id', parsed.giftId)
+    .eq('status', 'pendente');
+  if (error) throw error;
+}
+
 // Idade do pagamento (pra bound do throw-to-retry lá embaixo). Se não der pra ler a
 // data, retorna false (prefere reprocessar). Aceita os campos de data mais comuns do
 // payload de pagamento do Asaas.
@@ -703,6 +752,8 @@ Deno.serve(async (req) => {
           await activateSubscription(checkout);
         } else if (ref.startsWith('upg:')) {
           await applyUpgrade(checkout);
+        } else if (ref.startsWith('gift:')) {
+          await handleGiftPaid(checkout);
         } else {
           await finalizeStoreOrder(checkout, 'pago');
         }
@@ -712,9 +763,11 @@ Deno.serve(async (req) => {
       case 'CHECKOUT_CANCELED': {
         const checkout = evt.checkout ?? {};
         const ref = typeof checkout.externalReference === 'string' ? checkout.externalReference : '';
-        // Só a LOJA tem pedido pendente pra cancelar. Assinatura (sub:) e upgrade
-        // (upg:) não pré-criam linha, então não há nada a reverter aqui.
-        if (!ref.startsWith('sub:') && !ref.startsWith('upg:')) {
+        // Só a LOJA e o PRESENTE pré-criam linha pra cancelar. Assinatura (sub:) e
+        // upgrade (upg:) não pré-criam, então não há nada a reverter neles.
+        if (ref.startsWith('gift:')) {
+          await cancelGift(checkout);
+        } else if (!ref.startsWith('sub:') && !ref.startsWith('upg:')) {
           await finalizeStoreOrder(checkout, 'cancelado');
         }
         break;

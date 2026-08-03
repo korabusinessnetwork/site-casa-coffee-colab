@@ -55,6 +55,7 @@ export default defineConfig({
         loja: resolve(root, 'loja.html'),
         produto: resolve(root, 'produto.html'),
         planos: resolve(root, 'planos.html'),
+        presentear: resolve(root, 'presentear.html'),
         colab: resolve(root, 'colab.html'),
         cadastro: resolve(root, 'cadastro.html'),
         login: resolve(root, 'login.html'),

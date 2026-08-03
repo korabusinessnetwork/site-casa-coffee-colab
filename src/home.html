@@ -250,6 +250,27 @@
       </section>
 
       <!-- ===================================================================
+           PRESENTE — faixa chamativa: dá um plano de presente
+           =================================================================== -->
+      <section class="gift-band reveal" aria-label="Presentear um plano">
+        <div class="wrap gift-band-inner">
+          <span class="gift-band-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="8" width="18" height="4" rx="1" />
+              <path d="M12 8v13M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
+              <path d="M12 8S10.5 3 7.5 3 4 6 4 6s1.5 2 4 2h4zM12 8s1.5-5 4.5-5S20 6 20 6s-1.5 2-4 2h-4z" />
+            </svg>
+          </span>
+          <div class="gift-band-text">
+            <span class="gift-band-eyebrow">um mimo pra quem tu gosta</span>
+            <h2>Dá o Casa de presente</h2>
+            <p>um mês de plano, com o teu bilhete junto. A pessoa resgata e fica um pouco por aqui — por tua conta. 💛</p>
+          </div>
+          <a href="/presentear" class="gift-band-btn">presentear alguém <span aria-hidden="true">→</span></a>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            FEATURES — o que é o Casa (ícones inline, sem links)
            =================================================================== -->
       <section class="features">
@@ -305,6 +326,64 @@
 
     <!-- Footer injetado pelo app.js -->
     <div id="site-footer"></div>
+
+    <!-- Faixa de presente: warm, chamativa, no tom da marca (sem cara de promoção). -->
+    <style>
+      .gift-band { padding: clamp(28px, 5vw, 56px) 0 }
+      .gift-band-inner {
+        display: flex; align-items: center; gap: clamp(18px, 3vw, 40px);
+        padding: clamp(24px, 4vw, 44px) clamp(22px, 4vw, 48px);
+        border-radius: 26px;
+        background:
+          radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--coral-2, #e86c4f) 92%, #fff) 0%, transparent 55%),
+          linear-gradient(135deg, var(--coral) 0%, #b5432c 100%);
+        color: #fff8f1;
+        box-shadow: 0 26px 60px -32px color-mix(in srgb, var(--coral) 80%, #000);
+        overflow: hidden; position: relative;
+      }
+      .gift-band-icon {
+        flex: none; display: grid; place-items: center;
+        width: clamp(56px, 8vw, 78px); height: clamp(56px, 8vw, 78px);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.28);
+      }
+      .gift-band-icon svg { width: 55%; height: 55%; color: #fff }
+      .gift-band-text { flex: 1; min-width: 0 }
+      .gift-band-eyebrow {
+        display: inline-block; font-family: var(--sans); font-size: 12.5px;
+        font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+        color: rgba(255, 248, 241, 0.82); margin-bottom: 6px;
+      }
+      .gift-band-text h2 {
+        font-family: var(--serif); font-size: clamp(24px, 3.4vw, 36px);
+        line-height: 1.05; margin: 0; color: #fff;
+      }
+      .gift-band-text p {
+        margin: 10px 0 0; max-width: 52ch; font-family: var(--sans);
+        font-size: 15px; line-height: 1.6; color: rgba(255, 248, 241, 0.92);
+      }
+      .gift-band-btn {
+        flex: none; display: inline-flex; align-items: center; gap: 8px;
+        padding: 14px 26px; border-radius: 999px;
+        background: #fff8f1; color: var(--coral);
+        font-family: var(--sans); font-size: 15px; font-weight: 600;
+        text-decoration: none; white-space: nowrap;
+        box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5);
+        transition: transform 0.16s ease, box-shadow 0.16s ease;
+      }
+      .gift-band-btn:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -14px rgba(0, 0, 0, 0.55) }
+      .gift-band-btn span { transition: transform 0.16s ease }
+      .gift-band-btn:hover span { transform: translateX(3px) }
+      @media (max-width: 760px) {
+        .gift-band-inner { flex-direction: column; text-align: center; align-items: center }
+        .gift-band-text p { margin-left: auto; margin-right: auto }
+        .gift-band-btn { width: 100%; justify-content: center }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .gift-band-btn, .gift-band-btn span { transition: none }
+      }
+    </style>
 
     <script type="module" src="/app.js"></script>
   </body>

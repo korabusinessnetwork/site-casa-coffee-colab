@@ -347,6 +347,24 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   (`{ acao:'cancelar' }`): limpa a coluna e restaura o `value` cheio. Os dois passos
   (Asaas ↔ banco) se revertem mutuamente em caso de falha, pra nunca sobrar `value` baixo
   sem downgrade agendado. Quem troca o tier de fato é o webhook, na renovação.
+- **Presentear um plano** (`create-checkout-session` modo presente + `resgatar-presente`):
+  o comprador paga **um mês cheio** de um tier **de presente** (cobrança avulsa `DETACHED`,
+  Pix ou cartão — **não** vira assinatura dele). Fluxo: `{ gift_tier, mensagem }` →
+  pré-cria `gift_subscriptions` (`pendente`) → checkout `externalReference = gift:<id>`,
+  `successUrl` → `checkout-sucesso.html?presente=<id>`. No `CHECKOUT_PAID` o webhook marca
+  `pago` e gera o **código** `CASA-XXXXXX` (RPC `marcar_presente_pago`, idempotente);
+  `CHECKOUT_EXPIRED/CANCELED` cancela o presente `pendente`. Quem ganha resgata o código
+  no `/conta/perfil` ("tem um presente?") → `resgatar-presente` → RPC atômica
+  `resgatar_presente` (lock, anti-duplo-resgate): cria uma `subscriptions` **`pausada` +
+  `current_period_end = agora+30d`** marcada com `presente_id` (SEM `asaas_*` — não recorre)
+  e espelha o tier. **Por quê `pausada`+período e não `ativa`:** `getEffectiveSubscription`
+  concede benefício pra `pausada` só enquanto o período está no futuro → o presente
+  **expira sozinho em 30 dias**, sem cron e sem o risco do "`ativa` concede pra sempre"
+  (não há assinatura no Asaas pra gerar `PAYMENT_OVERDUE`). O resgate é **bloqueado** se a
+  pessoa já tem plano vigente (o presente fica guardado — não empilha). O perfil trata
+  `presente_id` à parte (selo "presente · ativo até {data}", **sem** pausar/retomar/upgrade);
+  o `resume-subscription` já barra `pausada` sem `asaas_subscription_id`. Página de compra:
+  **`/presentear`** (`initPresentearPage`), linkada nos `/planos`.
 - **`asaas-webhook`** (deploy com `--no-verify-jwt`): auth = **token compartilhado** no
   header `asaas-access-token` (comparado com `ASAAS_WEBHOOK_TOKEN`; NÃO é HMAC).
   Idempotência via `asaas_events` (PK = `id` do evento, `evt_…`). Em erro → 500 sem gravar
@@ -577,6 +595,16 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   sempre da claim `session_id` do JWT: o client nunca diz de quem é a sessão. É o que alimenta a
   lista de aparelhos conectados no `/conta/perfil` (sem ela a tela cai no fallback "sair de todos
   os aparelhos").
+- **`0019_presentes` — PENDENTE (aplicar no SQL Editor).** "Presentear um plano": tabela
+  `gift_subscriptions` (+ RLS: comprador/quem-resgatou lê o próprio), coluna
+  `subscriptions.presente_id` (marca a assinatura vinda de presente), e as RPCs
+  SECURITY DEFINER `marcar_presente_pago(uuid,text)` (webhook gera o código no pagamento)
+  e `resgatar_presente(uuid,text)` (resgate atômico com lock). **As Edge Functions já foram
+  deployadas em 03/ago/2026** (`create-checkout-session`, `asaas-webhook` com
+  `--no-verify-jwt`, e a nova `resgatar-presente`) — os caminhos de presente só disparam com
+  pedido de presente, que não existe até o front subir. **Falta só:** (1) aplicar esta
+  migration no SQL Editor e (2) subir o front (merge `trabalho`→`main`). Nenhum secret novo;
+  nenhum evento novo no webhook (usa `CHECKOUT_PAID/EXPIRED/CANCELED`).
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

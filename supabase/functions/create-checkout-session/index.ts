@@ -61,7 +61,14 @@ Deno.serve(async (req) => {
   if (!user) return jsonResponse({ error: 'não autenticado' }, 401);
 
   // 2) Body.
-  let body: { tier_slug?: unknown; items?: unknown; upgrade_to_tier?: unknown; modo?: unknown };
+  let body: {
+    tier_slug?: unknown;
+    items?: unknown;
+    upgrade_to_tier?: unknown;
+    modo?: unknown;
+    gift_tier?: unknown;
+    mensagem?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -218,6 +225,84 @@ Deno.serve(async (req) => {
       });
 
       return jsonResponse({ url: checkout.link, valor_delta_centavos: delta_centavos });
+    }
+
+    // -------------------------------------------------------------------------
+    // MODO PRESENTE (DETACHED) — quando vem `gift_tier`.
+    // O comprador paga UM mês cheio do tier (avulso, Pix ou cartão) de PRESENTE
+    // pra outra pessoa. NÃO cria recorrência: é cobrança única. Pré-cria a linha
+    // em gift_subscriptions ('pendente') e usa `gift:<id>` como externalReference
+    // — o webhook, no CHECKOUT_PAID, marca 'pago' e gera o código do presente.
+    // Preço SEMPRE do BANCO (nunca do client). O bilhete é texto livre curto.
+    // -------------------------------------------------------------------------
+    if (typeof body.gift_tier === 'string' && body.gift_tier) {
+      const giftSlug = body.gift_tier;
+
+      const { data: tier, error: tierErr } = await supabaseAdmin
+        .from('tiers')
+        .select('slug, nome, preco_centavos, ativo')
+        .eq('slug', giftSlug)
+        .maybeSingle();
+      if (tierErr) return jsonResponse({ error: 'erro ao buscar o plano' }, 500);
+      if (!tier || !tier.ativo) return jsonResponse({ error: 'plano indisponível' }, 400);
+      if (!tier.preco_centavos || tier.preco_centavos <= 0) {
+        return jsonResponse({ error: 'plano sem preço configurado' }, 400);
+      }
+
+      // Bilhete: texto livre curto. Corta em 280 e guarda vazio → null. É mostrado
+      // pra quem resgata SEMPRE via textContent (escapado no client) — sem XSS.
+      const mensagem = typeof body.mensagem === 'string' ? body.mensagem.trim().slice(0, 280) : '';
+
+      // Pré-cria o presente 'pendente'. Se o Asaas falhar, desfaz (sem órfão).
+      const { data: gift, error: gErr } = await supabaseAdmin
+        .from('gift_subscriptions')
+        .insert({
+          comprador_id: user.id,
+          tier_slug: tier.slug,
+          valor_centavos: tier.preco_centavos,
+          mensagem: mensagem || null,
+          status: 'pendente',
+        })
+        .select('id')
+        .single();
+      if (gErr || !gift) {
+        console.error('[create-checkout-session] falha ao criar presente', gErr);
+        return jsonResponse({ error: 'não deu pra iniciar o presente agora' }, 500);
+      }
+
+      let checkout: any;
+      try {
+        checkout = await asaasPost('/checkouts', {
+          billingTypes: ['PIX', 'CREDIT_CARD'],
+          chargeTypes: ['DETACHED'],
+          minutesToExpire: CHECKOUT_EXPIRA_MIN,
+          externalReference: `gift:${gift.id}`,
+          callback: {
+            successUrl: `${site}/checkout-sucesso?presente=${gift.id}`,
+            cancelUrl: cancel_url,
+            expiredUrl: cancel_url,
+            autoRedirect: true,
+          },
+          items: [
+            {
+              name: `Presente · Plano ${tier.nome}`,
+              description: 'um mês do Casa, de presente 💛',
+              quantity: 1,
+              value: reaisFromCentavos(tier.preco_centavos),
+            },
+          ],
+        });
+      } catch (err) {
+        await supabaseAdmin.from('gift_subscriptions').delete().eq('id', gift.id);
+        throw err;
+      }
+
+      await supabaseAdmin
+        .from('gift_subscriptions')
+        .update({ asaas_checkout_id: checkout.id })
+        .eq('id', gift.id);
+
+      return jsonResponse({ url: checkout.link });
     }
 
     // -------------------------------------------------------------------------

@@ -1695,6 +1695,71 @@ function initPlanosPage() {
   );
 }
 
+// Página "presentear um plano" (/presentear): escolhe o tier, escreve o bilhete e
+// abre o Checkout hospedado do Asaas em modo PRESENTE (cobrança única — não vira
+// assinatura do comprador). O preço vem do BANCO na Edge Function; o client só
+// manda { gift_tier, mensagem }. Deslogado → login guardando o destino.
+function initPresentearPage() {
+  const root = document.querySelector('[data-presentear]');
+  if (!root) return;
+
+  const btn = root.querySelector('[data-gift-btn]');
+  const nota = root.querySelector('[data-gift-note]');
+  const msgEl = root.querySelector('[data-gift-msg]');
+  const countEl = root.querySelector('[data-gift-count]');
+
+  // Contador do bilhete (feedback vivo, sem passar de 280).
+  const atualizarContador = () => {
+    if (!msgEl || !countEl) return;
+    countEl.textContent = `${msgEl.value.length}/280`;
+  };
+  msgEl?.addEventListener('input', atualizarContador);
+  atualizarContador();
+
+  const avisar = (msg) => {
+    if (!nota) return;
+    nota.textContent = msg; // textContent (nunca innerHTML) → sem XSS
+    nota.classList.remove('hidden');
+    nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  const irProLogin = () => {
+    const destino = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login?redirect=${destino}`;
+  };
+
+  const tierEscolhido = () => root.querySelector('input[name="gift-tier"]:checked')?.value || '';
+
+  btn?.addEventListener('click', async () => {
+    const tier = tierEscolhido();
+    if (!tier) return avisar('escolhe um plano pra presentear 💛');
+
+    if (!supabase) return avisar('presentear ainda não tá ligado por aqui (config pendente). 💛');
+
+    const session = await getSession();
+    if (!session) return irProLogin();
+
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'te levando pro pagamento…';
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { gift_tier: tier, mensagem: msgEl?.value?.trim() || '' },
+      });
+      if (error || !data?.url) {
+        avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
+        return;
+      }
+      window.location.href = data.url; // Checkout hospedado do Asaas
+    } catch {
+      avisar('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+}
+
 // Página de sucesso do checkout: compra concluída → esvazia o carrinho local.
 // (A fonte da verdade do pedido é o banco, gravado pelo webhook; o carrinho é só UI.)
 // Também mostra "+X pontos" quando o webhook terminar de creditar (é assíncrono,
@@ -1738,6 +1803,39 @@ async function initCheckoutSucessoPage() {
       'tua assinatura tá confirmada. a gente já tá preparando teu cantinho, teu plano aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
     );
     return; // pontos da assinatura vêm por payment.id (o client não conhece) → não sonda
+  }
+
+  // Presente (?presente=<gift.id>): o comprador pagou um presente. O código é
+  // gerado pelo webhook (assíncrono), então sonda gift_subscriptions (RLS: o
+  // comprador lê o próprio) até o código aparecer e mostra pra ele entregar.
+  const presenteId = params.get('presente');
+  if (presenteId) {
+    setCopy(
+      'presente a caminho 💛',
+      'teu pagamento tá confirmado. assim que ele termina de conversar com a gente, teu código aparece aqui embaixo pra tu entregar.',
+    );
+    const slotG = wrap.querySelector('[data-pontos-credito]');
+    if (!slotG || !supabase) return;
+    const sessionG = await getSession();
+    if (!sessionG) return;
+    for (let tentativa = 0; tentativa < 6; tentativa++) {
+      const { data } = await supabase
+        .from('gift_subscriptions')
+        .select('codigo')
+        .eq('id', presenteId)
+        .maybeSingle();
+      if (data?.codigo) {
+        setCopy(
+          'teu presente tá pronto 💛',
+          'entrega o código abaixo pra quem tu quiser — a pessoa resgata em "tenho um presente", lá na conta dela.',
+        );
+        slotG.textContent = `teu código: ${data.codigo}`; // textContent → sem XSS
+        slotG.classList.remove('hidden');
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return;
   }
 
   // Loja (?ref=<order.id>): copy de PEDIDO, não de plano.
@@ -2561,6 +2659,7 @@ async function initPerfilPage() {
   let periodEndMs = NaN;
   let ativoAte = ''; // DD/MM (current_period_end formatado)
   let agendadoSlug = null; // scheduled_downgrade_to (downgrade agendado pro próximo ciclo)
+  let ehPresente = false; // a linha vigente nasceu de um presente resgatado (sem recorrência)
   let tiers = []; // [{ slug, nome, preco_centavos, ordem, ativo }]
   // Campos do perfil estendido (apelido, café, endereço, avisos — migration 0014).
   // Consulta separada e TOLERANTE de propósito: se a migration ainda não foi
@@ -2569,10 +2668,10 @@ async function initPerfilPage() {
   let extra = null;
 
   if (supabase) {
-    const [subRes, tiersRes, extraRes] = await Promise.all([
+    const [subRes0, tiersRes, extraRes] = await Promise.all([
       supabase
         .from('subscriptions')
-        .select('tier_slug, status, current_period_end, scheduled_downgrade_to')
+        .select('tier_slug, status, current_period_end, scheduled_downgrade_to, presente_id')
         .eq('user_id', session.user.id)
         .in('status', ['ativa', 'pausada', 'cancelada'])
         .order('updated_at', { ascending: false })
@@ -2581,6 +2680,21 @@ async function initPerfilPage() {
       supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo').order('ordem'),
       supabase.from('profiles').select(PERFIL_CAMPOS_EXTRA).eq('id', session.user.id).maybeSingle(),
     ]);
+    // Fallback TOLERANTE: se a migration 0019 (coluna presente_id) ainda não foi
+    // aplicada, o select acima falha inteiro — re-tenta SEM presente_id pra o plano
+    // do assinante não sumir da tela nesse meio-tempo. (Mesmo espírito da consulta
+    // `extra`, tolerante à 0014.) Sem a coluna, ehPresente fica false — ok.
+    let subRes = subRes0;
+    if (subRes0.error) {
+      subRes = await supabase
+        .from('subscriptions')
+        .select('tier_slug, status, current_period_end, scheduled_downgrade_to')
+        .eq('user_id', session.user.id)
+        .in('status', ['ativa', 'pausada', 'cancelada'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
     tiers = Array.isArray(tiersRes.data) ? tiersRes.data : [];
     extra = extraRes.data || null;
     const sub = subRes.data;
@@ -2588,6 +2702,7 @@ async function initPerfilPage() {
       subStatus = sub.status;
       planoSlug = sub.tier_slug || planoSlug;
       agendadoSlug = sub.scheduled_downgrade_to || null;
+      ehPresente = Boolean(sub.presente_id);
       if (sub.current_period_end) {
         const d = new Date(sub.current_period_end);
         if (!Number.isNaN(d.getTime())) {
@@ -2609,8 +2724,13 @@ async function initPerfilPage() {
   // Encerrada de vez no Asaas (404): não dá pra "retomar", só re-assinar. Só vale
   // como estado gerenciável se ainda sabemos qual era o tier (pra oferecer a volta).
   const reassinavel = subStatus === 'cancelada' && Boolean(planoSlug);
-  const temGerenciar = ativa || pausada || reassinavel; // tem assinatura pra gerenciar
-  const temPlano = temGerenciar || Boolean(profile?.tier_slug);
+  // Presente resgatado: assinatura 'pausada' de origem-presente, SEM recorrência no
+  // Asaas. Concede o benefício até current_period_end e some sozinha — não há o que
+  // "gerenciar" (nada pra cancelar/retomar/dar upgrade no gateway). Fica fora do
+  // temGerenciar pra não cair nos fluxos de assinatura paga.
+  const presenteVigente = ehPresente && Number.isFinite(periodEndMs) && periodEndMs > agora;
+  const temGerenciar = !ehPresente && (ativa || pausada || reassinavel); // assinatura paga gerenciável
+  const temPlano = temGerenciar || presenteVigente || Boolean(profile?.tier_slug);
   const proximaCobranca = ativoAte;
   const ordemAtual = tiers.find((t) => t.slug === planoSlug)?.ordem ?? 0;
   // Downgrade AGENDADO (vale no próximo ciclo). Só existe em assinatura ATIVA (a
@@ -2686,15 +2806,19 @@ async function initPerfilPage() {
           <p class="lbl">teu plano</p>
           <p class="pf-plano">${plano}</p>
           ${
-            ativa
-              ? `<p class="status"><span class="dot green"></span>ativo</p>`
-              : emGraca
-                ? `<p class="status"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
-                : pausada
-                  ? `<p class="status"><span class="dot muted"></span>pausado</p>`
-                  : reassinavel
-                    ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
-                    : `<a href="/planos">ver os planos</a>`
+            ehPresente
+              ? presenteVigente
+                ? `<p class="status"><span class="dot gold"></span>presente · ativo até ${ativoAte}</p>`
+                : `<p class="status"><span class="dot muted"></span>presente encerrado</p>`
+              : ativa
+                ? `<p class="status"><span class="dot green"></span>ativo</p>`
+                : emGraca
+                  ? `<p class="status"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
+                  : pausada
+                    ? `<p class="status"><span class="dot muted"></span>pausado</p>`
+                    : reassinavel
+                      ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
+                      : `<a href="/planos">ver os planos</a>`
           }
         </div>
         <div class="pf-stat">
@@ -2706,6 +2830,22 @@ async function initPerfilPage() {
               : `<p class="status"><span class="dot gold"></span>falta confirmar</p>`
           }
         </div>
+      </section>
+
+      <section class="card pf-sec g-lg" data-presente-resgate>
+        <div class="pf-head">
+          <h2>tem um presente?</h2>
+          <p>ganhou um mês do Casa de alguém? digita o código e ele é teu.</p>
+        </div>
+        <label class="field" for="pf-presente">
+          <span class="lbl">código do presente</span>
+          <input id="pf-presente" type="text" data-presente-codigo placeholder="CASA-XXXXXX" autocomplete="off" spellcheck="false" />
+          <span class="hint">é do tipo CASA-XXXXXX — quem te deu passou pra ti.</span>
+        </label>
+        <div class="pf-actions">
+          <button type="button" class="btn solid sm" data-presente-btn>resgatar presente</button>
+        </div>
+        <p class="hidden text-sm" data-presente-msg aria-live="polite"></p>
       </section>
 
       <section class="pf-prog" aria-label="perfil completo">
@@ -3037,6 +3177,58 @@ async function initPerfilPage() {
     <div class="pf-toast" role="status" aria-live="polite" data-toast hidden></div>`;
 
   renderIcons();
+
+  // ── Resgatar presente (código dado por outra pessoa) ──────────────────────
+  // Chama a Edge Function resgatar-presente (que valida na RPC atômica). Sucesso →
+  // recarrega pra o plano do presente já aparecer no perfil.
+  {
+    const presenteInput = root.querySelector('[data-presente-codigo]');
+    const presenteBtn = root.querySelector('[data-presente-btn]');
+    const presenteMsg = root.querySelector('[data-presente-msg]');
+    const mostrarPresenteMsg = (txt, tom = 'neutro') => {
+      if (!presenteMsg) return;
+      presenteMsg.textContent = txt; // textContent → sem XSS
+      presenteMsg.className =
+        'mt-3 text-sm ' + (tom === 'erro' ? 'text-coral' : tom === 'ok' ? 'text-olive' : 'text-ink-2');
+      presenteMsg.classList.remove('hidden');
+    };
+    presenteBtn?.addEventListener('click', async () => {
+      const codigo = (presenteInput?.value || '').trim();
+      if (!codigo) return mostrarPresenteMsg('digita o código do presente 💛', 'erro');
+      if (!supabase) return mostrarPresenteMsg('resgate ainda não tá ligado por aqui (config pendente). 💛', 'erro');
+
+      const original = presenteBtn.textContent;
+      presenteBtn.disabled = true;
+      presenteBtn.textContent = 'resgatando…';
+      try {
+        const { data, error } = await supabase.functions.invoke('resgatar-presente', { body: { codigo } });
+        if (error || !data?.ok) {
+          // Em HTTP não-2xx o functions-js devolve data=null e joga a resposta crua em
+          // error.context — sem ler dali, o recado gentil da função vira genérico.
+          let msg = data?.error || '';
+          if (!msg && typeof error?.context?.json === 'function') {
+            try {
+              const corpo = await error.context.json();
+              if (corpo?.error) msg = String(corpo.error);
+            } catch {
+              /* corpo não-JSON: segue pra mensagem genérica */
+            }
+          }
+          if (!msg) msg = 'não deu pra resgatar agora. confere o código? 💛';
+          mostrarPresenteMsg(msg, 'erro');
+          return;
+        }
+        const nome = data.tier_nome ? ` ${data.tier_nome}` : '';
+        mostrarPresenteMsg(`presente resgatado! teu plano${nome} já vale — recarregando… 💛`, 'ok');
+        setTimeout(() => window.location.reload(), 1400);
+      } catch {
+        mostrarPresenteMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?', 'erro');
+      } finally {
+        presenteBtn.disabled = false;
+        presenteBtn.textContent = original;
+      }
+    });
+  }
 
   // ── Gerenciar assinatura: pausar / retomar / upgrade ──────────────────────
   // A NOSSA tela (o Asaas não tem portal hospedado). Toda a lógica sensível (o
@@ -4760,6 +4952,7 @@ export function initSite() {
   initCatalogPage(); // só age se houver [data-catalog-grid]
   initProductPage(); // só age se houver [data-product-root]
   initPlanosPage(); // só age se houver [data-assinar]
+  initPresentearPage(); // só age se houver [data-presentear]
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]
