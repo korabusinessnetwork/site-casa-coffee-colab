@@ -4750,9 +4750,10 @@ async function initAuthConfirmadoPage() {
 
 // Configura os carrosséis do tipo "cards" (home e colab) + o hero (home).
 function initCarousels() {
-  const hero = document.querySelector('[data-carousel="hero"] [data-carousel-track]');
-  if (hero) setupCarousel(hero, { dots: true, autoplay: true, interval: 5500 });
-
+  // O hero da home NÃO usa setupCarousel — ele é o setupHeroCarousel (foto/vídeo
+  // full-bleed por tempo), chamado no bootstrap. setupCarousel serve os tracks
+  // scroll-snap com [data-carousel="cards"] (hoje só a colab: swipe/scroll/teclado,
+  // sem dots nem autoplay).
   document
     .querySelectorAll('[data-carousel="cards"] [data-carousel-track]')
     .forEach((track) => setupCarousel(track, { dots: false, autoplay: false }));

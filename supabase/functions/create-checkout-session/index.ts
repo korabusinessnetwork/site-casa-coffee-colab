@@ -402,6 +402,37 @@ Deno.serve(async (req) => {
       );
     }
 
+    // TRAVA ANTI-DUPLICAÇÃO (parte 2): checkout de assinatura RECÉM-ABERTO ainda
+    // 'pendente'. Entre "pagou" e "CHECKOUT_PAID chegou" a linha fica 'pendente' e
+    // getEffectiveSubscription (só ativa/pausada) não a vê — sem esta trava, quem
+    // pagou e volta antes do webhook conseguiria abrir um SEGUNDO checkout e ser
+    // cobrado duas vezes (duas recorrências no cartão). Só barra dentro da janela
+    // do checkout (60 min, o minutesToExpire): passado isso o link já expirou e um
+    // checkout abandonado não prende ninguém. Mesmo padrão da delete-account.
+    const limitePendente = new Date(Date.now() - CHECKOUT_EXPIRA_MIN * 60 * 1000).toISOString();
+    const { data: subPendente, error: pendErr } = await supabaseAdmin
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'pendente')
+      .gte('created_at', limitePendente)
+      .limit(1)
+      .maybeSingle();
+    if (pendErr) {
+      console.error('[create-checkout-session] erro ao checar assinatura pendente', pendErr);
+      return jsonResponse({ error: 'não deu pra abrir o checkout agora' }, 500);
+    }
+    if (subPendente) {
+      return jsonResponse(
+        {
+          error:
+            'tem um pagamento de assinatura sendo confirmado agora. espera uns minutinhos e confere na tua conta antes de tentar de novo 💛',
+          assinatura_processando: true,
+        },
+        409,
+      );
+    }
+
     const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (1ª cobrança hoje)
     // externalReference da assinatura: `sub:<user_id>:<tier_slug>:<nonce>`. O nonce
     // (uuid) torna a resolução no webhook inequívoca — mesmo que o usuário cancele e
@@ -453,8 +484,10 @@ Deno.serve(async (req) => {
     // na loja. Fecha a janela entre "pagou" e "o webhook chegou": nesse intervalo
     // o banco não sabia de assinatura nenhuma, e a delete-account deixava apagar a
     // conta deixando uma recorrência órfã cobrando o cartão. 'pendente' não
-    // concede benefício (getEffectiveSubscription só olha ativa/pausada) nem trava
-    // um checkout novo; o CHECKOUT_PAID promove ESTA linha a 'ativa' pelo mesmo
+    // concede benefício (getEffectiveSubscription só olha ativa/pausada), mas DENTRO
+    // da janela de 60 min TRAVA um checkout novo (a trava anti-duplicação parte 2
+    // acima), pra não cobrar o cartão duas vezes se a pessoa voltar antes do webhook;
+    // o CHECKOUT_PAID promove ESTA linha a 'ativa' pelo mesmo
     // asaas_checkout_id (o upsert do webhook casa por essa coluna). Falha aqui não
     // derruba o checkout: sem a linha, o webhook cria do zero como antes.
     const { error: preErr } = await supabaseAdmin.from('subscriptions').insert({

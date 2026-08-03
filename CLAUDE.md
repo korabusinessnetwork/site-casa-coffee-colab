@@ -116,9 +116,13 @@ cores da marca, via utilitários no `styles.css`:
 
 ## Carrossel
 
-- Função única `setupCarousel(trackEl, { dots, autoplay, interval })` no `app.js` — serve os 3 tracks.
+- Função `setupCarousel(trackEl, { dots, autoplay, interval })` no `app.js` — serve os tracks
+  `[data-carousel="cards"]` (hoje só a **colab**), via `initCarousels`.
 - Base em **scroll-snap** horizontal (`.carousel-track`), navegável por swipe/scroll, teclado (setas) e dots.
-- **Autoplay** (só no hero) respeita `prefers-reduced-motion` e pausa em hover/foco/toque.
+- A função **suporta** dots e autoplay (com `prefers-reduced-motion` e pausa em hover/foco/toque),
+  mas nenhuma página os liga hoje (a colab chama com `dots:false, autoplay:false`).
+- **O hero da home NÃO usa `setupCarousel`** — é o `setupHeroCarousel` (fundo full-bleed em
+  foto/vídeo por tempo, contrato `[data-hero-carousel]`), chamado no bootstrap.
 - Contrato de DOM: `[data-carousel]` › `[data-carousel-track]` (+ opcionais `[data-dots]`,
   `[data-carousel-prev]`, `[data-carousel-next]`).
 
