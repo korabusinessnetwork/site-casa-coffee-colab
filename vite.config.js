@@ -65,6 +65,9 @@ export default defineConfig({
         pontos: resolve(root, 'conta/pontos.html'),
         conquistas: resolve(root, 'conta/conquistas.html'),
         pedidos: resolve(root, 'conta/pedidos.html'),
+        // console da equipe: uma página com abas + a porta de entrada
+        adminEntrar: resolve(root, 'admin/entrar.html'),
+        admin: resolve(root, 'admin/index.html'),
       },
     },
   },

@@ -72,6 +72,37 @@ Deno.serve(async (req) => {
     );
   }
 
+  // 1b) Assinatura recém-paga com o webhook ainda a caminho: a create-checkout-session
+  // deixa a linha como 'pendente' antes de mandar pro Asaas, e o CHECKOUT_PAID é quem
+  // a promove a 'ativa'. Sem esta trava, apagar a conta nesse intervalo deixaria uma
+  // recorrência órfã cobrando o cartão de quem já não existe aqui. Só barra dentro da
+  // janela do checkout (60 min, o minutesToExpire) — passado isso o link já expirou e
+  // um checkout abandonado não pode prender ninguém.
+  const limitePendente = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { data: pendente, error: pendErr } = await supabaseAdmin
+    .from('subscriptions')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'pendente')
+    .gte('created_at', limitePendente)
+    .limit(1)
+    .maybeSingle();
+
+  if (pendErr) {
+    console.error('[delete-account] erro ao checar assinatura pendente', pendErr);
+    return jsonResponse({ error: 'não deu pra apagar agora' }, 500);
+  }
+
+  if (pendente) {
+    return jsonResponse(
+      {
+        error: 'tem um pagamento de assinatura sendo confirmado agora. espera uns minutinhos e tenta de novo 💛',
+        assinatura_processando: true,
+      },
+      409,
+    );
+  }
+
   // 2) Toda assinatura que ainda pode gerar cobrança (pausada dentro do período).
   // Cancelada já não cobra — mas listar não custa e evita fantasma.
   const { data: subs, error: subErr } = await supabaseAdmin

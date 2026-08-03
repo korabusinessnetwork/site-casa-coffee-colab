@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
   if (!user) return jsonResponse({ error: 'não autenticado' }, 401);
 
   // 2) Body.
-  let body: { tier_slug?: unknown; items?: unknown; upgrade_to_tier?: unknown };
+  let body: { tier_slug?: unknown; items?: unknown; upgrade_to_tier?: unknown; modo?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -231,6 +231,50 @@ Deno.serve(async (req) => {
       const desconto_centavos = Math.round((subtotal_cents * discount_percent) / 100);
       const total_centavos = subtotal_cents - desconto_centavos;
 
+      // Retirar na casa ou receber em casa. O client diz só QUAL dos dois; o
+      // endereço vem do PERFIL, lido aqui (nunca do que o navegador mandou), e
+      // é CONGELADO no pedido: quem muda de casa depois não reescreve pra onde
+      // um pedido antigo foi. Modo ausente/desconhecido cai em 'retirada' — é o
+      // fallback que não promete entrega nem inventa endereço.
+      const modo = body.modo === 'entrega' ? 'entrega' : 'retirada';
+      let entrega: Record<string, string | null> = {};
+      if (modo === 'entrega') {
+        const { data: perfil, error: pErr } = await supabaseAdmin
+          .from('profiles')
+          .select(
+            'full_name, telefone, end_cep, end_rua, end_numero, end_complemento, end_bairro, end_cidade, end_uf',
+          )
+          .eq('id', user.id)
+          .maybeSingle();
+        if (pErr) {
+          console.error('[create-checkout-session] falha ao ler o perfil', pErr);
+          return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 500);
+        }
+        const texto = (v: unknown) => String(v ?? '').trim();
+        const obrigatorios = ['end_cep', 'end_rua', 'end_numero', 'end_bairro', 'end_cidade', 'end_uf'];
+        const faltando = obrigatorios.filter((c) => !texto((perfil as Record<string, unknown> | null)?.[c]));
+        if (faltando.length) {
+          return jsonResponse(
+            {
+              error: 'pra levar até tua casa a gente precisa do teu endereço completo. dá uma passada na tua conta e volta aqui? 💛',
+              endereco_incompleto: true,
+            },
+            400,
+          );
+        }
+        entrega = {
+          entrega_nome: texto(perfil!.full_name) || null,
+          entrega_telefone: texto(perfil!.telefone) || null,
+          entrega_cep: texto(perfil!.end_cep),
+          entrega_rua: texto(perfil!.end_rua),
+          entrega_numero: texto(perfil!.end_numero),
+          entrega_complemento: texto(perfil!.end_complemento) || null,
+          entrega_bairro: texto(perfil!.end_bairro),
+          entrega_cidade: texto(perfil!.end_cidade),
+          entrega_uf: texto(perfil!.end_uf),
+        };
+      }
+
       // 2.1) PRÉ-CRIA o pedido 'pendente' + itens (server-side; nunca do client).
       // O externalReference do checkout será o orders.id → o webhook finaliza este
       // mesmo pedido (idempotente por orders.id). Se o Asaas falhar, desfaz.
@@ -244,6 +288,8 @@ Deno.serve(async (req) => {
           desconto_centavos,
           total_centavos,
           tier_slug_aplicado: tier_slug,
+          modo_entrega: modo,
+          ...entrega,
         })
         .select('id')
         .single();
@@ -271,10 +317,11 @@ Deno.serve(async (req) => {
       // 2.2) Cria o Checkout do Asaas. UM item consolidado = total já com desconto
       // (o Asaas não tem campo de desconto). A discriminação real fica em order_items.
       const totalItens = lines.reduce((s, l) => s + l.qtd, 0);
+      const comoRecebe = modo === 'entrega' ? 'receber em casa' : 'retirar na casa';
       const descricao =
         discount_percent > 0
-          ? `${totalItens} ${totalItens === 1 ? 'item' : 'itens'} · desconto ${discount_percent}% do teu plano`
-          : `${totalItens} ${totalItens === 1 ? 'item' : 'itens'}`;
+          ? `${totalItens} ${totalItens === 1 ? 'item' : 'itens'} · desconto ${discount_percent}% do teu plano · ${comoRecebe}`
+          : `${totalItens} ${totalItens === 1 ? 'item' : 'itens'} · ${comoRecebe}`;
 
       let checkout: any;
       try {
@@ -396,6 +443,24 @@ Deno.serve(async (req) => {
         },
       ],
     });
+
+    // Pré-marca a assinatura como 'pendente' — a mesma ideia da order pré-criada
+    // na loja. Fecha a janela entre "pagou" e "o webhook chegou": nesse intervalo
+    // o banco não sabia de assinatura nenhuma, e a delete-account deixava apagar a
+    // conta deixando uma recorrência órfã cobrando o cartão. 'pendente' não
+    // concede benefício (getEffectiveSubscription só olha ativa/pausada) nem trava
+    // um checkout novo; o CHECKOUT_PAID promove ESTA linha a 'ativa' pelo mesmo
+    // asaas_checkout_id (o upsert do webhook casa por essa coluna). Falha aqui não
+    // derruba o checkout: sem a linha, o webhook cria do zero como antes.
+    const { error: preErr } = await supabaseAdmin.from('subscriptions').insert({
+      user_id: user.id,
+      tier_slug: tier.slug,
+      status: 'pendente',
+      asaas_checkout_id: checkout.id,
+    });
+    if (preErr) {
+      console.error('[create-checkout-session] pré-marcação da assinatura falhou', preErr);
+    }
 
     return jsonResponse({ url: checkout.link });
   } catch (err) {

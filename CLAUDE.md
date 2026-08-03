@@ -506,6 +506,13 @@ só LÊ (RLS: cada um lê o próprio ledger).
 - `npm run preview` — pré-visualiza o build.
 - `npm run avatares-orfaos` — varre o bucket `avatares` do Storage e lista as fotos
   que ninguém usa. Ver "Fotos órfãs no Storage" abaixo.
+- `npm run criar-adm-master` — cria a conta do adm master do console (login `casa`,
+  e-mail interno `casa@casacoffeecolab.com.br`, senha inicial `casa1234`,
+  `role='owner'` + `master=true`). Precisa da **service_role no ambiente** (mesmo
+  esquema do comando acima) e da migration `0017_admin` aplicada. Idempotente: se a
+  conta já existe, não duplica nem mexe na senha — `--resetar-senha` repõe a inicial
+  (o e-mail é interno, então "esqueci a senha" não chega em lugar nenhum) e volta a
+  exigir a troca no primeiro acesso.
 
 ### Fotos órfãs no Storage (`scripts/avatares-orfaos.mjs`)
 

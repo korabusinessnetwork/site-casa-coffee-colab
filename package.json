@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "security-check": "node scripts/security-check.mjs",
-    "avatares-orfaos": "node scripts/avatares-orfaos.mjs"
+    "avatares-orfaos": "node scripts/avatares-orfaos.mjs",
+    "criar-adm-master": "node scripts/criar-adm-master.mjs"
   },
   "author": "",
   "license": "UNLICENSED",

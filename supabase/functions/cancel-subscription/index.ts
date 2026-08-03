@@ -63,6 +63,22 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'a gente não achou uma assinatura ativa no teu nome' }, 404);
   }
 
+  // Linha 'ativa' ainda SEM asaas_subscription_id: o CHECKOUT_PAID grava a linha e
+  // é o PAYMENT_* que carimba o id da recorrência — existe uma janela de segundos
+  // entre os dois. Se seguisse, o laço abaixo pularia o PUT no gateway e mesmo
+  // assim marcaria 'pausada': a UI diria "pausado" com o cartão ainda sendo
+  // cobrado todo mês. Igual ao que resume-subscription e downgrade-subscription
+  // já fazem: para aqui e pede pra tentar de novo daqui a pouco.
+  if (subs.some((s) => !s.asaas_subscription_id)) {
+    return jsonResponse(
+      {
+        error: 'tua assinatura ainda tá sendo confirmada. tenta de novo daqui a pouquinho? 💛',
+        sem_vinculo: true,
+      },
+      409,
+    );
+  }
+
   try {
     // 3) Pausa CADA assinatura no Asaas (PUT status=INACTIVE) e reflete no banco.
     // Um 404 numa linha (assinatura sumiu do gateway) não aborta as demais: essa

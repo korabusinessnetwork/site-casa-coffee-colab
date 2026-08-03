@@ -365,11 +365,15 @@ async function applyUpgrade(checkout: any): Promise<void> {
   const { userId, toTier, asaasSubId } = parsed;
 
   // Preço cheio do tier novo (do banco) → novo value da recorrência.
-  const { data: tier } = await supabaseAdmin
+  const { data: tier, error: tierErr } = await supabaseAdmin
     .from('tiers')
     .select('slug, preco_centavos, ativo')
     .eq('slug', toTier)
     .maybeSingle();
+  // Falha de LEITURA não é tier inválido: se engolisse, este upgrade já pago
+  // sairia com 200, o evento viraria processado e o Asaas nunca reenviaria.
+  // Jogando, o handler responde 500 sem gravar o evento → o Asaas reenvia.
+  if (tierErr) throw tierErr;
   if (!tier || !tier.ativo || !tier.preco_centavos) {
     console.warn('[asaas-webhook] upgrade pra tier inválido:', toTier);
     return;

@@ -121,6 +121,11 @@
 
             <button type="submit" class="btn solid block lg">Criar minha conta</button>
 
+            <!-- "ou / continuar com o Google" — injetado pelo initGoogleAuth (app.js).
+                 É o mesmo botão do login: pro Supabase, entrar e criar conta com o
+                 Google são o mesmo caminho (a conta nasce na primeira vez). -->
+            <div class="google-slot" data-google-slot></div>
+
             <p class="auth-foot">
               já é da casa?
               <a href="/login" class="form-link">entra por aqui</a>.
@@ -161,15 +166,6 @@
       .auth-confirm .lede strong { color: var(--ink) }
       .auth-confirm .btn { margin-top: 22px }
       .auth-foot { margin-top: 4px; text-align: center; font-size: 13.5px; color: var(--muted) }
-      .pw-wrap { position: relative }
-      .pw-wrap .inp { padding-right: 46px }
-      .pw-toggle {
-        position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
-        display: grid; place-items: center; color: var(--muted);
-        background: transparent; border: 0; cursor: pointer;
-        transition: color .2s var(--e);
-      }
-      .pw-toggle:hover { color: var(--coral) }
     </style>
 
     <script type="module" src="/app.js"></script>

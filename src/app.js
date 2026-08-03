@@ -180,6 +180,15 @@ const supabaseConfigurado =
   Boolean(SUPABASE_URL && SUPABASE_ANON_KEY) &&
   !/placeholder/i.test(SUPABASE_URL);
 
+// Fotografia da URL ANTES de o supabase-js consumi-la. Com detectSessionInUrl
+// (padrão), o client troca o token do hash por uma sessão e LIMPA a barra de
+// endereço — junto vai o `type=recovery`, único sinal de que aquele link veio do
+// "esqueci a senha" e não da confirmação de e-mail. Lido aqui, no corpo do
+// módulo, o valor é capturado antes de qualquer await; lido lá na página, já
+// seria tarde.
+const HASH_DE_ENTRADA = typeof window !== 'undefined' ? window.location.hash : '';
+const QUERY_DE_ENTRADA = typeof window !== 'undefined' ? window.location.search : '';
+
 // Client único (ou null se ainda não configurado, as telas degradam com aviso gentil).
 export const supabase = supabaseConfigurado
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -454,7 +463,10 @@ const Cart = {
     this._save([]);
   },
   getCount() {
-    return this.getCart().reduce((n, it) => n + it.qtd, 0);
+    // Ignora item cujo produto sumiu do catálogo (mesma regra do subtotal, do
+    // render do drawer e do checkout) — senão o badge do header conta fantasma
+    // que a pessoa não vê em lugar nenhum.
+    return this.getCart().reduce((n, it) => n + (getProdutoPorId(it.produtoId) ? it.qtd : 0), 0);
   },
   getSubtotalCentavos() {
     return this.getCart().reduce((sum, it) => {
@@ -467,6 +479,31 @@ const Cart = {
     return () => cartListeners.delete(fn);
   },
 };
+
+// Retirar na casa ou receber em casa. Mora ao lado do carrinho no localStorage
+// porque a escolha precisa sobreviver ao desvio pro login (deslogado, o checkout
+// manda pra /login e volta com ?cart=open). O client guarda só QUAL dos dois — o
+// endereço em si a Edge Function lê do perfil, no banco. Padrão: retirada.
+const CART_MODO_KEY = 'casa_cart_modo';
+let cartModoMemoria = 'retirada'; // fallback quando o localStorage não existe
+function getCartModo() {
+  try {
+    const v = localStorage.getItem(CART_MODO_KEY);
+    if (v === 'entrega' || v === 'retirada') return v;
+  } catch {
+    /* modo privado: cai na memória da sessão */
+  }
+  return cartModoMemoria;
+}
+function setCartModo(modo) {
+  const v = modo === 'entrega' ? 'entrega' : 'retirada';
+  cartModoMemoria = v;
+  try {
+    localStorage.setItem(CART_MODO_KEY, v);
+  } catch {
+    /* modo privado: a escolha vale só enquanto a aba estiver aberta */
+  }
+}
 
 // --- Header --------------------------------------------------------------------
 function renderHeader() {
@@ -852,6 +889,14 @@ function renderDrawer() {
         </header>
         <div data-cart-items class="flex-1 overflow-y-auto px-5"></div>
         <footer data-cart-footer class="hidden border-t border-line px-5 py-4">
+          <div data-modo-grupo role="group" aria-label="Como tu prefere receber" class="mb-4">
+            <p class="text-xs text-muted">como tu prefere receber?</p>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" class="filtro" data-modo="retirada" aria-pressed="true">retirar na casa</button>
+              <button type="button" class="filtro" data-modo="entrega" aria-pressed="false">receber em casa</button>
+            </div>
+            <p class="mt-2 hidden text-xs text-muted" data-modo-nota></p>
+          </div>
           <div class="flex items-center justify-between">
             <span class="text-sm text-muted">subtotal</span>
             <span class="title sm" data-cart-subtotal>R$ 0,00</span>
@@ -938,8 +983,43 @@ function updateCartUI() {
     }
   }
 
+  updateModoUI(footer);
+
   footer.classList.remove('hidden');
   renderIcons();
+}
+
+// Sincroniza os dois botões de "como tu prefere receber" com a escolha guardada,
+// e escreve embaixo o que ela significa: o endereço da casa, o teu endereço, ou
+// um convite gentil pra completar o perfil (o mesmo que a Edge Function exige).
+function updateModoUI(footer) {
+  const grupo = footer.querySelector('[data-modo-grupo]');
+  if (!grupo) return;
+  const modo = getCartModo();
+  grupo.querySelectorAll('[data-modo]').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.getAttribute('data-modo') === modo));
+  });
+
+  const nota = grupo.querySelector('[data-modo-nota]');
+  if (!nota) return;
+  if (modo === 'retirada') {
+    nota.textContent = `a gente te espera na ${MARCA.contato.endereco}.`;
+    nota.classList.remove('hidden');
+    return;
+  }
+  if (!cartEndereco) {
+    // Sem perfil carregado ainda (ou deslogado): não promete nem assusta.
+    nota.textContent = 'a gente leva até o endereço da tua conta.';
+    nota.classList.remove('hidden');
+    return;
+  }
+  if (cartEndereco.completo) {
+    nota.textContent = `vamos levar até ${cartEndereco.resumo}.`;
+  } else {
+    nota.innerHTML =
+      'pra levar até tua casa, falta teu endereço — <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
+  }
+  nota.classList.remove('hidden');
 }
 
 function openDrawer() {
@@ -996,6 +1076,14 @@ function initCart() {
       else if (e.target.closest('[data-cart-remove]')) Cart.removeItem(key);
     });
 
+    // Retirar na casa / receber em casa (delegação: o footer é redesenhado).
+    root.querySelector('[data-cart-footer]')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-modo]');
+      if (!btn) return;
+      setCartModo(btn.getAttribute('data-modo'));
+      updateCartUI();
+    });
+
     // Checkout, chama a Edge Function create-checkout-session (mode 'payment').
     const checkoutBtn = root.querySelector('[data-checkout]');
     const checkoutNote = root.querySelector('[data-checkout-note]');
@@ -1031,9 +1119,19 @@ function initCart() {
       checkoutBtn.textContent = 'te levando pro pagamento…';
       try {
         const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-          body: { items: itens },
+          body: { items: itens, modo: getCartModo() },
         });
         if (error || !data?.url) {
+          // Endereço incompleto: a function devolve 400 com uma mensagem pronta,
+          // no tom da casa (supabase-js guarda a resposta não-2xx em error.context).
+          let corpo = data || null;
+          if (!corpo && error?.context?.json) {
+            try { corpo = await error.context.json(); } catch { /* corpo não-JSON, tudo bem */ }
+          }
+          if (corpo?.endereco_incompleto) {
+            avisarCheckout(corpo.error || 'falta teu endereço pra gente levar até aí. 💛');
+            return;
+          }
           avisarCheckout('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
           return;
         }
@@ -1067,20 +1165,45 @@ function initCart() {
   }
 }
 
-// Busca o desconto do tier ATIVO do usuário e mostra o aviso gentil no drawer.
-// É só informativo, o desconto REAL é aplicado server-side no checkout.
+// Busca os dois pedaços que o drawer precisa saber sobre quem tá comprando: o
+// desconto do tier e o endereço do perfil. Os dois são SÓ informativos — quem
+// aplica o desconto e quem lê o endereço de verdade é a Edge Function, no banco.
 let cartDiscountPct = 0;
+let cartEndereco = null; // { completo, resumo } — null enquanto não carregou
 async function loadCartDiscount() {
   if (!supabase) return;
-  const profile = await getProfile();
-  const slug = profile?.tier_slug;
-  if (!slug) return;
-  const { data: tier } = await supabase
-    .from('tiers')
-    .select('discount_percent')
-    .eq('slug', slug)
+  const user = await getUser();
+  if (!user) return;
+  const { data: perfil } = await supabase
+    .from('profiles')
+    .select('tier_slug, end_cep, end_rua, end_numero, end_complemento, end_bairro, end_cidade, end_uf')
+    .eq('id', user.id)
     .maybeSingle();
-  cartDiscountPct = Number(tier?.discount_percent || 0);
+  if (!perfil) return;
+
+  // Mesma lista de obrigatórios da create-checkout-session: o aviso daqui só
+  // antecipa, com carinho, o 400 que viria de lá.
+  const txt = (v) => String(v ?? '').trim();
+  const completo = ['end_cep', 'end_rua', 'end_numero', 'end_bairro', 'end_cidade', 'end_uf'].every(
+    (c) => txt(perfil[c])
+  );
+  const complemento = txt(perfil.end_complemento);
+  cartEndereco = {
+    completo,
+    resumo: completo
+      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''} — ` +
+        `${txt(perfil.end_bairro)}, ${txt(perfil.end_cidade)}/${txt(perfil.end_uf)}`
+      : '',
+  };
+
+  if (perfil.tier_slug) {
+    const { data: tier } = await supabase
+      .from('tiers')
+      .select('discount_percent')
+      .eq('slug', perfil.tier_slug)
+      .maybeSingle();
+    cartDiscountPct = Number(tier?.discount_percent || 0);
+  }
   updateCartUI();
 }
 
@@ -2188,8 +2311,11 @@ function initLoginPage() {
       return mostrarErro('preenche teu e-mail ali em cima que a gente te manda o link. 💛');
     if (!supabase) return mostrarErro('o reset de senha ainda não tá ligado por aqui (config pendente).');
     try {
+      // Vai pra /auth-confirmado, não pro /login: é lá que mora o painel de
+      // criar a senha nova. O /login só tem o campo da senha ATUAL — quem
+      // clicava no link caía numa tela logada sem jeito nenhum de trocar.
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${siteBase()}/login`,
+        redirectTo: `${siteBase()}/auth-confirmado`,
       });
     } catch {
       /* não revela se o e-mail existe, mensagem é sempre a mesma */
@@ -2198,6 +2324,84 @@ function initLoginPage() {
       resetMsg.textContent = 'se esse e-mail tiver conta, o link pra criar uma senha nova já tá a caminho. 💛';
       resetMsg.classList.remove('hidden');
     }
+  });
+}
+
+// --- Continuar com o Google ----------------------------------------------------
+// Um botão só, injetado nos dois formulários pelo [data-google-slot]: pro Supabase
+// não existe "cadastro com Google" separado de "login com Google" — o mesmo
+// signInWithOAuth cria a conta na primeira vez (a trigger handle_new_user popula o
+// profiles com o nome que vem do Google) e só entra nas seguintes.
+//
+// O retorno cai sempre em /auth-confirmado, a MESMA URL que os e-mails de
+// confirmação já usam — assim não precisa cadastrar redirect novo no Supabase. O
+// destino final viaja no sessionStorage (a mesma aba volta do Google), e não na
+// query, justamente pra manter a URL de retorno idêntica à que já está liberada.
+const POS_LOGIN_KEY = 'casa_pos_login';
+
+// Logo oficial do Google (obrigatório no botão, pelas diretrizes da marca).
+const GOOGLE_LOGO_SVG = `
+  <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.28-3.14.76-4.59l-7.97-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+  </svg>`;
+
+function initGoogleAuth() {
+  const slots = document.querySelectorAll('[data-google-slot]');
+  if (!slots.length) return;
+
+  // Mesmo ?redirect= que o login por senha respeita (já anti open-redirect).
+  const destino =
+    sanitizeRedirect(new URLSearchParams(window.location.search).get('redirect')) ||
+    '/conta/perfil';
+
+  slots.forEach((slot) => {
+    slot.innerHTML = `
+      <p class="auth-ou">ou</p>
+      <button type="button" class="btn-google" data-google>
+        ${GOOGLE_LOGO_SVG}
+        <span>continuar com o Google</span>
+      </button>`;
+
+    const btn = slot.querySelector('[data-google]');
+    const erroEl = slot.closest('form')?.querySelector('[data-form-erro]');
+    const mostrarErro = (msg) => {
+      if (!erroEl) return;
+      erroEl.textContent = msg;
+      erroEl.classList.remove('hidden');
+    };
+
+    btn.addEventListener('click', async () => {
+      if (!supabase)
+        return mostrarErro('o login com o Google ainda não tá ligado por aqui (config pendente).');
+
+      btn.disabled = true;
+      try {
+        sessionStorage.setItem(POS_LOGIN_KEY, destino);
+      } catch {
+        /* aba em modo restrito: sem o bilhete, a volta cai no perfil mesmo */
+      }
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: `${siteBase()}/auth-confirmado`,
+            // deixa escolher a conta em vez de entrar direto na última usada.
+            queryParams: { prompt: 'select_account' },
+          },
+        });
+        // Sem erro o supabase-js já mandou o navegador pro Google — daqui não volta.
+        if (error) {
+          btn.disabled = false;
+          mostrarErro(mensagemDeErroAuth(error));
+        }
+      } catch (err) {
+        btn.disabled = false;
+        mostrarErro(mensagemDeErroAuth(err));
+      }
+    });
   });
 }
 
@@ -3992,7 +4196,19 @@ async function initPontosPage() {
             body: { reward_id: id },
           });
           if (error || !data?.ok) {
-            const msg = data?.error || 'não deu pra resgatar agora. tenta de novo daqui a pouco? 💛';
+            // Em HTTP não-2xx o functions-js devolve data=null e joga a resposta
+            // crua em error.context — sem ler dali, o recado gentil da função
+            // ("faltam X pontos", "essa já acabou") vira mensagem genérica.
+            let msg = data?.error || '';
+            if (!msg && typeof error?.context?.json === 'function') {
+              try {
+                const corpo = await error.context.json();
+                if (corpo?.error) msg = String(corpo.error);
+              } catch {
+                /* corpo não-JSON: segue pra mensagem genérica */
+              }
+            }
+            if (!msg) msg = 'não deu pra resgatar agora. tenta de novo daqui a pouco? 💛';
             mostrarResultado(`<p class="text-sm text-ink">${escapeHtml(msg)}</p>`, 'warn');
             btn.disabled = false;
             btn.textContent = texto;
@@ -4315,42 +4531,213 @@ async function initAchievementToast() {
   localStorage.setItem(SEEN_ACHIEVEMENTS_KEY, JSON.stringify(atuais));
 }
 
-// --- Confirmação de e-mail (retorno do link) -----------------------------------
-// O supabase-js detecta a sessão na URL (detectSessionInUrl é padrão). Se logou,
-// oferece ir pra conta; se não (link velho/expirado), manda pro login com carinho.
+// --- Volta do auth: e-mail confirmado ou Google --------------------------------
+// O supabase-js detecta a sessão na URL (detectSessionInUrl é padrão). Esta página
+// é a volta de todo caminho de auth: o link do e-mail e o "continuar com o Google".
+// Quem veio do Google deixou um bilhete no sessionStorage (initGoogleAuth) — aí a
+// página é só passagem e segue direto pro destino. Se logou pelo link, oferece ir
+// pra conta; se não deu, manda pro login com carinho.
 async function initAuthConfirmadoPage() {
   const root = document.querySelector('[data-auth-confirmado-root]');
   if (!root) return;
 
+  // Bilhete do Google, consumido de uma vez só (recarregar cai no fluxo do e-mail).
+  let veioDoGoogle = false;
+  let proximo = '/conta/perfil';
+  try {
+    const guardado = sessionStorage.getItem(POS_LOGIN_KEY);
+    if (guardado) {
+      sessionStorage.removeItem(POS_LOGIN_KEY);
+      veioDoGoogle = true;
+      proximo = sanitizeRedirect(guardado) || proximo;
+    }
+  } catch {
+    /* sem sessionStorage: segue como confirmação de e-mail normal */
+  }
+
+  // O provider avisa a recusa na query ou no hash (ex.: fechou a janela do Google).
+  // Lê do snapshot, não de window.location: quando esta função roda, o
+  // supabase-js já pode ter limpado a URL.
+  const recusado =
+    new URLSearchParams(QUERY_DE_ENTRADA).has('error') ||
+    new URLSearchParams(HASH_DE_ENTRADA.replace(/^#/, '')).has('error');
+
+  // Volta do "esqueci a senha". O Supabase carimba type=recovery no link, e é o
+  // único jeito de separar esse retorno do link de confirmação de e-mail: os
+  // dois chegam aqui já com sessão válida, mas só este precisa pedir a senha nova.
+  let ehRecuperacao =
+    new URLSearchParams(HASH_DE_ENTRADA.replace(/^#/, '')).get('type') === 'recovery' ||
+    new URLSearchParams(QUERY_DE_ENTRADA).get('type') === 'recovery';
+
+  const cartao = (cor, icone, titulo, texto, href, rotulo) => `
+    <div class="mx-auto max-w-md card text-center">
+      <span class="mx-auto icon-badge lg ${cor}">
+        <i data-lucide="${icone}" class="h-8 w-8"></i>
+      </span>
+      <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">${titulo}</h1>
+      <p class="mt-3 text-ink-2">${texto}</p>
+      <a href="${href}" class="btn solid mt-7">${rotulo}</a>
+    </div>`;
+
+  // Painel de criar a senha nova. O link do e-mail já deixou a pessoa logada,
+  // então aqui é só updateUser({ password }) — sem pedir a senha antiga, que é
+  // justamente a que ela não lembra.
+  const painelSenha = () => `
+    <div class="mx-auto max-w-md card text-center">
+      <span class="mx-auto icon-badge lg coral">
+        <i data-lucide="key-round" class="h-8 w-8"></i>
+      </span>
+      <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">cria tua senha nova</h1>
+      <p class="mt-3 text-ink-2">escolhe uma senha e a gente te leva pra dentro.</p>
+      <form data-form-senha novalidate style="text-align: left; margin-top: 26px">
+        <div class="field">
+          <label for="nova-senha" class="lbl">senha nova</label>
+          <div class="pw-wrap">
+            <input
+              id="nova-senha"
+              name="senha"
+              type="password"
+              autocomplete="new-password"
+              required
+              minlength="8"
+              class="inp"
+              placeholder="pelo menos 8 caracteres"
+            />
+            <button type="button" data-toggle-senha aria-label="mostrar senha" aria-pressed="false" class="pw-toggle">
+              <i data-lucide="eye" class="h-5 w-5"></i>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="nova-senha-2" class="lbl">repete a senha</label>
+          <div class="pw-wrap">
+            <input
+              id="nova-senha-2"
+              name="confirmacao"
+              type="password"
+              autocomplete="new-password"
+              required
+              minlength="8"
+              class="inp"
+              placeholder="a mesma de cima"
+            />
+            <button type="button" data-toggle-senha aria-label="mostrar senha" aria-pressed="false" class="pw-toggle">
+              <i data-lucide="eye" class="h-5 w-5"></i>
+            </button>
+          </div>
+        </div>
+        <p class="notice err hidden" data-form-erro aria-live="polite"></p>
+        <button type="submit" class="btn solid block" style="margin-top: 18px">guardar a senha nova</button>
+      </form>
+    </div>`;
+
+  const ligarFormSenha = () => {
+    const form = root.querySelector('[data-form-senha]');
+    if (!form) return;
+    const erro = form.querySelector('[data-form-erro]');
+    const dizer = (msg) => {
+      if (!erro) return;
+      erro.textContent = msg;
+      erro.classList.remove('hidden');
+    };
+
+    setupPasswordToggles(form);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erro?.classList.add('hidden');
+
+      const nova = form.senha.value;
+      if (nova.length < 8) return dizer('a senha precisa de pelo menos 8 caracteres.');
+      if (nova !== form.confirmacao.value) return dizer('as duas senhas não bateram. confere pra mim?');
+
+      const btn = form.querySelector('button[type="submit"]');
+      const rotulo = btn?.textContent;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'guardando…';
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: nova });
+      if (error) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = rotulo;
+        }
+        return dizer(mensagemDeErroAuth(error));
+      }
+
+      // Trocou: some com o formulário (a sessão de recuperação já cumpriu o
+      // papel) e oferece a conta.
+      ehRecuperacao = false;
+      root.innerHTML = cartao(
+        'green', 'heart', 'senha trocada',
+        'pronto, tá tudo certo de novo. bem-vindo de volta. 💛',
+        '/conta/perfil', 'ir pra minha conta'
+      );
+      renderIcons();
+    });
+  };
+
   const render = (session) => {
-    root.innerHTML = session
-      ? `<div class="mx-auto max-w-md card text-center">
-           <span class="mx-auto icon-badge lg green">
-             <i data-lucide="heart" class="h-8 w-8"></i>
-           </span>
-           <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">teu e-mail tá confirmado</h1>
-           <p class="mt-3 text-ink-2">bem-vindo ao Casa. 💛 tua conta já tá pronta, chega mais.</p>
-           <a href="/conta/perfil" class="btn solid mt-7">ir pra minha conta</a>
-         </div>`
-      : `<div class="mx-auto max-w-md card text-center">
-           <span class="mx-auto icon-badge lg coral">
-             <i data-lucide="mail" class="h-8 w-8"></i>
-           </span>
-           <h1 class="mt-5 font-titulo text-3xl sm:text-4xl">quase lá</h1>
-           <p class="mt-3 text-ink-2">esse link pode já ter sido usado ou expirado. entra com teu e-mail e senha que a gente te recebe.</p>
-           <a href="/login" class="btn solid mt-7">ir pro login</a>
-         </div>`;
+    if (session && veioDoGoogle) {
+      window.location.replace(proximo); // só passagem, nem chega a pintar
+      return;
+    }
+    if (session && ehRecuperacao) {
+      root.innerHTML = painelSenha();
+      renderIcons();
+      ligarFormSenha();
+      return;
+    }
+    if (session) {
+      root.innerHTML = cartao(
+        'green', 'heart', 'teu e-mail tá confirmado',
+        'bem-vindo ao Casa. 💛 tua conta já tá pronta, chega mais.',
+        '/conta/perfil', 'ir pra minha conta'
+      );
+    } else if (recusado || veioDoGoogle) {
+      root.innerHTML = cartao(
+        'coral', 'coffee', 'não rolou dessa vez',
+        'a entrada pelo Google não foi até o fim. tenta de novo, ou entra com teu e-mail e senha que a gente te recebe.',
+        '/login', 'ir pro login'
+      );
+    } else {
+      root.innerHTML = cartao(
+        'coral', 'mail', 'quase lá',
+        'esse link pode já ter sido usado ou expirado. entra com teu e-mail e senha que a gente te recebe.',
+        '/login', 'ir pro login'
+      );
+    }
     renderIcons();
   };
 
   // Primeira leitura + fallback: a sessão pode chegar logo após o parse da URL.
   const session = await getSession();
-  render(session);
-  if (supabase && !session) {
-    supabase.auth.onAuthStateChange((_evento, s) => {
-      if (s) render(s);
-    });
+  if (session || recusado || !supabase) {
+    render(session);
+    return;
   }
+
+  // Sem sessão ainda. Vindo do Google, a troca do token pode estar acontecendo
+  // agora — segura a mensagem de falha um instante em vez de acusar cedo demais.
+  if (veioDoGoogle) {
+    root.innerHTML =
+      '<p class="decor text-3xl">só um instante</p>' +
+      '<p class="mt-2" style="color: var(--muted)">te levando pra dentro…</p>';
+  } else {
+    render(null);
+  }
+
+  const desistir = veioDoGoogle ? setTimeout(() => render(null), 6000) : null;
+  supabase.auth.onAuthStateChange((evento, s) => {
+    // Segundo caminho pra reconhecer a recuperação, além do type=recovery da
+    // URL: o supabase-js emite este evento ao trocar o token do link por sessão.
+    if (evento === 'PASSWORD_RECOVERY') ehRecuperacao = true;
+    if (!s) return;
+    if (desistir) clearTimeout(desistir);
+    render(s);
+  });
 }
 
 // Configura os carrosséis do tipo "cards" (home e colab) + o hero (home).
@@ -4376,6 +4763,7 @@ export function initSite() {
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]
+  initGoogleAuth(); // injeta o "continuar com o Google" nos [data-google-slot]
   initPerfilPage(); // só age se houver [data-perfil-root] (protege a rota)
   initPontosPage(); // só age se houver [data-pontos-root] (protege a rota)
   initConquistasPage(); // só age se houver [data-conquistas-root] (protege a rota)

@@ -572,6 +572,39 @@ a.txt-link.gold { color: var(--gold) }
 .form-link { font-family: var(--sans); font-size: 13px; color: var(--coral); text-decoration: none }
 .form-link:hover { text-decoration: underline; text-underline-offset: 3px }
 
+/* olhinho de mostrar/ocultar senha — o botão [data-toggle-senha] que o
+   setupPasswordToggles() do app.js liga. Mora aqui porque já são três telas
+   usando (cadastro, login e o painel de senha nova do /auth-confirmado, este
+   último injetado pelo JS, onde <style> de página nem alcança). Antes era
+   copiado no <style> de cada página com nome diferente em cada uma. */
+.pw-wrap { position: relative }
+.pw-wrap .inp { padding-right: 46px }
+.pw-toggle {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 44px;
+  display: grid; place-items: center; color: var(--muted);
+  background: transparent; border: 0; cursor: pointer;
+  border-radius: 6px; transition: color .2s var(--e)
+}
+.pw-toggle:hover { color: var(--coral) }
+
+/* ---------- entrar com o Google (login/cadastro) ----------
+   O bloco inteiro é injetado pelo app.js no [data-google-slot] (initGoogleAuth).
+   O botão foge do .btn de propósito: o Google pede o logo original sobre fundo
+   claro e texto sem caixa alta, então ele fica discreto ao lado do coral. */
+.google-slot { display: grid; gap: 16px }
+.auth-ou { display: flex; align-items: center; gap: 14px; margin: 0; font-family: var(--sans); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted) }
+.auth-ou::before, .auth-ou::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--line) }
+.btn-google {
+  display: inline-flex; align-items: center; justify-content: center; gap: 11px; width: 100%;
+  font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line); border-radius: 5px;
+  padding: 15px 24px; cursor: pointer;
+  transition: border-color .2s var(--e), color .2s var(--e), transform .2s var(--e)
+}
+.btn-google:hover { border-color: var(--coral); transform: translateY(-1px) }
+.btn-google svg { width: 18px; height: 18px; flex: 0 0 auto }
+.btn-google[disabled] { opacity: .5; cursor: not-allowed; pointer-events: none; transform: none }
+
 /* ---------- cards & grids ---------- */
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: clamp(20px, 3vw, 30px) }
 .card.flat { background: var(--paper-2) }
@@ -615,6 +648,11 @@ a.txt-link.gold { color: var(--gold) }
 .notice.ok { background: color-mix(in srgb, var(--green) 9%, var(--card)); border-color: color-mix(in srgb, var(--green) 32%, var(--line)) }
 .notice.warn { background: color-mix(in srgb, var(--gold) 12%, var(--card)); border-color: color-mix(in srgb, var(--gold) 36%, var(--line)) }
 .notice.err { background: color-mix(in srgb, var(--coral) 9%, var(--card)); border-color: color-mix(in srgb, var(--coral) 34%, var(--line)) }
+/* .notice mora fora de @layer justamente pra vencer os utilitários Tailwind por
+   ordem de fonte — e acaba vencendo o .hidden junto (display:flex > display:none).
+   Sem esta linha, toda notice que o JS esconde/mostra pela classe nasce visível e
+   vazia. Estava remendada no <style> de cada página; agora vale pra todas. */
+.notice.hidden { display: none }
 
 /* ---------- listas / extrato / linhas (pontos, pedidos, cardápio) ---------- */
 .rows { display: flex; flex-direction: column }
@@ -806,4 +844,158 @@ a.txt-link.gold { color: var(--gold) }
   .pf-grid, .pf-grid.addr { grid-template-columns: 1fr }
   .pf-wide { grid-column: span 1 }
   .pf-avatar { width: 68px; height: 68px; font-size: 24px }
+}
+
+/* =============================================================================
+   CONSOLE DA EQUIPE (/admin)
+   Namespace `ad-` pela mesma razão do `pf-`: é uma tela de trabalho, não uma
+   página do site. Onde o componente do app já serve (.btn, .card, .field, .tag,
+   .rows, .stat, .filtro, .notice, .empty, .divider), a gente REUSA — o ad- fica
+   só na casca (barra lateral, tabelas, permissões) e nos pedaços que não têm
+   equivalente. Cores e tipos saem dos tokens do :root, como no resto.
+   O console não carrega header/footer do site: aqui não tem --hh pra descontar.
+   ============================================================================= */
+.ad-page { background: var(--paper); color: var(--ink); font-family: var(--sans); min-height: 100vh }
+.ad-boot, .ad-carregando { padding: 48px 0; text-align: center; font-size: 15px; color: var(--muted) }
+
+/* ---------- porta de entrada e avisos de tela cheia ---------- */
+.ad-entrar, .ad-aviso-cheio { display: grid; place-items: center; min-height: 100vh; padding: 32px 20px }
+.ad-entrar-card { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 34px 30px }
+.ad-entrar-sub { font-size: 15px; line-height: 1.55; color: var(--muted); margin: 0 }
+.ad-entrar-form, .ad-form-senha { display: flex; flex-direction: column; gap: 18px; margin-top: 6px }
+.ad-dica { font-size: 13px; line-height: 1.4; color: var(--muted); margin: 0 }
+
+/* campo de senha com o olhinho por cima (o .field do app já cuida do resto) */
+.ad-senha { position: relative; display: block }
+.ad-senha input { padding-right: 48px }
+.ad-olho { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 10px; background: none; color: var(--muted); cursor: pointer }
+.ad-olho:hover { color: var(--coral) }
+.ad-olho svg { width: 18px; height: 18px }
+
+/* ---------- casca: barra lateral + conteúdo ---------- */
+.ad-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh }
+.ad-lado { display: flex; flex-direction: column; gap: 28px; padding: 26px 20px; background: var(--ink); color: var(--cream); position: sticky; top: 0; height: 100vh; overflow-y: auto }
+.ad-marca { display: flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 20px; color: var(--cream); text-decoration: none }
+.ad-marca em { font-style: normal; color: var(--gold) }
+.ad-marca svg { width: 22px; height: 22px; color: var(--coral) }
+.ad-nav { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto }
+.ad-nav-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; border: 0; border-radius: 11px; background: none; font-family: var(--sans); font-size: 15px; font-weight: 500; color: var(--cream-soft); text-align: left; cursor: pointer; transition: background .18s var(--e), color .18s var(--e) }
+.ad-nav-item:hover { background: rgba(255, 255, 255, .06); color: var(--cream) }
+.ad-nav-item.is-active { background: var(--coral); color: #fff; font-weight: 600 }
+.ad-nav-item svg { width: 18px; height: 18px; flex: 0 0 auto }
+.ad-quem { display: flex; flex-direction: column; gap: 3px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, .12) }
+.ad-quem-nome { font-size: 15px; font-weight: 600; color: var(--cream); margin: 0 }
+.ad-quem-papel { font-size: 12px; letter-spacing: .04em; color: var(--cream-soft); margin: 0 }
+.ad-sair { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 0; border: 0; background: none; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--cream-soft); cursor: pointer }
+.ad-sair:hover { color: var(--coral-2) }
+.ad-sair svg { width: 15px; height: 15px }
+.ad-conteudo { display: flex; flex-direction: column; gap: 26px; padding: 34px 38px 72px; min-width: 0 }
+
+/* ---------- cabeçalho de cada aba ---------- */
+.ad-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap }
+.ad-head-sub { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 4px 0 0 }
+.ad-head-acoes { display: flex; align-items: center; gap: 10px }
+
+/* ---------- painel ---------- */
+.ad-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px }
+.ad-stats .stat { padding: 22px 24px; border-radius: 16px }
+.ad-stats .stat .n { font-size: clamp(26px, 3vw, 36px); color: var(--ink) }
+
+/* ---------- filtros e formulários de topo ---------- */
+.ad-filtros { display: flex; align-items: center; flex-wrap: wrap; gap: 10px }
+.ad-filtros-divisor { width: 1px; height: 24px; background: var(--line) }
+.ad-busca, .ad-periodo { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap }
+.ad-busca .field { flex: 1 1 280px; gap: 0 }
+.ad-periodo .field { flex: 0 1 180px }
+.ad-busca .btn svg, .ad-periodo .btn svg, .ad-head .btn svg { width: 15px; height: 15px; margin-right: 6px }
+
+/* ---------- lista de cards (pedidos, resgates, equipe) ---------- */
+.ad-lista { display: flex; flex-direction: column; gap: 16px }
+.ad-card { display: flex; flex-direction: column; gap: 16px; border-radius: 16px }
+.ad-card-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap }
+.ad-ref { font-family: var(--sans); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin: 0 0 4px; font-variant-numeric: tabular-nums }
+.ad-card-nome { font-family: var(--serif); font-size: 20px; line-height: 1.25; color: var(--ink); margin: 0 }
+.ad-card-meta { display: flex; align-items: center; gap: 6px; font-size: 14px; line-height: 1.5; color: var(--muted); margin: 2px 0 0; overflow-wrap: anywhere }
+.ad-card-meta.ok { color: var(--green) }
+.ad-card-meta svg { width: 14px; height: 14px; flex: 0 0 auto }
+.ad-card-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.ad-card-tags .tag { display: inline-flex; align-items: center; gap: 6px }
+.ad-card-tags .tag svg { width: 13px; height: 13px }
+.ad-card .rows .row:last-child { border-bottom: 0 }
+.ad-card-rodape { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap }
+.ad-card-info { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
+.ad-card-acao { display: flex; align-items: center; gap: 14px; margin-left: auto }
+.ad-card-acao .btn svg { width: 15px; height: 15px; margin-right: 6px }
+.ad-card-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.ad-total { font-family: var(--serif); font-size: 24px; line-height: 1; color: var(--ink); margin: 0; font-variant-numeric: tabular-nums }
+.ad-endereco { font-size: 14px; line-height: 1.5; color: var(--ink-2); margin: 8px 0 0 }
+.ad-codigo { display: inline-block; margin: 8px 0 0; padding: 6px 12px; border: 1px dashed var(--line); border-radius: 8px; background: var(--paper-2); font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: .12em; color: var(--ink) }
+
+/* ---------- tabelas (pessoas e relatórios) ---------- */
+.ad-tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }
+.ad-tabela { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 720px }
+.ad-tabela th { padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--muted); text-align: left; white-space: nowrap }
+.ad-tabela td { padding: 14px 16px; border-bottom: 1px solid var(--line); color: var(--ink-2); vertical-align: top }
+.ad-tabela tr:last-child td { border-bottom: 0 }
+.ad-tabela tbody tr:hover { background: var(--paper-2) }
+.ad-tabela th.num, .ad-tabela td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums }
+.ad-tabela .tag { margin-left: 6px }
+.ad-td-forte { display: block; font-weight: 600; color: var(--ink) }
+.ad-td-meta { display: block; font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere }
+.ad-rodape-nota { font-size: 13px; color: var(--muted); margin: 0 }
+
+/* ---------- relatórios ---------- */
+.ad-bloco { display: flex; flex-direction: column; gap: 14px }
+.ad-bloco-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap }
+.ad-bloco-head .ad-head-sub { margin: 0; font-variant-numeric: tabular-nums }
+
+/* ---------- equipe: busca e grade de permissões ---------- */
+.ad-achados { display: flex; flex-direction: column; gap: 10px; border-radius: 14px }
+.ad-achados .row:last-child { border-bottom: 0 }
+.ad-perms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px }
+.ad-perm { display: flex; align-items: flex-start; gap: 11px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); cursor: pointer; transition: border-color .18s var(--e) }
+.ad-perm:hover { border-color: var(--coral) }
+.ad-perm input { margin-top: 3px; width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--coral); cursor: pointer }
+.ad-perm span { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
+.ad-perm strong { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--ink) }
+.ad-perm em { font-style: normal; font-size: 13px; line-height: 1.4; color: var(--muted) }
+.ad-perm.is-travado { opacity: .55; cursor: not-allowed }
+.ad-perm.is-travado:hover { border-color: var(--line) }
+.ad-perm.is-travado input { cursor: not-allowed }
+
+/* ---------- tua conta ---------- */
+.ad-duas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start }
+.ad-duas .ad-card { gap: 10px }
+.ad-lista-simples { display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 0; margin: 0 }
+.ad-lista-simples li { display: flex; align-items: center; gap: 9px; font-size: 15px; color: var(--ink-2) }
+.ad-lista-simples svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--green) }
+
+/* ---------- modal de confirmação ---------- */
+.ad-modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(27, 22, 17, .55) }
+.ad-modal-caixa { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: 0 20px 60px rgba(27, 22, 17, .3) }
+.ad-modal-texto { font-size: 15px; line-height: 1.55; color: var(--muted); margin: 0 }
+.ad-modal-acoes { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap }
+
+/* ---------- toast ---------- */
+.ad-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 90; max-width: calc(100vw - 32px); padding: 14px 24px; border-radius: 999px; background: var(--ink); color: var(--cream); font-family: var(--sans); font-size: 15px; font-weight: 600; line-height: 1.3; text-align: center; box-shadow: 0 10px 30px rgba(27, 22, 17, .25) }
+.ad-toast[data-tom="erro"] { background: #7d2a16; color: #fff }
+.ad-toast[hidden] { display: none }
+
+/* ---------- no celular a barra vira topo rolável ---------- */
+@media (max-width: 900px) {
+  .ad-shell { grid-template-columns: 1fr }
+  .ad-lado { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 14px; padding: 16px 18px }
+  .ad-marca { flex: 0 0 auto }
+  .ad-nav { flex: 1 1 100%; order: 3; flex-direction: row; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none }
+  .ad-nav::-webkit-scrollbar { display: none }
+  .ad-nav-item { flex: 0 0 auto; padding: 9px 14px; font-size: 14px }
+  .ad-quem { flex: 0 0 auto; margin-left: auto; padding-top: 0; border-top: 0; align-items: flex-end }
+  .ad-sair { margin-top: 4px }
+  .ad-conteudo { padding: 24px 18px 64px }
+  .ad-toast { bottom: 20px }
+}
+@media (max-width: 560px) {
+  .ad-entrar-card { padding: 28px 22px }
+  .ad-card-acao { width: 100%; justify-content: space-between; margin-left: 0 }
+  .ad-quem-nome, .ad-quem-papel { display: none }
 }
