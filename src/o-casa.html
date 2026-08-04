@@ -206,23 +206,25 @@
               <a href="/cardapio" class="btn solid" style="margin-top: 28px">Ver o cardápio</a>
             </div>
 
-            <!-- Mapa do Google. O gradiente do .map-wrap segura o quadro enquanto o
+            <!-- Coluna direita: mapa + como chegar (os botões ficam logo ABAIXO
+                 do mapa). O gradiente do .map-wrap segura o quadro enquanto o
                  iframe carrega (e se a pessoa bloquear scripts de terceiros). -->
-            <div class="map-wrap">
-              <iframe
-                src="https://www.google.com/maps?q=Casa%20Coffee%20Colab%2C%20R.%20Victor%20Hugo%20Kunz%2C%20411%2C%20Hamburgo%20Velho%2C%20Novo%20Hamburgo%20-%20RS&z=17&hl=pt-BR&output=embed"
-                title="O Casa no mapa, na R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS"
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-                allowfullscreen
-              ></iframe>
+            <div class="map-col">
+              <div class="map-wrap">
+                <iframe
+                  src="https://www.google.com/maps?q=Casa%20Coffee%20Colab%2C%20R.%20Victor%20Hugo%20Kunz%2C%20411%2C%20Hamburgo%20Velho%2C%20Novo%20Hamburgo%20-%20RS&z=17&hl=pt-BR&output=embed"
+                  title="O Casa no mapa, na R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                  allowfullscreen
+                ></iframe>
+              </div>
+              <!-- Como chegar: botões de rota (Google Maps + Waze) + copiar
+                   endereço. Preenchido por initComoChegar a partir do MARCA — o
+                   mapa acima só MOSTRA onde fica; aqui entra a ação de chegar. -->
+              <div class="como-chegar reveal" data-como-chegar aria-label="Como chegar"></div>
             </div>
           </div>
-
-          <!-- Como chegar: botões de rota (Google Maps + Waze) + copiar endereço.
-               Preenchido por initComoChegar (app.js) a partir do MARCA — o mapa
-               acima só MOSTRA onde fica; aqui entra a ação de traçar a rota. -->
-          <div class="como-chegar reveal" data-como-chegar aria-label="Como chegar"></div>
         </div>
       </section>
 
