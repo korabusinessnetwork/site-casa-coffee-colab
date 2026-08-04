@@ -387,13 +387,6 @@ a.txt-link.gold { color: var(--gold) }
 .ag-card h3 { font-size: 21px; margin-top: 16px; color: var(--ink) }
 .ag-card .meta { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-top: 7px; line-height: 1.7 }
 .ag-card .ph { aspect-ratio: 1/1; border-radius: 3px; margin-top: 18px }
-/* Escadinha: as fotos descem de tamanho do 01 (maior) ao 04 (menor). A largura da
-   coluna é fixa, então quem manda na altura é o aspect-ratio (w/h) — quanto MENOR
-   a razão, mais alta a foto. As alturas ficam ~1.20 / 1.05 / 0.90 / 0.75 da largura. */
-.ag-card:nth-child(1) .ph { aspect-ratio: 0.83 } /* mais alta */
-.ag-card:nth-child(2) .ph { aspect-ratio: 0.95 }
-.ag-card:nth-child(3) .ph { aspect-ratio: 1.11 }
-.ag-card:nth-child(4) .ph { aspect-ratio: 1.33 } /* mais baixa */
 .circle-arrow { position: absolute; right: 14px; bottom: 14px; width: 40px; height: 40px; border-radius: 50%; background: var(--green); color: #fff; border: 0; cursor: pointer; display: grid; place-items: center; font-size: 17px; text-decoration: none; z-index: 3; transition: background .2s var(--e), transform .2s var(--e) }
 .circle-arrow:hover { background: var(--green-2); transform: scale(1.06) }
 
