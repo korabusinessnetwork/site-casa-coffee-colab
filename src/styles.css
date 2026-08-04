@@ -370,18 +370,24 @@ a.txt-link.gold { color: var(--gold) }
   .hero-skip { right: 16px }
   .hero-prev { left: 16px }
 }
-/* Telas de pouca ALTURA (janela de laptop baixa, celular deitado): o título
-   gigante empurrava a legenda e os botões voltar/pular pra fora da dobra, e a
-   capa parecia cortada. Aqui o título escala pela altura e os respiros apertam,
-   pra a capa inteira, controles inclusos, caber na tela sem cortar. */
-@media (max-height: 700px) {
-  .hero h1 { font-size: clamp(38px, 8.6vh, 84px) }
-  .hero .wrap { padding-top: 12px; padding-bottom: 84px }
-  .hero .rule { margin: 16px 0 12px }
+/* Telas de pouca ALTURA (a maioria dos notebooks: 1366×768, 1536×864 com escala,
+   viewport útil ~700 a 800px depois da barra do navegador): o título gigante
+   empurrava a legenda e os botões voltar/pular pra fora da dobra, e a capa
+   parecia cortada. Aqui o título escala pela ALTURA da tela e os respiros
+   apertam, pra a capa inteira, controles inclusos, caber sem cortar. O corte
+   em 860px deixa o título cheio (116px) só pra monitores de fato altos. */
+@media (max-height: 860px) {
+  .hero h1 { font-size: clamp(40px, 8vh, 92px) }
+  .hero .wrap { padding-top: 20px; padding-bottom: 80px }
+  .hero .rule { margin: 20px 0 14px }
+}
+@media (max-height: 680px) {
+  .hero h1 { font-size: clamp(36px, 8vh, 74px) }
+  .hero .wrap { padding-top: 10px; padding-bottom: 80px }
+  .hero .rule { margin: 12px 0 10px }
   .hero p.sub { font-size: 14px }
 }
-/* Celular deitado / janela bem baixa: aperta mais ainda pra a capa inteira,
-   controles inclusos, caber sem cortar. */
+/* Celular deitado / janela bem baixa: aperta mais ainda pra caber sem cortar. */
 @media (max-height: 480px) {
   .hero { min-height: 100vh }
   .hero h1 { font-size: clamp(30px, 7.4vh, 60px) }
