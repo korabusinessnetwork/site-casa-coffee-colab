@@ -50,6 +50,7 @@ import {
   Tablet,
   Utensils,
   Users,
+  CalendarDays,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -96,6 +97,7 @@ const LUCIDE_ICONS = {
   Tablet,
   Utensils,
   Users,
+  CalendarDays,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -905,6 +907,144 @@ async function initTrilha() {
     .join('');
 
   sec.hidden = false;
+}
+
+// "sáb, 12 de set · 19h" a partir de um ISO. Sem hora certa (:00) mostra só o dia.
+// Data nula → "em breve" (encontro sem data marcada ainda).
+function dataEvento(iso) {
+  if (!iso) return 'em breve';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'em breve';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+  const temHora = d.getHours() !== 0 || d.getMinutes() !== 0;
+  if (!temHora) return dia;
+  const hora =
+    d.getMinutes() === 0
+      ? `${d.getHours()}h`
+      : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${dia} · ${hora}`;
+}
+
+// --- Agenda do Casa (próximos encontros, com "eu vou") -------------------------
+// Lê a agenda pública (RPC agenda_proximos) e monta os cards. Confirmar presença
+// é perk de assinante: deslogado/sem-plano vê o convite gentil; assinante alterna
+// "eu vou" ↔ "não vou mais". Tolerante: sem a migration 0026, a seção fica escondida.
+async function initAgenda() {
+  const sec = document.querySelector('[data-agenda]');
+  if (!sec || !supabase) return;
+  const lista = sec.querySelector('[data-agenda-lista]');
+  if (!lista) return;
+
+  let itens = [];
+  try {
+    const { data, error } = await supabase.rpc('agenda_proximos');
+    if (error) return; // migration pendente / erro → seção fica hidden
+    itens = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+  if (!itens.length) return; // sem encontros → seção segue escondida
+
+  const { data: sessData } = await supabase.auth.getSession();
+  const logado = Boolean(sessData?.session);
+
+  const cardHtml = (ev) => {
+    const quando = dataEvento(ev.data);
+    const local = ev.local ? `<span class="agenda-local">${escapeHtml(ev.local)}</span>` : '';
+    const desc = ev.descricao ? `<p class="agenda-desc">${escapeHtml(ev.descricao)}</p>` : '';
+    // Lotação: "12 vão" ou "12/20 · faltam 8". Sem vagas definidas → só a contagem.
+    const n = Number(ev.confirmados) || 0;
+    let lot;
+    if (ev.vagas != null) {
+      const faltam = Math.max(0, Number(ev.vagas) - n);
+      lot = ev.lotado ? `${n}/${ev.vagas} · lotado` : `${n}/${ev.vagas} · ${faltam} ${faltam === 1 ? 'vaga' : 'vagas'}`;
+    } else {
+      lot = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
+    }
+    return `
+      <article class="agenda-card${ev.eu_vou ? ' vou' : ''}" data-ev="${escapeHtml(ev.id)}">
+        <div class="agenda-quando"><i data-lucide="calendar-days" aria-hidden="true"></i><span>${escapeHtml(quando)}</span></div>
+        <div class="agenda-corpo">
+          <h3 class="agenda-nome">${escapeHtml(ev.nome || 'encontro')}</h3>
+          ${local}
+          ${desc}
+        </div>
+        <div class="agenda-rodape">
+          <span class="agenda-lot" data-ev-lot>${escapeHtml(lot)}</span>
+          <button type="button" class="btn ${ev.eu_vou ? 'ghost' : 'solid'} sm agenda-btn" data-ev-btn>
+            ${ev.eu_vou ? 'eu vou 💛' : 'eu vou'}
+          </button>
+        </div>
+        <p class="agenda-msg hidden text-sm" data-ev-msg aria-live="polite"></p>
+      </article>`;
+  };
+
+  lista.innerHTML = itens.map(cardHtml).join('');
+  sec.hidden = false;
+  renderIcons();
+
+  // Estado local por evento (pra alternar sem recarregar a página).
+  const estado = new Map(itens.map((ev) => [String(ev.id), { eu_vou: ev.eu_vou, lotado: ev.lotado }]));
+
+  lista.querySelectorAll('[data-ev]').forEach((card) => {
+    const id = card.dataset.ev;
+    const btn = card.querySelector('[data-ev-btn]');
+    const lotEl = card.querySelector('[data-ev-lot]');
+    const msgEl = card.querySelector('[data-ev-msg]');
+    const vagas = itens.find((e) => String(e.id) === String(id))?.vagas ?? null;
+
+    const dizer = (txt, tom = 'erro') => {
+      if (!msgEl) return;
+      msgEl.textContent = txt;
+      msgEl.className = 'agenda-msg text-sm ' + (tom === 'ok' ? 'text-olive' : 'text-coral');
+      msgEl.hidden = !txt;
+    };
+    const pintarLot = (n) => {
+      if (!lotEl) return;
+      if (vagas != null) {
+        const faltam = Math.max(0, Number(vagas) - n);
+        lotEl.textContent = faltam === 0 ? `${n}/${vagas} · lotado` : `${n}/${vagas} · ${faltam} ${faltam === 1 ? 'vaga' : 'vagas'}`;
+      } else {
+        lotEl.textContent = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
+      }
+    };
+    const pintarBtn = (vou) => {
+      card.classList.toggle('vou', vou);
+      btn.classList.toggle('ghost', vou);
+      btn.classList.toggle('solid', !vou);
+      btn.textContent = vou ? 'eu vou 💛' : 'eu vou';
+    };
+
+    btn?.addEventListener('click', async () => {
+      dizer('');
+      // Deslogado → manda pro login e volta pra home.
+      if (!logado) {
+        window.location.href = '/login?redirect=' + encodeURIComponent('/home');
+        return;
+      }
+      const st = estado.get(String(id)) || { eu_vou: false };
+      btn.disabled = true;
+      try {
+        const rpcNome = st.eu_vou ? 'cancelar_presenca' : 'confirmar_presenca';
+        const { data: r, error } = await supabase.rpc(rpcNome, { p_event_id: id });
+        if (error || !r?.ok) {
+          dizer(r?.erro || 'não deu pra confirmar agora. tenta de novo? 💛');
+          if (r?.lotado) pintarLot(Number(r?.confirmados) || (vagas ?? 0));
+          return;
+        }
+        st.eu_vou = Boolean(r.eu_vou);
+        estado.set(String(id), st);
+        pintarBtn(st.eu_vou);
+        pintarLot(Number(r.confirmados) || 0);
+        if (st.eu_vou) dizer('teu lugar tá guardado 💛', 'ok');
+        else dizer('');
+      } catch {
+        dizer('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 // --- Footer --------------------------------------------------------------------
@@ -5850,6 +5990,7 @@ export function initSite() {
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)

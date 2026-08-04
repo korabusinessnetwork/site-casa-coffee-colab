@@ -656,6 +656,35 @@ e dá baixa no console. **Um por ano.**
 
 ---
 
+## A agenda do Casa — encontros (Fase 3)
+
+O Casa se define como *"um café-casa de **encontros**"*, e agora o site tem encontro. A
+tabela `events` já existia na `0004_reconcile` (nome, descrição, data, vagas, ativo) e
+**nunca fora usada** — a `0026` a acorda: o owner cadastra os próximos encontros no
+console, eles aparecem numa seção **"a agenda do Casa"** na home, e o **assinante confirma
+presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já previa).
+
+- **Migration `0026_agenda` (PENDENTE — aplicar no SQL Editor):** duas colunas novas em
+  `events` (`local`, `updated_at`) + tabela `event_rsvps` (`(event_id, user_id)` PK =
+  anti-duplicata, RLS: cada um lê o próprio, owner lê todos; **escrita só via RPC**) + 6
+  RPCs SECURITY DEFINER:
+  - `agenda_proximos()` — leitura **pública** (anon vê a agenda; só não tem "eu vou"),
+    devolve os ativos e futuros (tolera 4h de folga) com `confirmados` (contagem SEM expor
+    quem) e `eu_vou`/`lotado` do próprio caller. Granted a `anon`+`authenticated`.
+  - `confirmar_presenca(id)` / `cancelar_presenca(id)` (authenticated) — RSVP. Confirmar é
+    **perk de assinante** (exige `tier_slug`); recomputa tudo no banco (assinante, evento
+    ativo/futuro, lotação) com **lock na linha do evento** (a vaga não estoura); idempotente.
+  - `admin_eventos_listar()` / `admin_evento_salvar(...)` / `admin_evento_remover(id)` —
+    gated por `is_owner()` (owner-only, `perm:'eventos'` não grantável, igual a avisos/trilha).
+- **Front:** `initAgenda()` (boot, home) lê `agenda_proximos` e monta os cards (data via
+  `dataEvento`, "eu vou" alterna sem recarregar; deslogado → login e volta; sem-plano → a
+  RPC barra com recado gentil). A seção fica escondida sem encontros ou sem a migration. No
+  console, a aba **"agenda"** (`viewAgenda`, ícone `calendar-days`, owner-only) tem form
+  (nome/data/local/vagas/descrição/na-home) + lista com confirmados, editar e remover.
+- **Falta:** aplicar a `0026` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -821,6 +850,14 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   card no `/conta/perfil` + aba "aniversários" no console. Tolerante à migration pendente.
   **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge Function. Ver
   "Hoje o Casa é teu — brunch de aniversário" acima.
+- **`0026_agenda` — PENDENTE (aplicar no SQL Editor).** "A agenda do Casa": acorda a tabela
+  `events` (0004) com colunas `local`/`updated_at` + tabela `event_rsvps` (PK composta, RLS
+  dono/owner, escrita só via RPC) + 6 RPCs SECURITY DEFINER (`agenda_proximos` pública;
+  `confirmar_presenca`/`cancelar_presenca` a `authenticated`, RSVP perk de assinante com lock
+  anti-estouro de vaga; `admin_evento_listar/salvar/remover` gated por `is_owner()`,
+  owner-only). Front: seção "a agenda do Casa" na home (`initAgenda`) + aba "agenda" no
+  console. Tolerante à migration pendente. **Falta:** aplicar + subir o front. Nenhum secret
+  novo; nenhuma Edge Function. Ver "A agenda do Casa — encontros" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
