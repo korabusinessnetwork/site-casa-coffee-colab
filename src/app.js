@@ -43,6 +43,7 @@ import {
   KeyRound,
   Settings2,
   ArrowUpCircle,
+  ArrowUp,
   PlayCircle,
   Camera,
   Monitor,
@@ -89,6 +90,7 @@ const LUCIDE_ICONS = {
   KeyRound,
   Settings2,
   ArrowUpCircle,
+  ArrowUp,
   PlayCircle,
   Camera,
   Monitor,
@@ -1144,6 +1146,46 @@ function initReveal() {
     { threshold: 0, rootMargin: '0px 0px -40px 0px' }
   );
   pendentes.forEach((el) => obs.observe(el));
+}
+
+// =============================================================================
+// VOLTAR AO TOPO, botão flutuante no canto inferior direito (qualquer página).
+// Injetado uma vez no <body>. Aparece depois que a pessoa rola um tanto e some
+// perto do topo. Clicar sobe suave (ou na hora, se prefers-reduced-motion).
+// =============================================================================
+function setupVoltarAoTopo() {
+  if (document.querySelector('[data-voltar-topo]')) return;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'voltar-topo';
+  btn.setAttribute('data-voltar-topo', '');
+  btn.setAttribute('aria-label', 'voltar ao topo');
+  btn.innerHTML = '<i data-lucide="arrow-up"></i>';
+  document.body.appendChild(btn);
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  btn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: semMovimento ? 'auto' : 'smooth' });
+  });
+
+  // Mostra depois de rolar ~400px. rAF pra não recalcular a cada tick do scroll.
+  let travado = false;
+  const atualizar = () => {
+    travado = false;
+    btn.classList.toggle('is-on', window.scrollY > 400);
+  };
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (travado) return;
+      travado = true;
+      window.requestAnimationFrame(atualizar);
+    },
+    { passive: true }
+  );
+  atualizar();
 }
 
 // =============================================================================
@@ -5864,6 +5906,7 @@ export function initSite() {
   initAuthConfirmadoPage(); // só age se houver [data-auth-confirmado-root]
   initCarousels(); // só age se houver [data-carousel]
   setupHeroCarousel(); // fundo do hero em foto/vídeo (só age se houver [data-hero-carousel])
+  setupVoltarAoTopo(); // botão flutuante "voltar ao topo" (todas as páginas)
   renderIcons(); // ícones do header/footer + conteúdo estático restante
   initReveal(); // revela .reveal ao rolar (respeita prefers-reduced-motion)
 }
