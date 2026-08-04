@@ -1503,6 +1503,57 @@ function setupVoltarAoTopo() {
 }
 
 // =============================================================================
+// ARRASTAR PRA ROLAR, faixas horizontais navegáveis com o mouse ([data-drag-scroll]).
+// Só no mouse: toque e trackpad já rolam nativo (não sequestramos o gesto deles).
+// Um arraste de verdade não vira clique no que estiver embaixo (ex.: "assinar").
+// =============================================================================
+function setupDragScroll() {
+  document.querySelectorAll('[data-drag-scroll]').forEach((el) => {
+    let ativo = false; // botão pressionado sobre a faixa (mouse)
+    let arrastou = false; // passou do limiar, virou arraste
+    let x0 = 0;
+    let left0 = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return; // toque/trackpad = nativo
+      ativo = true;
+      arrastou = false;
+      x0 = e.clientX;
+      left0 = el.scrollLeft;
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!ativo) return;
+      const dx = e.clientX - x0;
+      if (!arrastou && Math.abs(dx) > 5) {
+        arrastou = true;
+        el.classList.add('is-dragging');
+        el.setPointerCapture?.(e.pointerId);
+      }
+      if (arrastou) el.scrollLeft = left0 - dx;
+    });
+    const soltar = () => {
+      if (!ativo) return;
+      ativo = false;
+      el.classList.remove('is-dragging'); // arrastou fica true até barrar o clique
+    };
+    el.addEventListener('pointerup', soltar);
+    el.addEventListener('pointercancel', soltar);
+    // Barra o clique-fantasma que fecha um arraste, pra não disparar o "assinar".
+    el.addEventListener(
+      'click',
+      (e) => {
+        if (arrastou) {
+          e.preventDefault();
+          e.stopPropagation();
+          arrastou = false;
+        }
+      },
+      true
+    );
+  });
+}
+
+// =============================================================================
 // DRAWER DO CARRINHO, painel lateral reutilizável (qualquer página).
 // Injetado uma vez no <body>. Fecha por X, Esc e clique no backdrop.
 // Anima com transições CSS (zeradas por prefers-reduced-motion no styles.css).
@@ -4147,13 +4198,38 @@ async function initPerfilPage() {
     const presenteMsg = root.querySelector('[data-presente-msg]');
     const presenteToggle = root.querySelector('[data-presente-toggle]');
     const presenteCorpo = root.querySelector('[data-presente-corpo]');
+    const presenteWrap = root.querySelector('[data-presente-resgate]');
     // A seção começa fechada: só o "tem um presente?" aparece. Clicar revela o
     // campo do código (espelha o toggle das sessões — hidden + aria-expanded).
+    // Como o painel flutua, ele fecha ao clicar fora ou apertar Esc.
+    const fecharPresente = () => {
+      if (!presenteCorpo || presenteCorpo.hidden) return;
+      presenteCorpo.hidden = true;
+      presenteToggle?.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('pointerdown', aoClicarFora, true);
+      document.removeEventListener('keydown', aoApertarEsc, true);
+    };
+    const aoClicarFora = (e) => {
+      if (presenteWrap && !presenteWrap.contains(e.target)) fecharPresente();
+    };
+    const aoApertarEsc = (e) => {
+      if (e.key === 'Escape') {
+        fecharPresente();
+        presenteToggle?.focus();
+      }
+    };
     presenteToggle?.addEventListener('click', () => {
       const abrindo = presenteCorpo.hidden;
       presenteCorpo.hidden = !abrindo;
       presenteToggle.setAttribute('aria-expanded', String(abrindo));
-      if (abrindo) presenteInput?.focus();
+      if (abrindo) {
+        presenteInput?.focus();
+        document.addEventListener('pointerdown', aoClicarFora, true);
+        document.addEventListener('keydown', aoApertarEsc, true);
+      } else {
+        document.removeEventListener('pointerdown', aoClicarFora, true);
+        document.removeEventListener('keydown', aoApertarEsc, true);
+      }
     });
     const mostrarPresenteMsg = (txt, tom = 'neutro') => {
       if (!presenteMsg) return;
@@ -6223,6 +6299,7 @@ export function initSite() {
   initCarousels(); // só age se houver [data-carousel]
   setupHeroCarousel(); // fundo do hero em foto/vídeo (só age se houver [data-hero-carousel])
   setupVoltarAoTopo(); // botão flutuante "voltar ao topo" (todas as páginas)
+  setupDragScroll(); // faixas [data-drag-scroll] arrastáveis com o mouse (planos)
   renderIcons(); // ícones do header/footer + conteúdo estático restante
   initReveal(); // revela .reveal ao rolar (respeita prefers-reduced-motion)
 }
