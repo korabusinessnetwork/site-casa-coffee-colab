@@ -688,6 +688,15 @@ presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já prev
   home mostra até 6 avatares (`avatarBolha`, link pro `/gente/{handle}`, inicial como
   fallback) + um "+N" pro resto. Reescreve só a função de leitura (DROP+CREATE, muda a
   assinatura); nenhuma tabela/permissão nova.
+- **"Guarda no teu calendário" (só front, sem migration):** cada card com data marcada
+  ganha o link **"guarda no teu calendário"** (`googleCalUrl`), um **link direto pro Google
+  Agenda** (`calendar.google.com/calendar/render?action=TEMPLATE&…`) — abre numa aba nova
+  com nome/quando/onde/descrição prontos, **sem baixar arquivo** (`.ics`). Monta a URL 100%
+  no client a partir dos dados que a `initAgenda` já tem: `text=nome`, `dates` em UTC
+  compacto (`YYYYMMDDTHHMMSSZ`, sufixo `Z` → cai certo em qualquer fuso), duração assumida
+  de **2h** (os eventos não têm hora de fim), `location = local + endereço do Casa` e
+  `details=descricao`. Encontro **sem data** (`em breve`) não mostra o link (não dá pra
+  agendar o indefinido). Ícone `calendar-plus`.
 - **Falta:** aplicar a `0026` **e** a `0028` + subir o front. Nenhum secret novo; nenhuma
   Edge Function.
 

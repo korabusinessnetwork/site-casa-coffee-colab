@@ -478,6 +478,10 @@ a.txt-link.gold { color: var(--gold) }
 .agenda-btn { flex: 0 0 auto; white-space: nowrap }
 .agenda-msg { margin: 0 }
 .agenda-msg[hidden] { display: none }
+/* "guarda no teu calendário" — link discreto pro Google Agenda */
+.agenda-cal { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none; transition: color 140ms ease }
+.agenda-cal:hover, .agenda-cal:focus-visible { color: var(--coral) }
+.agenda-cal svg { width: 15px; height: 15px }
 
 /* ---------- /gente/{handle} — o cantinho público ---------- */
 .gente-sec .wrap { max-width: 640px }

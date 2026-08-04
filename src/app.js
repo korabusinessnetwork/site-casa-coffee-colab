@@ -51,6 +51,7 @@ import {
   Utensils,
   Users,
   CalendarDays,
+  CalendarPlus,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -98,6 +99,7 @@ const LUCIDE_ICONS = {
   Utensils,
   Users,
   CalendarDays,
+  CalendarPlus,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -925,6 +927,29 @@ function dataEvento(iso) {
   return `${dia} · ${hora}`;
 }
 
+// Link DIRETO pro Google Agenda (template de evento já preenchido) — sem baixar
+// arquivo: abre o Google Calendar numa aba nova com nome/quando/onde/descrição
+// prontos, a pessoa só confirma. Encontro sem data marcada → null (não dá pra
+// agendar o indefinido). Duração assumida de 2h (os eventos não têm hora de fim).
+function googleCalUrl(ev) {
+  if (!ev?.data) return null;
+  const inicio = new Date(ev.data);
+  if (Number.isNaN(inicio.getTime())) return null;
+  const fim = new Date(inicio.getTime() + 2 * 60 * 60 * 1000);
+  // Google quer UTC compacto: YYYYMMDDTHHMMSSZ. O sufixo Z faz o horário cair
+  // certo em qualquer fuso de quem clica.
+  const carimbo = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ondeBase = MARCA.contato.endereco;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: ev.nome || 'Encontro no Casa Coffee Colab',
+    dates: `${carimbo(inicio)}/${carimbo(fim)}`,
+    details: ev.descricao || 'Um encontro no Casa Coffee Colab. Passa aqui?',
+    location: ev.local ? `${ev.local}, ${ondeBase}` : `Casa Coffee Colab, ${ondeBase}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 // --- Agenda do Casa (próximos encontros, com "eu vou") -------------------------
 // Lê a agenda pública (RPC agenda_proximos) e monta os cards. Confirmar presença
 // é perk de assinante: deslogado/sem-plano vê o convite gentil; assinante alterna
@@ -979,6 +1004,13 @@ async function initAgenda() {
     const vao = Array.isArray(ev.vao_publicos) ? ev.vao_publicos : [];
     const mostrados = vao.slice(0, 6);
     const extra = Math.max(0, n - mostrados.length);
+    // Guarda no calendário: link direto pro Google Agenda (só com data marcada).
+    const cal = googleCalUrl(ev);
+    const guardar = cal
+      ? `<a class="agenda-cal" href="${escapeHtml(cal)}" target="_blank" rel="noopener noreferrer">
+           <i data-lucide="calendar-plus" aria-hidden="true"></i><span>guarda no teu calendário</span>
+         </a>`
+      : '';
     const quemVai = mostrados.length
       ? `<div class="agenda-vao">
            <div class="agenda-avatares">
@@ -1003,6 +1035,7 @@ async function initAgenda() {
             ${ev.eu_vou ? 'eu vou 💛' : 'eu vou'}
           </button>
         </div>
+        ${guardar}
         <p class="agenda-msg hidden text-sm" data-ev-msg aria-live="polite"></p>
       </article>`;
   };
