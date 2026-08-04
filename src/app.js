@@ -3131,7 +3131,7 @@ async function initPerfilPage() {
           <p class="pf-n">${pontos}</p>
           <a href="/conta/pontos">ver extrato e resgatar</a>
         </div>
-        <div class="pf-stat">
+        <div class="pf-stat${temPlano ? '' : ' pf-stat-plano'}">
           <p class="lbl">teu plano</p>
           <p class="pf-plano">${plano}</p>
           ${
@@ -3149,6 +3149,27 @@ async function initPerfilPage() {
                       ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
                       : `<a href="/planos">ver os planos</a>`
           }
+          ${
+            temPlano
+              ? ''
+              : `<div class="pf-presente" data-presente-resgate>
+            <button type="button" class="pf-presente-chip" data-presente-toggle aria-expanded="false" aria-controls="pf-presente-corpo">
+              tem um presente?
+            </button>
+            <div class="pf-presente-pop" id="pf-presente-corpo" data-presente-corpo hidden>
+              <p class="pf-presente-sub">ganhou um mês do Casa de alguém? digita o código e ele é teu.</p>
+              <label class="field" for="pf-presente">
+                <span class="lbl">código do presente</span>
+                <input id="pf-presente" type="text" data-presente-codigo placeholder="CASA-XXXXXX" autocomplete="off" spellcheck="false" />
+                <span class="hint">é do tipo CASA-XXXXXX, quem te deu passou pra ti.</span>
+              </label>
+              <div class="pf-actions">
+                <button type="button" class="btn solid sm" data-presente-btn>resgatar presente</button>
+              </div>
+              <p class="hidden text-sm" data-presente-msg aria-live="polite"></p>
+            </div>
+          </div>`
+          }
         </div>
         <div class="pf-stat">
           <p class="lbl">e-mail</p>
@@ -3158,31 +3179,6 @@ async function initPerfilPage() {
               ? `<p class="status"><span class="dot green"></span>verificado</p>`
               : `<p class="status"><span class="dot gold"></span>falta confirmar</p>`
           }
-        </div>
-      </section>
-
-      <section class="card pf-sec g-lg pf-presente" data-presente-resgate>
-        <button
-          type="button"
-          class="pf-presente-toggle"
-          data-presente-toggle
-          aria-expanded="false"
-          aria-controls="pf-presente-corpo"
-        >
-          <span class="pf-presente-toggle-txt">tem um presente?</span>
-          <span class="arw" aria-hidden="true">→</span>
-        </button>
-        <div class="pf-presente-corpo" id="pf-presente-corpo" data-presente-corpo hidden>
-          <p class="pf-presente-sub">ganhou um mês do Casa de alguém? digita o código e ele é teu.</p>
-          <label class="field" for="pf-presente">
-            <span class="lbl">código do presente</span>
-            <input id="pf-presente" type="text" data-presente-codigo placeholder="CASA-XXXXXX" autocomplete="off" spellcheck="false" />
-            <span class="hint">é do tipo CASA-XXXXXX, quem te deu passou pra ti.</span>
-          </label>
-          <div class="pf-actions">
-            <button type="button" class="btn solid sm" data-presente-btn>resgatar presente</button>
-          </div>
-          <p class="hidden text-sm" data-presente-msg aria-live="polite"></p>
         </div>
       </section>
 
@@ -4272,6 +4268,7 @@ async function initPerfilPage() {
         botao.disabled = true;
         botao.textContent = 'salvando…';
       }
+      let sucesso = false;
       try {
         const { error } = await supabase.from('profiles').update(patch).eq('id', session.user.id);
         if (error) {
@@ -4284,6 +4281,7 @@ async function initPerfilPage() {
           }
           return;
         }
+        sucesso = true;
         if (secao === 'dados') {
           // Espelha no metadata do auth — é de lá que o header tira o nome.
           await supabase.auth.updateUser({
@@ -4302,6 +4300,15 @@ async function initPerfilPage() {
         if (botao) {
           botao.disabled = false;
           botao.textContent = textoBtn;
+        }
+        // Endereço: depois de salvar, cadeia de novo — pra reeditar é só clicar
+        // no "editar" outra vez. O "salvar" volta a nascer travado.
+        if (secao === 'entrega' && sucesso) {
+          form.querySelectorAll('[data-endereco-campo]').forEach((i) => {
+            i.readOnly = true;
+          });
+          if (botao) botao.disabled = true;
+          form.querySelector('[data-endereco-editar]')?.removeAttribute('disabled');
         }
       }
     });

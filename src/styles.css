@@ -786,17 +786,15 @@ a.txt-link.gold { color: var(--gold) }
 .pf-head h2 { font-family: var(--serif); font-size: clamp(21px, 3vw, 24px); font-weight: 500; line-height: 1.2; color: var(--ink); margin: 0 }
 .pf-head p { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 0 }
 
-/* Resgatar presente: a seção começa fechada e só mostra o botão "tem um
-   presente?". Clicar (data-presente-toggle) revela o corpo com o campo do código.
-   A seta → gira 90° quando abre. */
-.pf-presente-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 0; margin: 0; background: none; border: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit }
-.pf-presente-toggle-txt { font-family: var(--serif); font-size: clamp(21px, 3vw, 24px); font-weight: 500; line-height: 1.2 }
-.pf-presente-toggle .arw { flex: none; font-size: 20px; color: var(--muted); transition: transform .25s ease }
-.pf-presente-toggle[aria-expanded="true"] .arw { transform: rotate(90deg) }
-.pf-presente-corpo { display: flex; flex-direction: column; gap: 20px }
-.pf-presente-corpo[hidden] { display: none }
-.pf-presente-sub { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 0 }
-@media (prefers-reduced-motion: reduce) { .pf-presente-toggle .arw { transition: none } }
+/* "tem um presente?" mora no card do plano, e só quando a pessoa não tem plano:
+   um chip laranja no canto inferior direito que abre um painel flutuante com o
+   campo do código. O chip/painel se posicionam relativos ao .pf-stat-plano. */
+.pf-stat-plano { position: relative; padding-bottom: 58px }
+.pf-presente-chip { position: absolute; right: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 6px; background: var(--coral); color: #fff; border: 0; border-radius: 999px; padding: 8px 15px; font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .02em; cursor: pointer; box-shadow: 0 3px 10px rgba(223, 86, 56, .3); transition: background .2s var(--e), transform .2s var(--e) }
+.pf-presente-chip:hover { background: var(--coral-2); transform: translateY(-1px) }
+.pf-presente-pop { position: absolute; right: 12px; top: calc(100% - 6px); z-index: 30; width: min(320px, 84vw); display: flex; flex-direction: column; gap: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 16px 44px rgba(45, 30, 20, .2) }
+.pf-presente-pop[hidden] { display: none }
+.pf-presente-sub { font-size: 14px; line-height: 1.5; color: var(--muted); margin: 0 }
 
 /* ---------- grade de campos (o .field do app já tem label/input/foco) ---------- */
 .pf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px }
