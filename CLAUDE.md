@@ -588,6 +588,22 @@ pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
   lista com editar/remover. Bloqueia no submit link que não é do Spotify.
 - **Falta:** aplicar a `0023` + subir o front. Nenhum secret novo.
 
+### O som de agora (nota gentil pro Spotify, na home)
+
+Uma seção **minimalista e centralizada** entre as *features* e o rodapé da home: um
+equalizador miúdo, o selo "tocando agora" (pontinho pulsando), um título serifado
+("o que embala a casa") e um **link gentil "ouvir no Spotify"** — tudo na paleta da
+casa (terracota/paper), **sem card pesado**, no tom do DNA. Estilo `.som-*` no
+`styles.css`; markup estático na `home.html`.
+
+- **Fonte única do link:** `initSomDoCasa()` liga o `href` do botão `[data-som-spotify]`
+  ao `MARCA.redes › Spotify` (mesma fonte do rodapé). Enquanto for placeholder (`'#'`),
+  tira o `target` pra não abrir aba em branco; quando entrar a URL real, vale nos dois lugares.
+- **Só front, sem banco.** Não depende de migration nem de sessão (aparece pra todo mundo).
+- **TODO (som ao vivo de verdade):** mostrar a **faixa que toca agora** em tempo real exige
+  a Spotify Web API com o token da conta do Casa, atualizado numa **Edge Function** (OAuth +
+  refresh token como secret) — não dá client-side. Por ora o painel é o convite pra ouvir junto.
+
 ---
 
 ## Meu cantinho (perfil público do assinante)
@@ -826,7 +842,12 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
 
 ---
 
-## O teu de sempre (cartão pessoal na home)
+## O teu de sempre (cartão pessoal na home) — DESATIVADO
+
+> **DESATIVADO em 04/ago/2026** (a pedido): a chamada `initTeuDeSempre()` está comentada
+> no bootstrap, então o cartão **não renderiza**. O visual e a posição vão ser repensados
+> pra não competir com o hero da home. A função e a seção `[data-teu-de-sempre]` (que fica
+> `hidden`) seguem no código, é só descomentar a linha do boot pra religar.
 
 Um cartãozinho no **topo da home**, só pra **quem está logado**, que junta num olhar o
 que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só-leitura**,
