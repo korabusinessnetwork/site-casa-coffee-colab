@@ -1001,19 +1001,120 @@ function googleCalUrl(ev) {
 }
 
 // --- "O som de agora" (painel Spotify na home) ---------------------------------
-// Só liga o href do botão à fonte única (MARCA.redes › Spotify), mesma do rodapé:
-// quando entrar a URL real do Spotify do Casa, vale nos dois lugares. Enquanto for
-// placeholder ('#'), tira o target pra não abrir uma aba em branco.
+// Mostra AO VIVO a faixa que toca na conta Spotify do Casa (capa, nome, artista e
+// progresso), consultando a Edge Function spotify-now-playing a cada 15s. Quando
+// não há nada tocando (ou a integração ainda não foi ligada), cai no estado gentil
+// com o link pro Spotify (href da fonte única MARCA.redes, mesma do rodapé).
 function initSomDoCasa() {
-  const btn = document.querySelector('[data-som-spotify]');
-  if (!btn) return;
-  const sp = MARCA.redes.find((r) => /spotify/i.test(r.nome));
-  const href = sp?.href || '#';
-  btn.setAttribute('href', href);
-  if (!/^https?:\/\//i.test(href)) {
-    btn.removeAttribute('target');
-    btn.removeAttribute('rel');
+  const sec = document.querySelector('.som');
+  if (!sec) return;
+
+  // Link do estado gentil: fonte única (MARCA.redes › Spotify), igual ao rodapé.
+  const btnIdle = sec.querySelector('[data-som-spotify]');
+  if (btnIdle) {
+    const sp = MARCA.redes.find((r) => /spotify/i.test(r.nome));
+    const href = sp?.href || '#';
+    btnIdle.setAttribute('href', href);
+    if (!/^https?:\/\//i.test(href)) {
+      btnIdle.removeAttribute('target');
+      btnIdle.removeAttribute('rel');
+    }
   }
+
+  // Integração ao vivo DESLIGADA por enquanto (a conta Spotify do Casa ainda não
+  // foi ligada). Enquanto false, o painel fica no estado gentil e NÃO chama a
+  // function. Pra ligar: rodar `npm run spotify-token`, setar os secrets e
+  // deployar `spotify-now-playing` (ver supabase/functions/README.md), e virar
+  // esta flag pra true.
+  const SOM_AO_VIVO = false;
+  if (!supabase || !SOM_AO_VIVO) return; // sem integração → só o estado gentil
+
+  const live = sec.querySelector('[data-som-live]');
+  const idle = sec.querySelector('[data-som-idle]');
+  const capa = sec.querySelector('[data-som-capa]');
+  const faixaEl = sec.querySelector('[data-som-faixa]');
+  const artistaEl = sec.querySelector('[data-som-artista]');
+  const barra = sec.querySelector('[data-som-progresso]');
+  const abrir = sec.querySelector('[data-som-abrir]');
+  if (!live || !idle) return;
+
+  // Guarda o progresso da última leitura pra animar a barrinha entre os polls.
+  let prog = { base: 0, dur: 0, em: 0, tocando: false };
+
+  const mostrarGentil = () => {
+    if (prog.tocando || !live.hidden) {
+      prog.tocando = false;
+      live.hidden = true;
+      idle.hidden = false;
+    }
+  };
+
+  const pintarLive = (t) => {
+    // Capa: só aceita imagem https do CDN do Spotify.
+    if (capa) {
+      if (/^https:\/\/i\.scdn\.co\//.test(t.capa || '')) {
+        capa.src = t.capa;
+        capa.hidden = false;
+      } else {
+        capa.removeAttribute('src');
+        capa.hidden = true;
+      }
+    }
+    if (faixaEl) faixaEl.textContent = t.nome || '';
+    if (artistaEl) artistaEl.textContent = t.artista || '';
+    // Link "ouvir no Spotify": abre a faixa (só URL do open.spotify.com).
+    if (abrir) {
+      const ok = /^https:\/\/open\.spotify\.com\//.test(t.url || '');
+      abrir.setAttribute('href', ok ? t.url : btnIdle?.getAttribute('href') || '#');
+    }
+    idle.hidden = true;
+    live.hidden = false;
+    prog = {
+      base: Number(t.progresso_ms) || 0,
+      dur: Number(t.duracao_ms) || 0,
+      em: Date.now(),
+      tocando: true,
+    };
+    tickBarra();
+  };
+
+  // Avança a barrinha suave entre os polls (a leitura só vem a cada 15s).
+  const tickBarra = () => {
+    if (!barra || !prog.tocando || !prog.dur) return;
+    const decorrido = prog.base + (Date.now() - prog.em);
+    const pct = Math.max(0, Math.min(100, (decorrido / prog.dur) * 100));
+    barra.style.width = `${pct}%`;
+  };
+
+  let idPoll = 0;
+  let idBarra = 0;
+  const parar = () => {
+    clearInterval(idPoll);
+    clearInterval(idBarra);
+  };
+
+  const atualizar = async () => {
+    if (document.hidden) return; // aba escondida → não gasta chamada
+    try {
+      const { data, error } = await supabase.functions.invoke('spotify-now-playing');
+      // Function ausente (erro) ou deployada sem os secrets (configurado:false) →
+      // estado gentil e para de sondar (não adianta insistir).
+      if (error || data?.configurado === false) {
+        mostrarGentil();
+        parar();
+        return;
+      }
+      if (data?.tocando) pintarLive(data);
+      else mostrarGentil();
+    } catch {
+      mostrarGentil();
+      parar();
+    }
+  };
+
+  atualizar();
+  idPoll = setInterval(atualizar, 15_000);
+  idBarra = setInterval(tickBarra, 1_000);
 }
 
 // --- "O teu de sempre" (cartão pessoal no topo da home) ------------------------

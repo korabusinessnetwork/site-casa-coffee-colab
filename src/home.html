@@ -377,7 +377,23 @@
       <section class="som reveal" aria-label="O som de agora no Casa">
         <div class="wrap">
           <div class="som-inner">
-            <span class="som-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+            <!-- AO VIVO: preenchido por initSomDoCasa quando há faixa tocando de
+                 fato na conta do Casa (capa, faixa, artista e progresso). -->
+            <div class="som-live" data-som-live hidden>
+              <img class="som-capa" data-som-capa alt="" width="120" height="120" />
+              <span class="som-eyebrow"><span class="som-dot" aria-hidden="true"></span>tocando agora</span>
+              <p class="som-faixa" data-som-faixa></p>
+              <p class="som-artista" data-som-artista></p>
+              <div class="som-barra" aria-hidden="true"><span data-som-progresso></span></div>
+              <a class="som-link" data-som-abrir href="#" target="_blank" rel="noopener noreferrer">
+                ouvir no Spotify <span class="arrow" aria-hidden="true">→</span>
+              </a>
+            </div>
+            <!-- GENTIL: nada tocando agora (ou integração ainda não ligada) —
+                 fica só o equalizador miúdo que se mexe, sem texto. -->
+            <div class="som-idle" data-som-idle>
+              <span class="som-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+            </div>
           </div>
         </div>
       </section>
