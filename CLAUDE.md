@@ -490,6 +490,15 @@ só LÊ (RLS: cada um lê o próprio ledger).
   `checkout-sucesso` sonda o ledger pelo `?ref=` (id da order) e mostra "+X pontos 💛" —
   na assinatura não sonda, porque o `ref_id` é o `payment.id`, que o client não conhece.
   Tom acolhedor, ZERO cara de cassino.
+- **"Quase lá" (o carimbo digital):** um cartão de foco no topo da `/conta/pontos`, logo abaixo
+  do saldo, no espírito do cartão de carimbo de cafeteria. Aponta o **próximo mimo fora de
+  alcance** (a recompensa mais barata que o saldo ainda não cobre, do `rewards_catalog` já
+  carregado, ordenado asc; estoque zerado não conta) com uma **barrinha de progresso**
+  (`saldo/custo`, mínimo 3% pra sempre aparecer): *"faltam X pontos pro teu {mimo}"*. Se o saldo
+  já cobre tudo o que está na vitrine, vira o recado *"tu já pode pegar teu mimo"*. **Puro
+  visual e só-leitura** (sem migration/secret/função nova): reusa `saldo` + `rewards` que a
+  `initPontosPage` já busca. Markup em classes Tailwind (`.card`, `bg-coral`/`bg-line`), honesto,
+  sem contador de urgência.
 - **Go-live:** garantir que o webhook do Asaas (sandbox e live) escuta **`PAYMENT_CONFIRMED`
   e `PAYMENT_RECEIVED`** além dos eventos de checkout — sem eles a assinatura nunca pontua —
   e fazer deploy do `redeem-reward`. Nenhuma regra de pontos muda entre sandbox e live.

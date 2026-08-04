@@ -6441,6 +6441,42 @@ async function initPontosPage() {
           .join('')
       : `<li class="py-6 text-center text-sm text-muted">teu extrato começa no teu primeiro café por aqui. 💛</li>`;
 
+    // "quase lá": o carimbo digital do Casa. Foca no PRÓXIMO mimo fora de alcance
+    // (o mais barato que o saldo ainda não cobre), com barrinha de progresso. Se o
+    // saldo já cobre tudo o que está na vitrine, vira um recado de comemoração. Só
+    // leitura: usa o `saldo` e o `rewards` (ordenado asc por custo) que a página já
+    // carregou. Estoque zerado não conta como alvo.
+    const emEstoque = (rewards || []).filter((r) => !(r.estoque !== null && r.estoque <= 0));
+    const proximoMimo = emEstoque.find((r) => Number(r.custo_em_pontos) > saldo);
+    const jaLiberado = emEstoque.find((r) => Number(r.custo_em_pontos) <= saldo);
+
+    let cardQuaseLa = '';
+    if (proximoMimo) {
+      const custo = Number(proximoMimo.custo_em_pontos);
+      const faltam = custo - saldo;
+      const pct = custo > 0 ? Math.max(3, Math.min(100, Math.round((saldo / custo) * 100))) : 0;
+      const nomeProx = escapeHtml(proximoMimo.nome);
+      const extra = jaLiberado
+        ? ` <span class="text-olive">e o ${escapeHtml(jaLiberado.nome)} já tá liberado aqui embaixo.</span>`
+        : '';
+      cardQuaseLa = `
+        <div class="mt-8 card">
+          <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="coffee" class="h-4 w-4"></i> quase lá</p>
+          <p class="mt-2 font-titulo text-xl leading-snug text-ink">faltam <span class="text-coral">${faltam.toLocaleString('pt-BR')}</span> ${faltam === 1 ? 'ponto' : 'pontos'} pro teu <span class="text-coral">${nomeProx}</span></p>
+          <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow="${saldo}" aria-valuemin="0" aria-valuemax="${custo}" aria-label="progresso pro ${nomeProx}">
+            <div class="h-full rounded-full bg-coral" style="width: ${pct}%"></div>
+          </div>
+          <p class="mt-2 text-xs text-muted">${saldo.toLocaleString('pt-BR')} de ${custo.toLocaleString('pt-BR')} pontos${extra}</p>
+        </div>`;
+    } else if (jaLiberado) {
+      cardQuaseLa = `
+        <div class="mt-8 card">
+          <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="sparkles" class="h-4 w-4"></i> tá pertinho</p>
+          <p class="mt-2 font-titulo text-xl leading-snug text-ink">tu já pode pegar teu mimo 💛</p>
+          <p class="mt-1 text-sm text-muted">teu saldo já cobre o que tá na vitrine aqui embaixo, escolhe com calma.</p>
+        </div>`;
+    }
+
     root.innerHTML = `
       <div class="mx-auto max-w-4xl">
         <p class="decor text-2xl sm:text-3xl">teus pontos</p>
@@ -6454,6 +6490,7 @@ async function initPontosPage() {
             }
           </p>
         </div>
+        ${cardQuaseLa}
 
         <!-- Resultado do resgate (preenchido pelo app.js) -->
         <div class="mt-6 hidden" data-resgate-resultado></div>
