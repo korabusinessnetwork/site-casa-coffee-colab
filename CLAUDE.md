@@ -71,6 +71,12 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - Palavras: *gourmet, luxo, premium, exclusivo, hype, trend*.
 - Imperativos agressivos: *"aproveita já!"*, *"corre!"*.
 - Qualquer gamificação com cara de cassino (roleta, "gire pra ganhar", contadores de urgência falsos).
+- **Travessão (`—`) em texto que o usuário vê.** No copy visível (HTML e strings do
+  `app.js`/`admin.js` que renderizam na tela), **nunca** usar `—` como pontuação de frase —
+  usar **vírgula** no lugar. Vale pra qualquer texto novo. **Exceção:** o `—` sozinho como
+  glifo de "vazio/sem valor" (célula de tabela vazia, saldo carregando: `valor || '—'`) pode
+  ficar — ali a vírgula quebraria a tela. Em comentário de código, documentação e migrations
+  o `—` segue liberado (o usuário não vê).
 
 ---
 
@@ -116,9 +122,13 @@ cores da marca, via utilitários no `styles.css`:
 
 ## Carrossel
 
-- Função única `setupCarousel(trackEl, { dots, autoplay, interval })` no `app.js` — serve os 3 tracks.
+- Função `setupCarousel(trackEl, { dots, autoplay, interval })` no `app.js` — serve os tracks
+  `[data-carousel="cards"]` (hoje só a **colab**), via `initCarousels`.
 - Base em **scroll-snap** horizontal (`.carousel-track`), navegável por swipe/scroll, teclado (setas) e dots.
-- **Autoplay** (só no hero) respeita `prefers-reduced-motion` e pausa em hover/foco/toque.
+- A função **suporta** dots e autoplay (com `prefers-reduced-motion` e pausa em hover/foco/toque),
+  mas nenhuma página os liga hoje (a colab chama com `dots:false, autoplay:false`).
+- **O hero da home NÃO usa `setupCarousel`** — é o `setupHeroCarousel` (fundo full-bleed em
+  foto/vídeo por tempo, contrato `[data-hero-carousel]`), chamado no bootstrap.
 - Contrato de DOM: `[data-carousel]` › `[data-carousel-track]` (+ opcionais `[data-dots]`,
   `[data-carousel-prev]`, `[data-carousel-next]`).
 

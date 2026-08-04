@@ -558,7 +558,7 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     // primeiro). LANÇA pra o Asaas reenviar — SEGURO: comprovado em log que um 500 NÃO
     // bloqueia a fila (um CHECKOUT_PAID em erro é reenviado sozinho enquanto PAYMENTs
     // seguem em 200). Na retentativa a linha já existe e resolve. Guard de idade: se o
-    // pagamento já é bem antigo (>6h) e ainda não há linha, o checkoutSession não deve
+    // pagamento já é bem antigo (>3 dias) e ainda não há linha, o checkoutSession não deve
     // ser o checkout.id esperado — desiste com graça (evita martelar 500 pra sempre; o
     // diag acima revela o checkoutSession real pra ajuste). Corridas normais resolvem em
     // minutos, muito dentro da janela.
@@ -718,6 +718,42 @@ async function handleSubscriptionPaymentFailure(payment: any): Promise<void> {
   if (userId) await getEffectiveSubscription(userId);
 }
 
+// ESTORNO DE PONTOS — quando um pagamento de assinatura é estornado (refund) ou vira
+// chargeback, os pontos que ele creditou precisam voltar; senão dá pra pagar → ganhar
+// pontos → resgatar recompensa → pedir chargeback e ficar com tudo. Lança um delta
+// NEGATIVO no ledger (o cache do saldo pode ir a negativo — é o correto: a pessoa
+// "deve" pontos, e resgates só voltam a passar quando o saldo cobre de novo). Só
+// estorna o que foi DE FATO creditado (busca o crédito original pelo payment.id);
+// nada creditado (não-assinante, valor 0, evento fora de assinatura) → no-op. Loja
+// credita por order.id, não por payment.id, então este lookup NÃO toca pontos de
+// loja. Idempotente por (ref_type='estorno', ref_id=payment.id): REFUNDED e
+// CHARGEBACK do MESMO pagamento estornam UMA vez só.
+async function reversePointsForPayment(payment: any): Promise<void> {
+  const paymentId = idOf(payment);
+  if (!paymentId) return;
+
+  const { data: credito, error: selErr } = await supabaseAdmin
+    .from('points_ledger')
+    .select('user_id, delta')
+    .eq('ref_type', 'subscription')
+    .eq('ref_id', paymentId)
+    .gt('delta', 0)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (!credito || !(Number(credito.delta) > 0)) return; // nada creditado → nada a estornar
+
+  const { error: insErr } = await supabaseAdmin.from('points_ledger').insert({
+    user_id: credito.user_id,
+    delta: -Number(credito.delta),
+    motivo: 'estorno da assinatura',
+    descricao: 'estorno da assinatura',
+    ref_type: 'estorno',
+    ref_id: paymentId,
+  });
+  // 23505 = já estornado (segundo evento do mesmo pagamento) → idempotente, ok.
+  if (insErr && insErr.code !== '23505') throw insErr;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('método não permitido', { status: 405 });
 
@@ -798,14 +834,24 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ---- Falha de cobrança de assinatura (renovação recusada / estorno) ----
+      // ---- Falha de cobrança de assinatura (renovação recusada / dispute) ----
       // Rebaixa a assinatura pra 'pausada' pra o benefício não persistir de graça.
+      // OVERDUE/DELETED/DISPUTE não estornam pontos: uma renovação vencida ou uma
+      // disputa aberta não é (ainda) dinheiro devolvido — só pausa o benefício.
       case 'PAYMENT_OVERDUE':
       case 'PAYMENT_DELETED':
-      case 'PAYMENT_REFUNDED':
-      case 'PAYMENT_CHARGEBACK_REQUESTED':
       case 'PAYMENT_CHARGEBACK_DISPUTE': {
         await handleSubscriptionPaymentFailure(evt.payment ?? {});
+        break;
+      }
+
+      // ---- Estorno de verdade (dinheiro devolvido) ----
+      // Além de pausar, ESTORNA os pontos creditados por aquele pagamento — senão
+      // dá pra pagar → ganhar pontos → resgatar → pedir chargeback e ficar com tudo.
+      case 'PAYMENT_REFUNDED':
+      case 'PAYMENT_CHARGEBACK_REQUESTED': {
+        await handleSubscriptionPaymentFailure(evt.payment ?? {});
+        await reversePointsForPayment(evt.payment ?? {});
         break;
       }
 

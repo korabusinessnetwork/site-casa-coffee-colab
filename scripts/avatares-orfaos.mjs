@@ -151,7 +151,10 @@ for (const a of arquivos) {
   if (referenciados.has(a.caminho)) continue;
   a.motivo = donos.has(a.dono) ? 'ninguém aponta pra ela' : 'a conta não existe mais';
   const quando = a.quando ? Date.parse(a.quando) : NaN;
-  if (Number.isFinite(quando) && quando > limite) novosDemais.push(a);
+  // Idade desconhecida (sem timestamp legível) = trata como RECENTE DEMAIS, não
+  // apaga. Ferramenta destrutiva falha pro lado conservador: um arquivo sem data
+  // pode ser upload recém-chegado, não um órfão antigo.
+  if (!Number.isFinite(quando) || quando > limite) novosDemais.push(a);
   else orfaos.push(a);
 }
 

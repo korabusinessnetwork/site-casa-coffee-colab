@@ -1199,7 +1199,10 @@ function updateCartUI() {
   if (!wrap || !footer) return;
 
   const items = Cart.getCart();
-  if (items.length === 0) {
+  // Empty-check pela MESMA regra do subtotal/badge/checkout (getCount ignora
+  // produto sumido do catálogo) — senão um carrinho só de itens-fantasma escapa
+  // do estado vazio e mostra rodapé "R$ 0,00" + "finalizar compra" que não faz nada.
+  if (Cart.getCount() === 0) {
     wrap.innerHTML = `
       <div class="empty">
         <p class="e-title">teu carrinho tá vazio</p>
@@ -1219,8 +1222,8 @@ function updateCartUI() {
       <div class="flex gap-3 border-b border-line py-4" data-cart-row data-key="${it.key}">
         <div class="ph ${p.imagemPlaceholder} h-16 w-16 shrink-0" style="border-radius:8px"></div>
         <div class="min-w-0 flex-1">
-          <p class="truncate font-medium text-ink">${p.nome}</p>
-          ${it.variante ? `<p class="text-xs text-muted">${it.variante}</p>` : ''}
+          <p class="truncate font-medium text-ink">${escapeHtml(p.nome)}</p>
+          ${it.variante ? `<p class="text-xs text-muted">${escapeHtml(it.variante)}</p>` : ''}
           <div class="mt-2 flex items-center justify-between gap-2">
             <div class="inline-flex items-center rounded-full border border-line">
               <button type="button" data-cart-dec aria-label="Diminuir quantidade" class="grid h-7 w-7 place-items-center text-ink hover:text-coral">
@@ -1289,7 +1292,7 @@ function updateModoUI(footer) {
     nota.textContent = `vamos levar até ${cartEndereco.resumo}.`;
   } else {
     nota.innerHTML =
-      'pra levar até tua casa, falta teu endereço — <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
+      'pra levar até tua casa, falta teu endereço, <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
   }
   nota.classList.remove('hidden');
 }
@@ -1463,7 +1466,7 @@ async function loadCartDiscount() {
   cartEndereco = {
     completo,
     resumo: completo
-      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''} — ` +
+      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''}, ` +
         `${txt(perfil.end_bairro)}, ${txt(perfil.end_cidade)}/${txt(perfil.end_uf)}`
       : '',
   };
@@ -1639,13 +1642,13 @@ function cardProdutoHTML(p) {
     : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
   return `
     <article class="prod" data-produto data-categoria="${p.categoria}">
-      <a href="/produto?slug=${p.slug}" class="block" aria-label="${p.nome}">
+      <a href="/produto?slug=${p.slug}" class="block" aria-label="${escapeHtml(p.nome)}">
         <div class="ph ${p.imagemPlaceholder}"></div>
       </a>
       <div class="prod-body">
-        <p class="prod-cat">${CATEGORIAS[p.categoria]}</p>
+        <p class="prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
         <h3 class="leading-tight">
-          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${p.nome}</a>
+          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${escapeHtml(p.nome)}</a>
         </h3>
         <p class="price">${formatBRL(p.preco_centavos)}</p>
         <div class="mt-2 flex gap-2">
@@ -1725,14 +1728,14 @@ function initProductPage() {
   const variantesHTML = p.variantes
     ? `
       <div class="mt-6">
-        <span class="lbl">${p.variantes.rotulo}</span>
+        <span class="lbl">${escapeHtml(p.variantes.rotulo)}</span>
         <div class="mt-2 flex flex-wrap gap-2" data-variantes>
           ${p.variantes.opcoes
             .map(
               (o, i) =>
-                `<button type="button" data-variante="${o}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
+                `<button type="button" data-variante="${escapeHtml(o)}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
                   i === 0 ? 'border-coral bg-coral/10 text-coral' : 'border-line text-ink hover:border-coral'
-                }">${o}</button>`
+                }">${escapeHtml(o)}</button>`
             )
             .join('')}
         </div>
@@ -1746,10 +1749,10 @@ function initProductPage() {
         <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
           <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
         </a>
-        <p class="mt-4 prod-cat">${CATEGORIAS[p.categoria]}</p>
-        <h1 class="title md mt-1">${p.nome}</h1>
+        <p class="mt-4 prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
+        <h1 class="title md mt-1">${escapeHtml(p.nome)}</h1>
         <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
-        <p class="mt-4 max-w-prose text-ink-2">${p.descricao}</p>
+        <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
         ${variantesHTML}
         <div class="mt-6">
           <span class="lbl">Quantidade</span>
@@ -2219,9 +2222,14 @@ async function initMuralPage() {
 async function initCheckoutSucessoPage() {
   const wrap = document.querySelector('[data-checkout-sucesso]');
   if (!wrap) return;
-  Cart.clearCart();
 
   const params = new URLSearchParams(window.location.search);
+  // Só esvazia o carrinho quando houver um sinal REAL de retorno de checkout
+  // (?ref= da loja, ?assinatura=1 ou ?upgrade=1). Abrir/reabrir /checkout-sucesso
+  // avulso (histórico, bookmark) não deve apagar o carrinho montado.
+  const voltaDeCheckout =
+    !!params.get('ref') || params.get('assinatura') === '1' || params.get('upgrade') === '1';
+  if (voltaDeCheckout) Cart.clearCart();
 
   // A copy do HTML é NEUTRA; aqui a gente especializa por fluxo. textContent em
   // tudo → sem risco de XSS. Fonte da verdade continua sendo o banco (webhook).
@@ -3338,20 +3346,29 @@ async function initPerfilPage() {
         </div>
       </section>
 
-      <section class="card pf-sec g-lg" data-presente-resgate>
-        <div class="pf-head">
-          <h2>tem um presente?</h2>
-          <p>ganhou um mês do Casa de alguém? digita o código e ele é teu.</p>
+      <section class="card pf-sec g-lg pf-presente" data-presente-resgate>
+        <button
+          type="button"
+          class="pf-presente-toggle"
+          data-presente-toggle
+          aria-expanded="false"
+          aria-controls="pf-presente-corpo"
+        >
+          <span class="pf-presente-toggle-txt">tem um presente?</span>
+          <span class="arw" aria-hidden="true">→</span>
+        </button>
+        <div class="pf-presente-corpo" id="pf-presente-corpo" data-presente-corpo hidden>
+          <p class="pf-presente-sub">ganhou um mês do Casa de alguém? digita o código e ele é teu.</p>
+          <label class="field" for="pf-presente">
+            <span class="lbl">código do presente</span>
+            <input id="pf-presente" type="text" data-presente-codigo placeholder="CASA-XXXXXX" autocomplete="off" spellcheck="false" />
+            <span class="hint">é do tipo CASA-XXXXXX, quem te deu passou pra ti.</span>
+          </label>
+          <div class="pf-actions">
+            <button type="button" class="btn solid sm" data-presente-btn>resgatar presente</button>
+          </div>
+          <p class="hidden text-sm" data-presente-msg aria-live="polite"></p>
         </div>
-        <label class="field" for="pf-presente">
-          <span class="lbl">código do presente</span>
-          <input id="pf-presente" type="text" data-presente-codigo placeholder="CASA-XXXXXX" autocomplete="off" spellcheck="false" />
-          <span class="hint">é do tipo CASA-XXXXXX — quem te deu passou pra ti.</span>
-        </label>
-        <div class="pf-actions">
-          <button type="button" class="btn solid sm" data-presente-btn>resgatar presente</button>
-        </div>
-        <p class="hidden text-sm" data-presente-msg aria-live="polite"></p>
       </section>
 
       <section class="pf-prog" aria-label="perfil completo">
@@ -3445,7 +3462,7 @@ async function initPerfilPage() {
         <div><button type="submit" class="btn solid">salvar teu café</button></div>
       </form>
 
-      <form class="card pf-sec" data-section="entrega" novalidate>
+      <form class="card pf-sec" data-section="entrega" data-endereco-form novalidate>
         <div class="pf-head">
           <h2>onde te entregamos</h2>
           <p>endereço da tua assinatura. dá pra retirar aqui na casa também.</p>
@@ -3453,34 +3470,37 @@ async function initPerfilPage() {
         <div class="pf-grid addr">
           <label class="field" for="pf-cep">
             <span class="lbl">cep</span>
-            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" />
+            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" data-endereco-campo readonly />
           </label>
           <label class="field pf-wide" for="pf-rua">
             <span class="lbl">rua</span>
-            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" />
+            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-numero">
             <span class="lbl">número</span>
-            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" />
+            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-complemento">
             <span class="lbl">complemento</span>
-            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" />
+            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-bairro">
             <span class="lbl">bairro</span>
-            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" />
+            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-cidade">
             <span class="lbl">cidade</span>
-            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" />
+            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-uf">
             <span class="lbl">uf</span>
-            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf />
+            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf data-endereco-campo readonly />
           </label>
         </div>
-        <div><button type="submit" class="btn solid">salvar endereço</button></div>
+        <div class="pf-actions">
+          <button type="button" class="btn ghost" data-endereco-editar>editar</button>
+          <button type="submit" class="btn solid" data-endereco-salvar disabled>salvar endereço</button>
+        </div>
       </form>
 
       <section class="card pf-sec">
@@ -3702,7 +3722,7 @@ async function initPerfilPage() {
           </button>
           <div class="pf-sessoes" id="pf-sessoes" data-sessoes hidden>
             <p class="pf-sessoes-intro">
-              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele — e,
+              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele, e,
               por garantia, troca a senha depois.
             </p>
             <div data-sessoes-lista></div>
@@ -3736,6 +3756,16 @@ async function initPerfilPage() {
     const presenteInput = root.querySelector('[data-presente-codigo]');
     const presenteBtn = root.querySelector('[data-presente-btn]');
     const presenteMsg = root.querySelector('[data-presente-msg]');
+    const presenteToggle = root.querySelector('[data-presente-toggle]');
+    const presenteCorpo = root.querySelector('[data-presente-corpo]');
+    // A seção começa fechada: só o "tem um presente?" aparece. Clicar revela o
+    // campo do código (espelha o toggle das sessões — hidden + aria-expanded).
+    presenteToggle?.addEventListener('click', () => {
+      const abrindo = presenteCorpo.hidden;
+      presenteCorpo.hidden = !abrindo;
+      presenteToggle.setAttribute('aria-expanded', String(abrindo));
+      if (abrindo) presenteInput?.focus();
+    });
     const mostrarPresenteMsg = (txt, tom = 'neutro') => {
       if (!presenteMsg) return;
       presenteMsg.textContent = txt; // textContent → sem XSS
@@ -4590,6 +4620,23 @@ async function initPerfilPage() {
     });
   });
 
+  // ── Endereço cadeado: "editar" libera os campos ───────────────────────────
+  // Os campos nascem readonly (fundo apagado = cadeado). "editar" destrava tudo
+  // e habilita o "salvar endereço"; o "editar" apaga porque a edição já está no ar.
+  {
+    const formEnd = root.querySelector('[data-endereco-form]');
+    const editarBtn = root.querySelector('[data-endereco-editar]');
+    const salvarBtn = root.querySelector('[data-endereco-salvar]');
+    editarBtn?.addEventListener('click', () => {
+      formEnd?.querySelectorAll('[data-endereco-campo]').forEach((i) => {
+        i.readOnly = false;
+      });
+      if (salvarBtn) salvarBtn.disabled = false;
+      editarBtn.disabled = true;
+      formEnd?.querySelector('#pf-cep')?.focus();
+    });
+  }
+
   // ── Avisos (gravam no clique, sem botão) ──────────────────────────────────
   const avisosMsg = root.querySelector('[data-avisos-msg]');
   root.querySelectorAll('[data-aviso]').forEach((sw) => {
@@ -4791,7 +4838,7 @@ async function initPerfilPage() {
   function avisarAssinaturaAtiva() {
     const nome = tiers.find((t) => t.slug === planoSlug)?.nome;
     dizerConta(
-      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura" — aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
+      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura", aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
       'text-coral',
     );
     root.querySelector('[data-gerenciar]')?.scrollIntoView({
@@ -4880,7 +4927,7 @@ async function initPerfilPage() {
         if (!excluirArmado) {
           excluirArmado = true;
           btn.querySelector('span').textContent = 'tem certeza? clica de novo pra apagar';
-          dizerConta('isso apaga teus dados pra sempre — pontos, histórico e assinatura.', 'text-coral');
+          dizerConta('isso apaga teus dados pra sempre, pontos, histórico e assinatura.', 'text-coral');
           clearTimeout(excluirTimer);
           excluirTimer = setTimeout(() => {
             excluirArmado = false;
@@ -5657,9 +5704,10 @@ async function initAuthConfirmadoPage() {
 
 // Configura os carrosséis do tipo "cards" (home e colab) + o hero (home).
 function initCarousels() {
-  const hero = document.querySelector('[data-carousel="hero"] [data-carousel-track]');
-  if (hero) setupCarousel(hero, { dots: true, autoplay: true, interval: 5500 });
-
+  // O hero da home NÃO usa setupCarousel — ele é o setupHeroCarousel (foto/vídeo
+  // full-bleed por tempo), chamado no bootstrap. setupCarousel serve os tracks
+  // scroll-snap com [data-carousel="cards"] (hoje só a colab: swipe/scroll/teclado,
+  // sem dots nem autoplay).
   document
     .querySelectorAll('[data-carousel="cards"] [data-carousel-track]')
     .forEach((track) => setupCarousel(track, { dots: false, autoplay: false }));
