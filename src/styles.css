@@ -370,6 +370,26 @@ a.txt-link.gold { color: var(--gold) }
   .hero-skip { right: 16px }
   .hero-prev { left: 16px }
 }
+/* Telas de pouca ALTURA (janela de laptop baixa, celular deitado): o título
+   gigante empurrava a legenda e os botões voltar/pular pra fora da dobra, e a
+   capa parecia cortada. Aqui o título escala pela altura e os respiros apertam,
+   pra a capa inteira, controles inclusos, caber na tela sem cortar. */
+@media (max-height: 700px) {
+  .hero h1 { font-size: clamp(38px, 8.6vh, 84px) }
+  .hero .wrap { padding-top: 12px; padding-bottom: 84px }
+  .hero .rule { margin: 16px 0 12px }
+  .hero p.sub { font-size: 14px }
+}
+/* Celular deitado / janela bem baixa: aperta mais ainda pra a capa inteira,
+   controles inclusos, caber sem cortar. */
+@media (max-height: 480px) {
+  .hero { min-height: 100vh }
+  .hero h1 { font-size: clamp(30px, 7.4vh, 60px) }
+  .hero .wrap { padding-top: 8px; padding-bottom: 62px }
+  .hero .rule { margin: 10px 0 8px }
+  .hero p.sub { font-size: 13px }
+  .hero .txt-link { margin-top: 16px }
+}
 
 /* ---------- agenda ---------- */
 .agenda { padding: clamp(56px, 7vw, 88px) 0 }
