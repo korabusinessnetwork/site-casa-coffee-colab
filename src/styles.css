@@ -895,6 +895,9 @@ a.txt-link.gold { color: var(--gold) }
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none; -ms-overflow-style: none;
     cursor: grab;
+    /* overflow-x:auto força o navegador a cortar o vertical: sem esse respiro
+       o selo "favorito" (top:-13px, sai pra fora do topo) fica cortado no meio. */
+    padding-top: 18px;
   }
   .plans-strip::-webkit-scrollbar { display: none }
   .plans-strip.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none }
