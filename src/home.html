@@ -139,6 +139,18 @@
       </section>
 
       <!-- ===================================================================
+           O TEU DE SEMPRE — cartão pessoal no topo da home, só pra quem está
+           logado. Junta num olhar o que a pessoa já tem espalhado: plano/pontos,
+           favoritos do cardápio e o próximo encontro que confirmou. Preenchido
+           pós-render por initTeuDeSempre (só-leitura). Fica escondido deslogado.
+           =================================================================== -->
+      <section class="section tight tds reveal" data-teu-de-sempre hidden aria-label="O teu de sempre">
+        <div class="wrap">
+          <div class="tds-card" data-tds-card></div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            AGENDA — o que acontece no Casa
            =================================================================== -->
       <section class="agenda">
@@ -327,7 +339,7 @@
            AGENDA — os próximos encontros do Casa, curados no console do adm.
            Fica escondida até haver ao menos um encontro ativo/futuro (initAgenda).
            =================================================================== -->
-      <section class="agenda reveal" data-agenda hidden aria-label="A agenda do Casa">
+      <section class="agenda reveal" id="a-agenda" data-agenda hidden aria-label="A agenda do Casa">
         <div class="wrap">
           <div class="agenda-cabeca">
             <span class="agenda-eyebrow">um café-casa de encontros</span>

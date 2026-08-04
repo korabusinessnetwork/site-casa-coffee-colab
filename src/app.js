@@ -1000,6 +1000,120 @@ function googleCalUrl(ev) {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
+// --- "O teu de sempre" (cartão pessoal no topo da home) ------------------------
+// Um cartãozinho só pra quem está logado: junta num olhar o que a pessoa já tem
+// espalhado — plano/pontos, favoritos do cardápio e o próximo encontro que
+// confirmou. Tudo SÓ-LEITURA (getProfile + tabelas próprias via RLS) e tolerante:
+// deslogado → some; migration de uma fonte pendente → aquela parte some. Zero escrita.
+async function initTeuDeSempre() {
+  const sec = document.querySelector('[data-teu-de-sempre]');
+  if (!sec || !supabase) return;
+  const card = sec.querySelector('[data-tds-card]');
+  if (!card) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // deslogado → cartão fica escondido
+
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const primeiro = (profile.full_name || '').trim().split(/\s+/)[0] || 'tu';
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? 'bom dia' : h < 18 ? 'boa tarde' : 'boa noite';
+
+  // ---- Fontes (cada uma tolerante; nunca derruba o cartão) --------------------
+  // Plano: nome do tier (o slug/pontos vêm do próprio profile).
+  let planoNome = '';
+  if (profile.tier_slug) {
+    try {
+      const { data } = await supabase.from('tiers').select('nome').eq('slug', profile.tier_slug).maybeSingle();
+      planoNome = data?.nome || '';
+    } catch { /* tolerante */ }
+  }
+  const pontos = Number(profile.points_balance) || 0;
+
+  // Favoritos do cardápio (0027) — aberto a qualquer logado.
+  let favoritos = [];
+  try {
+    const { data, error } = await supabase.from('cardapio_favoritos').select('item_slug, item_nome');
+    if (!error) favoritos = data || [];
+  } catch { /* migration 0027 pendente → sem favoritos */ }
+
+  // Próximo encontro confirmado (0026) — o mais próximo ainda por vir.
+  let encontro = null;
+  try {
+    const { data, error } = await supabase.rpc('agenda_proximos');
+    if (!error && Array.isArray(data)) {
+      encontro = data
+        .filter((e) => e.eu_vou && e.data && new Date(e.data).getTime() > Date.now() - 4 * 60 * 60 * 1000)
+        .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())[0] || null;
+    }
+  } catch { /* migration 0026 pendente → sem encontro */ }
+
+  // ---- Monta os blocos --------------------------------------------------------
+  const blocos = [];
+
+  if (planoNome) {
+    blocos.push(`
+      <a class="tds-bloco" href="/conta/pontos">
+        <span class="tds-ico"><i data-lucide="star" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">teu plano</span>
+          <span class="tds-bloco-nome">${escapeHtml(planoNome)}</span>
+          <span class="tds-bloco-sub">${pontos} ${pontos === 1 ? 'ponto' : 'pontos'} no bolso</span>
+        </span>
+      </a>`);
+  } else {
+    blocos.push(`
+      <a class="tds-bloco" href="/planos">
+        <span class="tds-ico"><i data-lucide="sparkles" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">o Clube Casa</span>
+          <span class="tds-bloco-nome">vem fazer parte</span>
+          <span class="tds-bloco-sub">pontos que viram mimo e mais</span>
+        </span>
+      </a>`);
+  }
+
+  if (encontro) {
+    blocos.push(`
+      <a class="tds-bloco" href="#a-agenda">
+        <span class="tds-ico"><i data-lucide="calendar-days" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">tu vai</span>
+          <span class="tds-bloco-nome">${escapeHtml(encontro.nome)}</span>
+          <span class="tds-bloco-sub">${escapeHtml(dataEvento(encontro.data))}</span>
+        </span>
+      </a>`);
+  }
+
+  if (favoritos.length) {
+    const chips = favoritos
+      .slice(0, 4)
+      .map((f) => `<a class="tds-chip" href="/cardapio">${escapeHtml(f.item_nome || f.item_slug)}</a>`)
+      .join('');
+    const resto = favoritos.length > 4 ? `<span class="tds-chip mais">+${favoritos.length - 4}</span>` : '';
+    blocos.push(`
+      <div class="tds-bloco tds-favs">
+        <span class="tds-ico"><i data-lucide="heart" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">teus favoritos</span>
+          <span class="tds-chips">${chips}${resto}</span>
+        </span>
+      </div>`);
+  }
+
+  card.innerHTML = `
+    <div class="tds-topo">
+      <p class="tds-saudacao">${escapeHtml(saudacao)}, <strong>${escapeHtml(primeiro)}</strong> 💛</p>
+      <p class="tds-sub">o teu de sempre, num olhar.</p>
+    </div>
+    <div class="tds-grid">${blocos.join('')}</div>`;
+
+  sec.hidden = false;
+  renderIcons();
+}
+
 // --- Agenda do Casa (próximos encontros, com "eu vou") -------------------------
 // Lê a agenda pública (RPC agenda_proximos) e monta os cards. Confirmar presença
 // é perk de assinante: deslogado/sem-plano vê o convite gentil; assinante alterna
@@ -6865,6 +6979,7 @@ export function initSite() {
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
   initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)
   initNotificacoes(); // sino do header: "voltou pra vitrine" (toda página; migration 0030)
+  initTeuDeSempre(); // cartão pessoal no topo da home (só age logado + [data-teu-de-sempre])
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])

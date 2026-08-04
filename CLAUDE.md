@@ -826,6 +826,29 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
 
 ---
 
+## O teu de sempre (cartão pessoal na home)
+
+Um cartãozinho no **topo da home**, só pra **quem está logado**, que junta num olhar o
+que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só-leitura**,
+**sem migration, sem secret, sem Edge Function** (reusa tabelas/RPCs que já existem).
+
+- **O que mostra** (`initTeuDeSempre`, boot, só age com `[data-teu-de-sempre]` + logado):
+  uma saudação pela hora local com o 1º nome do `profile` e até três blocos:
+  1. **plano + pontos** — `profile.tier_slug` (nome via `tiers`) + `points_balance`, leva
+     pro `/conta/pontos`. **Sem plano** → um convite gentil "vem fazer parte" pro `/planos`.
+  2. **próximo encontro que confirmou** — `agenda_proximos` (0026) filtrando `eu_vou` e
+     pegando o mais próximo ainda por vir; leva pra `#a-agenda` (a seção da agenda ganhou
+     esse `id` na home). Sub via `dataEvento`.
+  3. **teus favoritos do cardápio** — `cardapio_favoritos` (0027), até 4 chips (link pro
+     `/cardapio`) + "+N".
+- **Tolerante:** cada fonte é isolada (erro/migration pendente → aquela parte some); o
+  cartão só depende do `profiles` (tabela base). Deslogado → seção fica `hidden`. Nada de
+  escrita. Estilo `.tds-*` no `styles.css` (grid `auto-fit`, empilha no mobile).
+- **Falta:** nada de banco, é só front (subir o merge). As partes 2 e 3 ganham conteúdo
+  conforme as migrations 0026/0027 forem aplicadas.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
