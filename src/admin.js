@@ -34,6 +34,7 @@ import {
   ArrowLeft,
   Megaphone,
   Music,
+  Cake,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -59,6 +60,7 @@ const LUCIDE_ICONS = {
   ArrowLeft,
   Megaphone,
   Music,
+  Cake,
 };
 
 function renderIcons() {
@@ -224,6 +226,10 @@ const NAV = [
   { id: 'painel', rotulo: 'painel', icone: 'layout-dashboard', perm: 'dashboard' },
   { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos' },
   { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates' },
+  // Brunch de aniversário: quem confere/dá baixa no balcão é a mesma gente dos
+  // resgates (é uma recompensa entregue em mãos) — reusa a permissão 'resgates',
+  // sem permissão nova no whitelist do 0017.
+  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'resgates' },
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
@@ -584,6 +590,7 @@ function abrirDoHash() {
     painel: viewPainel,
     pedidos: viewPedidos,
     resgates: viewResgates,
+    aniversarios: viewAniversarios,
     pessoas: viewPessoas,
     relatorios: viewRelatorios,
     equipe: viewEquipe,
@@ -944,6 +951,145 @@ async function darBaixaResgate(botao, corpo) {
     }
     toast(r?.ja_estava ? 'esse já estava entregue' : 'pronto, resgate entregue 💛');
     carregarResgates(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
+  }
+}
+
+// ===== ANIVERSÁRIOS (brunch) ========================================
+// O brunch de aniversário que a pessoa reservou no /conta/perfil. Aqui o balcão
+// confere o código e dá baixa. Trava por `tem_permissao('resgates')` no banco
+// (0025) — aqui é só a tela. Um brunch por pessoa por ano.
+const filtrosBrindes = { status: 'ativo', busca: '' };
+
+async function viewAniversarios(view) {
+  view.innerHTML =
+    cabecalho(
+      'aniversários do Casa',
+      'os brunchs de aniversário reservados. confere o código de quem chega e dá a baixa.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-brinde" class="sr-only">buscar por código ou nome</label>
+        <input id="busca-brinde" type="search" placeholder="código (CASA-XXXXXX) ou nome" autocomplete="off" spellcheck="false" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div class="ad-filtros" role="group" aria-label="filtrar brindes">
+      <button type="button" class="filtro" data-f-status="ativo">a validar</button>
+      <button type="button" class="filtro" data-f-status="usado">já usados</button>
+      <button type="button" class="filtro" data-f-status="expirado">vencidos</button>
+      <button type="button" class="filtro" data-f-status="">todos</button>
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const form = $('[data-busca]', view);
+  const marcar = () =>
+    $$('[data-f-status]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosBrindes.status)),
+    );
+  $$('[data-f-status]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosBrindes.status = b.dataset.fStatus || '';
+      marcar();
+      carregarBrindes(corpo);
+    }),
+  );
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosBrindes.busca = $('#busca-brinde', form).value.trim();
+    carregarBrindes(corpo);
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarBrindes(corpo));
+  marcar();
+  renderIcons();
+  carregarBrindes(corpo);
+}
+
+async function carregarBrindes(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_brindes_listar', {
+      p_busca: filtrosBrindes.busca || null,
+      p_status: filtrosBrindes.status || null,
+      p_limite: 200,
+    });
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'nenhum brunch por aqui',
+        'quando um aniversariante reservar o brunch dele, o código aparece nesta lista.',
+      );
+      return;
+    }
+    corpo.innerHTML = `<div class="ad-lista">${linhas.map(cardBrinde).join('')}</div>`;
+    renderIcons();
+    $$('[data-brinde-usar]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => darBaixaBrinde(botao, corpo));
+    });
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardBrinde(b) {
+  const ativo = b.situacao === 'ativo';
+  const podeBaixar = ativo && pode('resgates');
+  const tag =
+    b.situacao === 'usado'
+      ? '<span class="tag">usado</span>'
+      : b.situacao === 'expirado'
+        ? '<span class="tag">vencido</span>'
+        : '<span class="tag gold">a validar</span>';
+  return `
+    <article class="card ad-card">
+      <div class="ad-card-topo">
+        <div>
+          <p class="ad-codigo">${escapeHtml(b.codigo)}</p>
+          <p class="ad-card-nome">${escapeHtml(b.cliente_nome || 'sem nome')}${b.cliente_email ? ' · ' + escapeHtml(b.cliente_email) : ''}</p>
+        </div>
+        <div class="ad-card-tags">${tag}</div>
+      </div>
+      <div class="ad-card-rodape">
+        <div class="ad-card-info">
+          ${b.aniversario ? `<p class="ad-card-meta">🎂 faz aniversário em ${escapeHtml(b.aniversario)}</p>` : ''}
+          <p class="ad-card-meta">reservado em ${escapeHtml(formatData(b.criado_em))} · vale até ${escapeHtml(b.valido_ate_label || '—')}</p>
+          ${
+            b.usado_em
+              ? `<p class="ad-card-meta ok"><i data-lucide="check"></i> brunch entregue em ${escapeHtml(formatData(b.usado_em))}${b.usado_por_nome ? ' por ' + escapeHtml(b.usado_por_nome) : ''}</p>`
+              : ''
+          }
+        </div>
+        <div class="ad-card-acao">
+          ${
+            podeBaixar
+              ? `<button type="button" class="btn solid sm" data-brinde-usar="${escapeHtml(b.id)}"><i data-lucide="cake"></i>brunch entregue</button>`
+              : ''
+          }
+        </div>
+      </div>
+    </article>`;
+}
+
+async function darBaixaBrinde(botao, corpo) {
+  const ok = await confirmar({
+    titulo: 'a pessoa aproveitou o brunch?',
+    texto: 'isso marca o brunch de aniversário como usado. não dá pra desfazer por aqui.',
+    ok: 'sim, entregue',
+  });
+  if (!ok) return;
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_brinde_usar', { p_id: botao.dataset.brindeUsar });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra dar baixa nesse brinde', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast(r?.ja_estava ? 'esse brunch já estava dado como usado' : 'pronto, feliz aniversário 💛');
+    carregarBrindes(corpo);
   } catch (e) {
     toast(e.message, 'erro');
     botao.disabled = false;
