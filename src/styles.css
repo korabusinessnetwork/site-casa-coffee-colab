@@ -881,6 +881,23 @@ a.txt-link.gold { color: var(--gold) }
 .rep-chip-x:hover { color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent) }
 
 /* ---------- planos (tiers) ---------- */
+/* Faixa dos planos: arrasta com o mouse pro lado (JS setupDragScroll) em vez de
+   uma grade que estoura. Em tela larga os 4 cards crescem e preenchem a linha
+   (flex-grow), sem rolar; apertando, viram uma tira que rola na horizontal, com
+   a barra de rolagem escondida (o arraste é a pista). */
+.plans-strip {
+  display: flex; gap: clamp(16px, 2vw, 26px);
+  overflow-x: auto; scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; -ms-overflow-style: none;
+  cursor: grab;
+}
+.plans-strip::-webkit-scrollbar { display: none }
+.plans-strip.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none }
+.plans-strip > .plan { flex: 1 1 0; min-width: 244px; scroll-snap-align: start }
+/* Enquanto arrasta, o card não intercepta o clique nem seleciona texto. */
+.plans-strip.is-dragging > .plan { pointer-events: none }
+
 .plan { position: relative; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: clamp(22px, 3vw, 32px); gap: 6px }
 .plan.featured { border-color: var(--coral); box-shadow: 0 20px 50px -34px rgba(223, 86, 56, .6) }
 .plan .plan-name { font-family: var(--serif); font-size: 22px; font-weight: 500; color: var(--ink) }
