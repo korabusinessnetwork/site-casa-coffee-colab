@@ -826,7 +826,12 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
 
 ---
 
-## O teu de sempre (cartão pessoal na home)
+## O teu de sempre (cartão pessoal na home) — DESATIVADO
+
+> **DESATIVADO em 04/ago/2026** (a pedido): a chamada `initTeuDeSempre()` está comentada
+> no bootstrap, então o cartão **não renderiza**. O visual e a posição vão ser repensados
+> pra não competir com o hero da home. A função e a seção `[data-teu-de-sempre]` (que fica
+> `hidden`) seguem no código, é só descomentar a linha do boot pra religar.
 
 Um cartãozinho no **topo da home**, só pra **quem está logado**, que junta num olhar o
 que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só-leitura**,

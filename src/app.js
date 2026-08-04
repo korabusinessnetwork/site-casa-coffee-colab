@@ -6979,7 +6979,9 @@ export function initSite() {
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
   initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)
   initNotificacoes(); // sino do header: "voltou pra vitrine" (toda página; migration 0030)
-  initTeuDeSempre(); // cartão pessoal no topo da home (só age logado + [data-teu-de-sempre])
+  // initTeuDeSempre(); // DESATIVADO (a pedido, 04/ago/2026): cartão pessoal no topo
+  // da home. O visual/posição ainda vão ser repensados pra não competir com o hero.
+  // A função e a seção [data-teu-de-sempre] (hidden) seguem no código, prontas pra religar.
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
