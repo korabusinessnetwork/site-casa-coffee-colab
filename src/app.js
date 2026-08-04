@@ -3745,6 +3745,15 @@ async function initPerfilPage() {
 
   renderIcons();
 
+  // ── "gerenciar assinatura" logo abaixo do resumo ──────────────────────────
+  // No template ela nasce no fim da página; a gente sobe pra logo depois da
+  // linha de resumo (teus pontos / teu plano / e-mail), que é onde ela conversa.
+  {
+    const gerenciar = root.querySelector('[data-gerenciar]');
+    const stats = root.querySelector('.pf-stats');
+    if (gerenciar && stats) stats.after(gerenciar);
+  }
+
   // ── Resgatar presente (código dado por outra pessoa) ──────────────────────
   // Chama a Edge Function resgatar-presente (que valida na RPC atômica). Sucesso →
   // recarrega pra o plano do presente já aparecer no perfil.
