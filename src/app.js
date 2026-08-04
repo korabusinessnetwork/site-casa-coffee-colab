@@ -623,6 +623,93 @@ function initHeaderInteractions() {
   }
 }
 
+// --- Recado da casa (tarja de aviso no topo) -----------------------------------
+const AVISOS_LIDOS_KEY = 'casa_avisos_lidos';
+
+function avisosLidos() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(AVISOS_LIDOS_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function marcarAvisoLido(id) {
+  try {
+    const lidos = avisosLidos().filter((x) => x !== id);
+    lidos.push(id);
+    // Mantém só os últimos 50 pra não crescer sem fim.
+    localStorage.setItem(AVISOS_LIDOS_KEY, JSON.stringify(lidos.slice(-50)));
+  } catch {
+    /* sem localStorage: ignora */
+  }
+}
+
+// Só aceita link interno ("/algo") ou http(s) absoluto — nada de javascript: etc.
+function linkAvisoSeguro(url) {
+  if (typeof url !== 'string' || !url) return null;
+  const u = url.trim();
+  if (/^\/(?![/\\])/.test(u)) return u; // caminho interno
+  if (/^https?:\/\//i.test(u)) return u; // absoluto http(s)
+  return null;
+}
+
+// Acende a tarja do "recado da casa" no topo (se houver um vigente e ainda não
+// fechado). Leitura pública: a RLS só devolve o recado ativo dentro da janela.
+// Injeta ANTES do <header> no #site-header, então rola junto com o topo da página.
+async function renderAvisoBar() {
+  const slot = document.getElementById('site-header');
+  if (!slot || !supabase) return;
+
+  let avisos = [];
+  try {
+    const { data, error } = await supabase
+      .from('avisos_casa')
+      .select('id, texto, emoji, link_url, link_label')
+      .order('prioridade', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(6);
+    if (error) return; // migration 0022 pendente / erro → sem tarja, sem ruído
+    avisos = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+
+  const lidos = avisosLidos();
+  const aviso = avisos.find((a) => !lidos.includes(a.id));
+  if (!aviso) return;
+
+  const barra = document.createElement('div');
+  barra.className = 'aviso-casa';
+  barra.setAttribute('role', 'status');
+
+  const emoji = aviso.emoji ? `<span class="aviso-casa-emoji" aria-hidden="true">${escapeHtml(aviso.emoji)}</span>` : '';
+  const href = linkAvisoSeguro(aviso.link_url);
+  const link = href
+    ? `<a class="aviso-casa-link" href="${escapeHtml(href)}">${escapeHtml(aviso.link_label || 'ver mais')} →</a>`
+    : '';
+
+  barra.innerHTML = `
+    <div class="aviso-casa-in">
+      <p class="aviso-casa-txt">${emoji}<span>${escapeHtml(aviso.texto)}</span>${link}</p>
+      <button type="button" class="aviso-casa-x" data-aviso-fechar aria-label="fechar este recado">
+        <i data-lucide="x"></i>
+      </button>
+    </div>`;
+
+  slot.insertBefore(barra, slot.firstChild);
+  renderIcons();
+
+  barra.querySelector('[data-aviso-fechar]')?.addEventListener('click', () => {
+    marcarAvisoLido(aviso.id);
+    barra.classList.add('saindo');
+    const remover = () => barra.remove();
+    // Some com uma transição curta (respeitada pelo CSS em prefers-reduced-motion).
+    barra.addEventListener('transitionend', remover, { once: true });
+    setTimeout(remover, 400); // fallback caso a transição não dispare
+  });
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -2409,6 +2496,49 @@ async function initAuth() {
   }
 }
 
+// --- Indica um amigo (captura do link + registro do vínculo) -------------------
+const INDICA_KEY = 'casa_indica';
+
+// Roda em toda página (boot). Duas coisas:
+//  1) Se a URL trouxe ?indica=CODE (link de convite), guarda o código no
+//     localStorage — entre clicar o link e logar (confirmar e-mail) tem navegação,
+//     então o código precisa sobreviver a reloads.
+//  2) Se há código guardado E a pessoa está logada, registra o vínculo UMA vez via
+//     RPC registrar_indicacao (o banco valida quem é o indicado por auth.uid() — o
+//     client nunca diz "sou fulano"). O código só é limpo quando a RPC responde
+//     (registrou, já-indicado, já-é-da-casa, inválido): erro de rede/migration
+//     pendente mantém o rastro pra tentar de novo depois.
+async function initIndicacao() {
+  try {
+    const code = (new URLSearchParams(window.location.search).get('indica') || '').trim().toUpperCase();
+    if (code && /^[A-Z0-9]{4,16}$/.test(code)) localStorage.setItem(INDICA_KEY, code);
+  } catch {
+    /* sem localStorage/URL: ignora */
+  }
+
+  let code = null;
+  try {
+    code = localStorage.getItem(INDICA_KEY);
+  } catch {
+    code = null;
+  }
+  if (!code || !supabase) return;
+
+  const session = await getSession();
+  if (!session) return; // ainda não logou — tenta num próximo load
+
+  const { error } = await supabase.rpc('registrar_indicacao', { p_codigo: code });
+  // Sem erro de transporte = houve resposta definitiva do banco (ok ou recusa
+  // gentil). Aí sim limpa. Erro (RPC ausente / rede) mantém pra retry.
+  if (!error) {
+    try {
+      localStorage.removeItem(INDICA_KEY);
+    } catch {
+      /* ignora */
+    }
+  }
+}
+
 // Guard: exige sessão. Sem sessão → manda pro login guardando o destino.
 // NUNCA confia em role do client, quem precisar de papel lê do profiles (banco).
 async function requireAuth() {
@@ -2453,6 +2583,21 @@ function initCadastroPage() {
   if (!form) return;
 
   setupPasswordToggles(form); // olhinho nas duas senhas
+
+  // Chegou por um convite de indicação (?indica=CODE)? Um oi gentil no topo do form.
+  // O vínculo em si é registrado depois, logado, pela initIndicacao — aqui é só afeto.
+  try {
+    const temConvite = (new URLSearchParams(window.location.search).get('indica') || '').trim();
+    if (temConvite && !form.querySelector('[data-convite-aviso]')) {
+      const aviso = document.createElement('p');
+      aviso.dataset.conviteAviso = '';
+      aviso.className = 'cadastro-convite';
+      aviso.textContent = 'alguém do Casa te convidou 💛 cria tua conta e, quando assinares, vocês dois ganham pontos.';
+      form.prepend(aviso);
+    }
+  } catch {
+    /* sem URL: ignora */
+  }
 
   const erroEl = form.querySelector('[data-form-erro]');
   const btn = form.querySelector('[type="submit"]');
@@ -3321,6 +3466,26 @@ async function initPerfilPage() {
         </a>
       </div>
 
+      <!-- Indica um amigo: convite pra trazer gente. Preenchido pós-render (RPC
+           meu_codigo_indicacao). Fica escondido até termos o código — se a migration
+           0021 ainda não foi aplicada, some sem deixar caco na tela. -->
+      <section class="pf-indica" data-indica hidden>
+        <div class="pf-head">
+          <h2>traz quem tu gosta</h2>
+          <p>manda teu convite pra quem ia gostar do Casa. quando teu amigo entra e assina, vocês <strong>dois ganham pontos</strong> 💛</p>
+        </div>
+        <div class="pf-indica-card">
+          <span class="pf-indica-label">teu convite</span>
+          <div class="pf-indica-linkbox">
+            <span class="pf-indica-link" data-indica-link>gerando teu convite…</span>
+            <button type="button" class="pf-indica-copy" data-indica-copy aria-label="copiar o convite">
+              <i data-lucide="copy" class="h-4 w-4"></i><span>copiar</span>
+            </button>
+          </div>
+          <p class="pf-indica-conta" data-indica-conta hidden></p>
+        </div>
+      </section>
+
       <section>
         <div class="pf-head">
           <h2>conta e privacidade</h2>
@@ -3412,6 +3577,75 @@ async function initPerfilPage() {
         presenteBtn.textContent = original;
       }
     });
+  }
+
+  // ── Indica um amigo: convite + convidados que já entraram ─────────────────
+  // Pega o código do PRÓPRIO usuário (RPC meu_codigo_indicacao, gera na 1ª vez),
+  // monta o link de convite e liga o "copiar". Best-effort: se a RPC não existe
+  // (migration 0021 pendente) ou falha, a seção continua escondida — sem ruído.
+  {
+    const indicaSec = root.querySelector('[data-indica]');
+    if (indicaSec && supabase) {
+      (async () => {
+        const { data: codigo, error } = await supabase.rpc('meu_codigo_indicacao');
+        if (error || !codigo) return; // migration pendente / erro → seção fica hidden
+        const link = `${siteBase()}/cadastro?indica=${encodeURIComponent(codigo)}`;
+        const linkEl = indicaSec.querySelector('[data-indica-link]');
+        const copyEl = indicaSec.querySelector('[data-indica-copy]');
+        const contaEl = indicaSec.querySelector('[data-indica-conta]');
+        // O link é URL montada por nós (código validado no regex do banco) — texto puro.
+        if (linkEl) linkEl.textContent = link;
+        indicaSec.hidden = false;
+
+        if (copyEl) {
+          const labelEl = copyEl.querySelector('span');
+          copyEl.addEventListener('click', async () => {
+            let ok = false;
+            try {
+              await navigator.clipboard.writeText(link);
+              ok = true;
+            } catch {
+              // Fallback pra navegador sem clipboard API (ou sem permissão): seleciona o texto.
+              try {
+                const range = document.createRange();
+                range.selectNodeContents(linkEl);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                ok = document.execCommand?.('copy') || false;
+                sel.removeAllRanges();
+              } catch {
+                ok = false;
+              }
+            }
+            if (labelEl) {
+              labelEl.textContent = ok ? 'copiado!' : 'copia o texto aí ☝️';
+              copyEl.classList.toggle('ok', ok);
+              setTimeout(() => {
+                labelEl.textContent = 'copiar';
+                copyEl.classList.remove('ok');
+              }, 2200);
+            }
+          });
+        }
+
+        // Quantos já entraram pelo convite (premiados). Best-effort, silencioso.
+        try {
+          const { count } = await supabase
+            .from('referrals')
+            .select('id', { count: 'exact', head: true })
+            .eq('referrer_id', session.user.id)
+            .eq('status', 'premiado');
+          if (contaEl && Number(count) > 0) {
+            const n = Number(count);
+            contaEl.textContent = n === 1 ? 'já entrou 1 amigo pelo teu convite 💛' : `já entraram ${n} amigos pelo teu convite 💛`;
+            contaEl.hidden = false;
+          }
+        } catch {
+          /* tabela ainda não existe: ignora */
+        }
+      })();
+    }
   }
 
   // ── Gerenciar assinatura: pausar / retomar / upgrade ──────────────────────
@@ -5130,9 +5364,11 @@ function initCarousels() {
 // --- Bootstrap -----------------------------------------------------------------
 export function initSite() {
   renderHeader();
+  renderAvisoBar(); // tarja "recado da casa" no topo (só se houver um vigente)
   renderFooter();
   renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)
+  initIndicacao(); // capta ?indica= e registra o vínculo quando logado (todas as páginas)
   initCart(); // drawer + badge (todas as páginas)
   initCatalogPage(); // só age se houver [data-catalog-grid]
   initProductPage(); // só age se houver [data-product-root]

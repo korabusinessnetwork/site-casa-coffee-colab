@@ -208,6 +208,23 @@ a.txt-link.gold { color: var(--gold) }
 .ph.has-foto::after { display: none }
 
 /* ---------- header ---------- */
+/* ---------- recado da casa (tarja de aviso no topo) ---------- */
+/* colapso via grid-rows 1fr→0fr (anima sem cap de altura → nunca corta o texto) */
+.aviso-casa { display: grid; grid-template-rows: 1fr; background: var(--coral); color: #fff; transition: grid-template-rows .35s var(--e), opacity .35s var(--e) }
+.aviso-casa.saindo { grid-template-rows: 0fr; opacity: 0 }
+.aviso-casa > .aviso-casa-in { overflow: hidden }
+.aviso-casa-in { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; gap: 12px; padding: 9px 40px; min-height: 40px }
+.aviso-casa-txt { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 0; text-align: center; font-family: var(--sans); font-size: 14px; line-height: 1.4; font-weight: 500 }
+.aviso-casa-emoji { font-size: 16px }
+.aviso-casa-link { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap }
+.aviso-casa-link:hover { opacity: .85 }
+.aviso-casa-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: 8px; background: rgba(255,255,255,.14); color: #fff; cursor: pointer; transition: background .2s var(--e) }
+.aviso-casa-x:hover { background: rgba(255,255,255,.28) }
+.aviso-casa-x svg { width: 16px; height: 16px }
+@media (max-width: 640px) { .aviso-casa-in { padding: 8px 22px } }
+@media (max-width: 520px) { .aviso-casa-txt { font-size: 13px } }
+@media (prefers-reduced-motion: reduce) { .aviso-casa { transition: none } }
+
 .site-header { position: sticky; top: 0; z-index: 50; transition: background .35s var(--e), box-shadow .35s var(--e), border-color .35s var(--e) }
 .site-header .wrap { height: var(--hh); display: flex; align-items: center; gap: 34px }
 .brand { display: flex; flex-direction: column; line-height: 1; text-decoration: none; color: var(--cream) }
@@ -812,6 +829,23 @@ a.txt-link.gold { color: var(--gold) }
 .pf-link.danger:hover { border-color: #a03a22; background: color-mix(in srgb, var(--coral) 8%, var(--card)) }
 .pf-link[disabled] { opacity: .55; cursor: not-allowed }
 
+/* ---------- indica um amigo (convite) ---------- */
+.pf-indica[hidden] { display: none }
+.pf-indica .pf-head p strong { color: var(--coral); font-weight: 600 }
+.pf-indica-card { margin-top: 16px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--coral) 9%, var(--card)), var(--card) 70%) }
+.pf-indica-label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px }
+.pf-indica-linkbox { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap }
+.pf-indica-link { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; padding: 12px 16px; border: 1px dashed color-mix(in srgb, var(--coral) 45%, var(--line)); border-radius: 10px; background: var(--paper-2); font-family: var(--sans); font-size: 14px; color: var(--ink); overflow-wrap: anywhere; line-height: 1.35 }
+.pf-indica-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border: none; border-radius: 10px; background: var(--coral); color: #fff; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; transition: background .18s var(--e), transform .1s var(--e) }
+.pf-indica-copy:hover { background: color-mix(in srgb, var(--coral) 88%, #000) }
+.pf-indica-copy:active { transform: translateY(1px) }
+.pf-indica-copy.ok { background: var(--olive) }
+.pf-indica-conta { margin: 14px 0 0; font-size: 14px; color: var(--olive); font-weight: 500 }
+.pf-indica-conta[hidden] { display: none }
+
+/* aviso de "você foi convidado" no topo do /cadastro */
+.cadastro-convite { margin: 0 0 20px; padding: 14px 18px; border-radius: 12px; background: color-mix(in srgb, var(--coral) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--coral) 25%, var(--line)); font-size: 14px; line-height: 1.5; color: var(--ink) }
+
 /* ---------- aparelhos conectados (painel que abre no link) ---------- */
 .pf-sessoes { display: flex; flex-direction: column; gap: 14px; margin: -4px 0 4px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2) }
 .pf-sessoes[hidden] { display: none }
@@ -937,6 +971,17 @@ a.txt-link.gold { color: var(--gold) }
 .ad-total { font-family: var(--serif); font-size: 24px; line-height: 1; color: var(--ink); margin: 0; font-variant-numeric: tabular-nums }
 .ad-endereco { font-size: 14px; line-height: 1.5; color: var(--ink-2); margin: 8px 0 0 }
 .ad-codigo { display: inline-block; margin: 8px 0 0; padding: 6px 12px; border: 1px dashed var(--line); border-radius: 8px; background: var(--paper-2); font-family: var(--sans); font-size: 14px; font-weight: 700; letter-spacing: .12em; color: var(--ink) }
+
+/* ---------- recados da casa (aviso do topo) ---------- */
+.ad-form-recado { display: flex; flex-direction: column; gap: 18px; margin-bottom: 24px }
+.ad-form-recado textarea { min-height: 70px }
+.ad-recado-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 18px }
+@media (max-width: 640px) { .ad-recado-linha { grid-template-columns: 1fr } }
+.ad-recado-emoji { flex: 0 0 auto }
+.ad-recado-emoji input { max-width: 120px }
+.ad-recado-ativo { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-2); cursor: pointer }
+.ad-recado-ativo input { width: 18px; height: 18px; accent-color: var(--coral) }
+.ad-recado-lista { display: flex; flex-direction: column; gap: 14px }
 
 /* ---------- tabelas (pessoas e relatórios) ---------- */
 .ad-tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }

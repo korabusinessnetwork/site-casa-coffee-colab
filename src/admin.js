@@ -32,6 +32,7 @@ import {
   EyeOff,
   Lock,
   ArrowLeft,
+  Megaphone,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -55,6 +56,7 @@ const LUCIDE_ICONS = {
   EyeOff,
   Lock,
   ArrowLeft,
+  Megaphone,
 };
 
 function renderIcons() {
@@ -223,6 +225,10 @@ const NAV = [
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
+  // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
+  // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
+  // 'tudo' (adm do Casa) vê; ninguém mais recebe. Abrir pra delegar pediria migration.
+  { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'avisos' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
@@ -577,6 +583,7 @@ function abrirDoHash() {
     pessoas: viewPessoas,
     relatorios: viewRelatorios,
     equipe: viewEquipe,
+    recados: viewRecados,
     conta: viewConta,
   };
   (telas[item.id] || viewPainel)(view);
@@ -1357,6 +1364,239 @@ function ligarCardsEquipe(corpo) {
       }
     });
   });
+}
+
+// ===== RECADOS DA CASA ==============================================
+// Owner-only. A tarja de aviso que acende no topo do site. As RPCs admin_aviso_*
+// (0022) trancam por is_owner() no banco; aqui é só a tela.
+let recadoEditando = null; // id em edição, ou null (criando um novo)
+
+// ISO ↔ valor de <input type="datetime-local"> (hora local do navegador).
+function isoDeDtLocal(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+function dtLocalDeIso(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function statusDoRecado(a) {
+  if (!a.ativo) return { txt: 'desligado', tom: 'off' };
+  const agora = Date.now();
+  const ini = a.inicio_em ? Date.parse(a.inicio_em) : null;
+  const fim = a.fim_em ? Date.parse(a.fim_em) : null;
+  if (ini && ini > agora) return { txt: `agendado pra ${formatData(a.inicio_em)}`, tom: 'wait' };
+  if (fim && fim < agora) return { txt: `expirou em ${formatData(a.fim_em)}`, tom: 'off' };
+  return { txt: 'no ar agora', tom: 'on' };
+}
+
+async function viewRecados(view) {
+  view.innerHTML =
+    cabecalho(
+      'recados da casa',
+      'a tarjinha que acende no topo do site. escreve curto, dá um prazo, e ela some sozinha quando vence.',
+    ) +
+    `<form class="card ad-form-recado" data-form-recado novalidate>
+       <input type="hidden" data-r-id />
+       <div class="field">
+         <label for="r-texto">o recado</label>
+         <textarea id="r-texto" data-r-texto rows="2" maxlength="160" placeholder="hoje tem fornada de brioche a partir das 15h 🥐" required></textarea>
+         <p class="ad-dica">curtinho, até 160 caracteres. o tom é o de sempre: acolhedor, sem pressa.</p>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field ad-recado-emoji">
+           <label for="r-emoji">emoji (opcional)</label>
+           <input id="r-emoji" data-r-emoji maxlength="8" placeholder="🥐" />
+         </div>
+         <div class="field ad-recado-prio">
+           <label for="r-prio">prioridade</label>
+           <input id="r-prio" data-r-prio type="number" value="0" step="1" />
+           <p class="ad-dica">maior aparece primeiro se houver mais de um.</p>
+         </div>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="r-inicio">começa a aparecer</label>
+           <input id="r-inicio" data-r-inicio type="datetime-local" />
+           <p class="ad-dica">vazio = já vale agora.</p>
+         </div>
+         <div class="field">
+           <label for="r-fim">para de aparecer</label>
+           <input id="r-fim" data-r-fim type="datetime-local" />
+           <p class="ad-dica">vazio = fica até tu desligar.</p>
+         </div>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="r-link">link (opcional)</label>
+           <input id="r-link" data-r-link placeholder="/planos ou https://…" />
+         </div>
+         <div class="field">
+           <label for="r-link-label">texto do link</label>
+           <input id="r-link-label" data-r-link-label maxlength="40" placeholder="ver os planos" />
+         </div>
+       </div>
+       <label class="ad-recado-ativo"><input type="checkbox" data-r-ativo checked /> <span>ligado (aparece no site)</span></label>
+       <div data-r-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-r-salvar>publicar recado</button>
+         <button type="button" class="btn ghost" data-r-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+     <div class="ad-recado-lista" data-recado-lista></div>`;
+
+  renderIcons();
+  const form = $('[data-form-recado]', view);
+  const lista = $('[data-recado-lista]', view);
+  const avisoForm = $('[data-r-aviso]', form);
+
+  const limparForm = () => {
+    recadoEditando = null;
+    form.reset();
+    $('[data-r-id]', form).value = '';
+    $('[data-r-ativo]', form).checked = true;
+    $('[data-r-salvar]', form).textContent = 'publicar recado';
+    $('[data-r-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (a) => {
+    recadoEditando = a.id;
+    $('[data-r-id]', form).value = a.id;
+    $('[data-r-texto]', form).value = a.texto || '';
+    $('[data-r-emoji]', form).value = a.emoji || '';
+    $('[data-r-prio]', form).value = Number(a.prioridade) || 0;
+    $('[data-r-inicio]', form).value = dtLocalDeIso(a.inicio_em);
+    $('[data-r-fim]', form).value = dtLocalDeIso(a.fim_em);
+    $('[data-r-link]', form).value = a.link_url || '';
+    $('[data-r-link-label]', form).value = a.link_label || '';
+    $('[data-r-ativo]', form).checked = Boolean(a.ativo);
+    $('[data-r-salvar]', form).textContent = 'salvar recado';
+    $('[data-r-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-r-texto]', form).focus();
+  };
+
+  async function carregarRecados() {
+    carregando(lista, 'buscando os recados…');
+    try {
+      const dados = await rpc('admin_avisos_listar');
+      const avisos = Array.isArray(dados) ? dados : [];
+      if (!avisos.length) {
+        lista.innerHTML = vazio('nenhum recado ainda', 'escreve o primeiro aí em cima — ele acende no topo do site.');
+        return;
+      }
+      lista.innerHTML = avisos.map(cardRecado).join('');
+      renderIcons();
+      ligarCardsRecado();
+    } catch (e) {
+      erroNaTela(lista, e);
+    }
+  }
+
+  function cardRecado(a) {
+    const st = statusDoRecado(a);
+    const janela = [];
+    if (a.inicio_em) janela.push(`de ${formatData(a.inicio_em)}`);
+    if (a.fim_em) janela.push(`até ${formatData(a.fim_em)}`);
+    const linkTxt = a.link_url ? ` · link: ${escapeHtml(a.link_label || a.link_url)}` : '';
+    return `
+      <article class="card ad-card" data-recado="${escapeHtml(a.id)}">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${a.emoji ? escapeHtml(a.emoji) + ' ' : ''}${escapeHtml(a.texto || '')}</p>
+            <p class="ad-card-meta">${janela.length ? escapeHtml(janela.join(' ')) : 'sem prazo'} · prioridade ${Number(a.prioridade) || 0}${linkTxt}</p>
+          </div>
+          <div class="ad-card-tags"><span class="tag ${st.tom === 'on' ? 'olive' : 'gold'}">${escapeHtml(st.txt)}</span></div>
+        </div>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn ghost sm" data-r-editar="${escapeHtml(a.id)}">editar</button>
+          <button type="button" class="btn ghost sm" data-r-remover="${escapeHtml(a.id)}" data-r-resumo="${escapeHtml((a.texto || '').slice(0, 40))}">remover</button>
+        </div>
+      </article>`;
+  }
+
+  function ligarCardsRecado() {
+    $$('[data-r-editar]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_avisos_listar');
+          const a = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.rEditar);
+          if (a) preencherForm(a);
+        } catch (e) {
+          toast(e.message, 'erro');
+        }
+      });
+    });
+    $$('[data-r-remover]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: 'remover este recado?',
+          texto: `"${b.dataset.rResumo}…" — some do site na hora e não dá pra desfazer.`,
+          ok: 'sim, remover',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_aviso_remover', { p_id: b.dataset.rRemover });
+          toast('recado removido');
+          if (recadoEditando === b.dataset.rRemover) limparForm();
+          carregarRecados();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const texto = $('[data-r-texto]', form).value.trim();
+    if (!texto) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>escreve o recado 💛</p></div>';
+      return;
+    }
+    const inicio = isoDeDtLocal($('[data-r-inicio]', form).value);
+    const fim = isoDeDtLocal($('[data-r-fim]', form).value);
+    if (inicio && fim && Date.parse(fim) <= Date.parse(inicio)) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>o fim tem que ser depois do começo.</p></div>';
+      return;
+    }
+    const botao = $('[data-r-salvar]', form);
+    botao.disabled = true;
+    try {
+      await rpc('admin_aviso_salvar', {
+        p_id: recadoEditando || null,
+        p_texto: texto,
+        p_emoji: $('[data-r-emoji]', form).value.trim() || null,
+        p_link_url: $('[data-r-link]', form).value.trim() || null,
+        p_link_label: $('[data-r-link-label]', form).value.trim() || null,
+        p_inicio: inicio,
+        p_fim: fim,
+        p_prioridade: Number($('[data-r-prio]', form).value) || 0,
+        p_ativo: $('[data-r-ativo]', form).checked,
+      });
+      toast(recadoEditando ? 'recado salvo 💛' : 'recado publicado 💛');
+      limparForm();
+      carregarRecados();
+    } catch (e2) {
+      toast(e2.message, 'erro');
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-r-cancelar]', form).addEventListener('click', limparForm);
+
+  carregarRecados();
 }
 
 // ===== TUA CONTA ====================================================

@@ -52,6 +52,13 @@ import {
 
 const WEBHOOK_TOKEN = requireEnv('ASAAS_WEBHOOK_TOKEN');
 
+// INDICA UM AMIGO — recompensa em pontos quando o INDICADO paga a 1ª mensalidade.
+// VALORES FICTÍCIOS (provisórios): ajustar aqui depois. Uma fonte de verdade só —
+// a premiar_indicacao (0021) recebe estes números; o front /conta/perfil restata a
+// mesma copy (procurar "VALOR FICTÍCIO" no app.js). Zerar um lado = não credita aquele lado.
+const REFERRAL_PTS_INDICADOR = 150; // quem indicou
+const REFERRAL_PTS_INDICADO = 100; // quem foi indicado (boas-vindas)
+
 // --- helpers -----------------------------------------------------------------
 
 // Compara o token recebido com o secret em TEMPO CONSTANTE (defesa contra timing
@@ -634,6 +641,17 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     });
     await checkAchievements(userId); // conquistas de tempo de casa best-effort
   }
+
+  // INDICA UM AMIGO: se ESTE pagante entrou por indicação pendente, premia os dois.
+  // Idempotente (a RPC só processa vínculo 'pendente' → 'premiado'); no caso normal
+  // (sem indicação) retorna rewarded:false sem erro. Se der erro de DB, deixa
+  // estourar: o Asaas reenvia e a premiação/pontos são idempotentes.
+  const { error: indErr } = await supabaseAdmin.rpc('premiar_indicacao', {
+    p_referred_id: userId,
+    p_pontos_indicador: REFERRAL_PTS_INDICADOR,
+    p_pontos_indicado: REFERRAL_PTS_INDICADO,
+  });
+  if (indErr) throw indErr;
 }
 
 // =============================================================================
