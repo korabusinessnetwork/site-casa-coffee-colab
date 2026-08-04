@@ -1047,6 +1047,119 @@ async function initAgenda() {
   });
 }
 
+// --- Cardápio: teus favoritos --------------------------------------------------
+// O /cardapio é HTML curado (não vem do banco), então o item é identificado por
+// um slug estável derivado do NOME (slugify). Favoritar é aberto a qualquer pessoa
+// logada; a escrita é direta na `cardapio_favoritos` via RLS (dado benigno, sempre
+// travado em auth.uid()). Tolerante: sem sessão ou sem a migration 0027, nada aparece.
+function slugify(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function initCardapioFavoritos() {
+  const secBlock = document.querySelector('[data-cardapio-favoritos]');
+  const items = Array.from(document.querySelectorAll('.menu-item'));
+  if (!secBlock || !items.length || !supabase) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // corações só pra quem está logado
+
+  // Mapeia slug → { el, nome } (o slug estável vem do nome curado no HTML).
+  const porSlug = new Map();
+  for (const li of items) {
+    const nome = li.querySelector('.mi-name')?.textContent.trim() || '';
+    const slug = slugify(nome);
+    if (!nome || !slug || porSlug.has(slug)) continue;
+    porSlug.set(slug, { el: li, nome });
+    li.dataset.item = slug;
+  }
+  if (!porSlug.size) return;
+
+  const favs = new Set();
+  try {
+    const { data, error } = await supabase.from('cardapio_favoritos').select('item_slug');
+    if (error) return; // migration pendente → sem corações
+    (data || []).forEach((r) => favs.add(r.item_slug));
+  } catch {
+    return;
+  }
+
+  const chipsEl = secBlock.querySelector('[data-cf-chips]');
+
+  const pintarBloco = () => {
+    const marcados = [...porSlug.entries()].filter(([slug]) => favs.has(slug));
+    if (!marcados.length) {
+      secBlock.hidden = true;
+      return;
+    }
+    chipsEl.innerHTML = marcados
+      .map(([slug, { nome }]) => `<button type="button" class="cf-chip" data-cf-goto="${escapeHtml(slug)}">${escapeHtml(nome)}</button>`)
+      .join('');
+    secBlock.hidden = false;
+    chipsEl.querySelectorAll('[data-cf-goto]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const alvo = porSlug.get(b.dataset.cfGoto)?.el;
+        if (!alvo) return;
+        alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        alvo.classList.add('mi-flash');
+        setTimeout(() => alvo.classList.remove('mi-flash'), 1200);
+      });
+    });
+  };
+
+  const pintarCoracao = (btn, on) => {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-label', on ? 'tirar dos favoritos' : 'adicionar aos favoritos');
+  };
+
+  for (const [slug, { el, nome }] of porSlug) {
+    el.classList.add('has-fav');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mi-fav';
+    btn.dataset.fav = slug;
+    btn.innerHTML = '<i data-lucide="heart"></i>';
+    pintarCoracao(btn, favs.has(slug));
+    el.appendChild(btn);
+
+    btn.addEventListener('click', async () => {
+      const on = favs.has(slug);
+      btn.disabled = true;
+      // Otimista: pinta já e reflete no bloco.
+      if (on) favs.delete(slug);
+      else favs.add(slug);
+      pintarCoracao(btn, !on);
+      pintarBloco();
+      try {
+        if (on) {
+          const { error } = await supabase.from('cardapio_favoritos').delete().eq('item_slug', slug);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('cardapio_favoritos').insert({ item_slug: slug, item_nome: nome });
+          if (error && error.code !== '23505') throw error; // 23505 = já era favorito, ok
+        }
+      } catch {
+        // Desfaz o otimista se o servidor recusou.
+        if (on) favs.add(slug);
+        else favs.delete(slug);
+        pintarCoracao(btn, on);
+        pintarBloco();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  pintarBloco();
+  renderIcons();
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -5990,6 +6103,7 @@ export function initSite() {
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])

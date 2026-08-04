@@ -685,6 +685,33 @@ presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já prev
 
 ---
 
+## Teus favoritos no cardápio (Fase 3)
+
+O `/cardapio` era uma lista bonita mas estática. Agora quem está logado **favorita**
+um item (um coraçãozinho) e ganha um bloco **"teus favoritos"** no topo, pra reencontrar
+o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama**.
+
+- **Aberto a qualquer pessoa logada** (não é perk de assinante) — quanto mais gente marca,
+  mais sinal pra casa. O cardápio é HTML curado, então o item é identificado por um `slug`
+  **derivado do nome** (`slugify`, no client) — nada de tabela de menu.
+- **Migration `0027_cardapio_favoritos` (PENDENTE — aplicar no SQL Editor):** tabela
+  `cardapio_favoritos` (`(user_id, item_slug)` PK, `item_nome` snapshot pro console,
+  `user_id` default `auth.uid()`). Favorito é dado **benigno** (não entra na lista de
+  sensíveis do security-check): a **escrita é direta pelo client via RLS**, sempre travada
+  em `auth.uid()` (policies select/insert/delete own) — sem Edge Function. O console lê o
+  agregado por `admin_cardapio_favoritos()` (SECURITY DEFINER, gated por
+  `tem_permissao('relatorios')`), que conta por slug e mostra o nome **mais frequente**
+  (resiliente a um snapshot adulterado; o console escapa tudo).
+- **Front:** `initCardapioFavoritos()` (boot) só age logado: deriva o slug de cada
+  `.menu-item` pelo nome, injeta um coração em cada um, lê os favoritos do usuário e monta o
+  bloco de chips (cada chip rola até o item com um flash). Toggle otimista (insert/delete),
+  desfaz se o servidor recusar; `23505` (já favoritado) conta como sucesso. Tolerante: sem
+  sessão ou sem a migration, nenhum coração aparece. No console, a aba **"favoritos"**
+  (`viewFavoritos`, ícone `heart`, quem tem `relatorios`) lista o ranking com barrinha.
+- **Falta:** aplicar a `0027` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -858,6 +885,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   owner-only). Front: seção "a agenda do Casa" na home (`initAgenda`) + aba "agenda" no
   console. Tolerante à migration pendente. **Falta:** aplicar + subir o front. Nenhum secret
   novo; nenhuma Edge Function. Ver "A agenda do Casa — encontros" acima.
+- **`0027_cardapio_favoritos` — PENDENTE (aplicar no SQL Editor).** "Teus favoritos":
+  tabela `cardapio_favoritos` (PK `(user_id, item_slug)`, `item_nome` snapshot,
+  `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
+  delete own, sempre `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC
+  `admin_cardapio_favoritos()` (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por
+  slug com o nome mais frequente). Front: corações no `/cardapio` + bloco "teus favoritos"
+  (`initCardapioFavoritos`, slug derivado do nome) + aba "favoritos" no console. Tolerante à
+  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
+  Function. Ver "Teus favoritos no cardápio" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

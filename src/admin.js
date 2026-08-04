@@ -36,6 +36,7 @@ import {
   Music,
   Cake,
   CalendarDays,
+  Heart,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -63,6 +64,7 @@ const LUCIDE_ICONS = {
   Music,
   Cake,
   CalendarDays,
+  Heart,
 };
 
 function renderIcons() {
@@ -234,6 +236,9 @@ const NAV = [
   { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'resgates' },
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
+  // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
+  // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
+  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -597,6 +602,7 @@ function abrirDoHash() {
     aniversarios: viewAniversarios,
     pessoas: viewPessoas,
     relatorios: viewRelatorios,
+    favoritos: viewFavoritos,
     equipe: viewEquipe,
     recados: viewRecados,
     trilha: viewTrilha,
@@ -2148,6 +2154,57 @@ async function viewAgenda(view) {
   $('[data-a-cancelar]', form).addEventListener('click', limparForm);
 
   carregarAgenda();
+}
+
+// ===== FAVORITOS (o que a casa mais ama) ============================
+// Os itens do cardápio mais favoritados. Trava por tem_permissao('relatorios')
+// no banco (0027); o agregado usa o nome mais frequente por slug (defesa contra
+// snapshot adulterado). Só leitura — nenhuma baixa.
+async function viewFavoritos(view) {
+  view.innerHTML =
+    cabecalho(
+      'o que a casa mais ama',
+      'os itens do cardápio que mais viraram favorito de quem vem.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarFavoritos(corpo));
+  renderIcons();
+  carregarFavoritos(corpo);
+}
+
+async function carregarFavoritos(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_cardapio_favoritos');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém favoritou ainda',
+        'quando alguém marcar um item no cardápio, ele aparece aqui, do mais amado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.favoritos) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardFav(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardFav(l, i, max) {
+  const n = Number(l.favoritos) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.item_nome || l.item_slug || 'item')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="heart"></i>${formatNumero(n)}</span>
+    </div>`;
 }
 
 // ===== TUA CONTA ====================================================
