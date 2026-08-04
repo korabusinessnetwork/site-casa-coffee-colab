@@ -786,6 +786,18 @@ a.txt-link.gold { color: var(--gold) }
 .pf-head h2 { font-family: var(--serif); font-size: clamp(21px, 3vw, 24px); font-weight: 500; line-height: 1.2; color: var(--ink); margin: 0 }
 .pf-head p { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 0 }
 
+/* Resgatar presente: a seção começa fechada e só mostra o botão "tem um
+   presente?". Clicar (data-presente-toggle) revela o corpo com o campo do código.
+   A seta → gira 90° quando abre. */
+.pf-presente-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 0; margin: 0; background: none; border: 0; cursor: pointer; text-align: left; color: var(--ink); font: inherit }
+.pf-presente-toggle-txt { font-family: var(--serif); font-size: clamp(21px, 3vw, 24px); font-weight: 500; line-height: 1.2 }
+.pf-presente-toggle .arw { flex: none; font-size: 20px; color: var(--muted); transition: transform .25s ease }
+.pf-presente-toggle[aria-expanded="true"] .arw { transform: rotate(90deg) }
+.pf-presente-corpo { display: flex; flex-direction: column; gap: 20px }
+.pf-presente-corpo[hidden] { display: none }
+.pf-presente-sub { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 0 }
+@media (prefers-reduced-motion: reduce) { .pf-presente-toggle .arw { transition: none } }
+
 /* ---------- grade de campos (o .field do app já tem label/input/foco) ---------- */
 .pf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px }
 .pf-grid.addr { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) }
