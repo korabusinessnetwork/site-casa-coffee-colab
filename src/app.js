@@ -52,6 +52,7 @@ import {
   Users,
   CalendarDays,
   CalendarPlus,
+  Bookmark,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -100,6 +101,7 @@ const LUCIDE_ICONS = {
   Users,
   CalendarDays,
   CalendarPlus,
+  Bookmark,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -1221,6 +1223,163 @@ async function initCardapioFavoritos() {
   renderIcons();
 }
 
+// --- Ficou pra depois (lista de desejos da loja) -------------------------------
+// Um coração em cada produto que SALVA pra depois sem botar no carrinho, com uma
+// tirinha "ficou pra depois" no topo da /loja e um espelho no /conta/perfil.
+// Espelha o padrão do cardapio_favoritos (0027): dado benigno, escrita RLS-direct
+// travada em auth.uid(). Só pra quem está logado; tolerante sem a migration 0029.
+async function initLojaDesejos() {
+  if (!supabase) return;
+  const grid = document.querySelector('[data-catalog-grid]');
+  const btnProduto = document.querySelector('[data-desejo-produto]');
+  const tirinhas = Array.from(document.querySelectorAll('[data-loja-desejos], [data-desejos-perfil]'));
+  if (!grid && !btnProduto && !tirinhas.length) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // guardar pra depois só pra quem está logado
+
+  // Set de slugs guardados + nome de cada um (preferindo o mock atual; cai no
+  // snapshot do banco se o produto saiu da vitrine).
+  const desejos = new Set();
+  const nomePorSlug = new Map();
+  try {
+    const { data, error } = await supabase.from('loja_desejos').select('produto_slug, produto_nome');
+    if (error) return; // migration pendente → some tudo, sem ruído
+    (data || []).forEach((r) => {
+      desejos.add(r.produto_slug);
+      nomePorSlug.set(r.produto_slug, r.produto_nome);
+    });
+  } catch {
+    return;
+  }
+
+  const nomeDe = (slug) => getProdutoPorSlug(slug)?.nome || nomePorSlug.get(slug) || slug;
+
+  // Todos os corações de um mesmo slug (card + página de produto) andam juntos.
+  const botoesPorSlug = new Map();
+  const registrar = (slug, btn) => {
+    if (!botoesPorSlug.has(slug)) botoesPorSlug.set(slug, new Set());
+    botoesPorSlug.get(slug).add(btn);
+  };
+
+  const pintarBtn = (btn, on) => {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    if (btn.classList.contains('prod-guardar')) {
+      const txt = btn.querySelector('span');
+      if (txt) txt.textContent = on ? 'guardado 💛' : 'guardar pra depois';
+      btn.setAttribute('aria-label', on ? 'tirar da lista de desejos' : 'guardar pra depois');
+    } else {
+      btn.setAttribute('aria-label', on ? 'tirar da lista de desejos' : 'guardar pra depois');
+    }
+  };
+  const repintarSlug = (slug) => {
+    const on = desejos.has(slug);
+    (botoesPorSlug.get(slug) || []).forEach((b) => pintarBtn(b, on));
+  };
+
+  // Tirinha "ficou pra depois" (loja + perfil): chips linkando pro produto, com ×.
+  const pintarTirinhas = () => {
+    if (!tirinhas.length) return;
+    const slugs = [...desejos];
+    for (const sec of tirinhas) {
+      const chipsEl = sec.querySelector('[data-ld-chips]');
+      if (!chipsEl) continue;
+      if (!slugs.length) {
+        sec.hidden = true;
+        chipsEl.innerHTML = '';
+        continue;
+      }
+      chipsEl.innerHTML = slugs
+        .map((slug) => {
+          const nome = nomeDe(slug);
+          return `<span class="ld-chip">
+            <a href="/produto?slug=${encodeURIComponent(slug)}">${escapeHtml(nome)}</a>
+            <button type="button" class="ld-chip-x" data-ld-remove="${escapeHtml(slug)}" aria-label="tirar ${escapeHtml(nome)} da lista">
+              <i data-lucide="x"></i>
+            </button>
+          </span>`;
+        })
+        .join('');
+      sec.hidden = false;
+    }
+    renderIcons();
+  };
+
+  // Toggle otimista, compartilhado por corações e ×: pinta já, reflete em toda
+  // parte, persiste e desfaz se o servidor recusar.
+  const alternar = async (slug) => {
+    const estava = desejos.has(slug);
+    if (estava) desejos.delete(slug);
+    else desejos.add(slug);
+    repintarSlug(slug);
+    pintarTirinhas();
+    try {
+      if (estava) {
+        const { error } = await supabase.from('loja_desejos').delete().eq('produto_slug', slug);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('loja_desejos').insert({ produto_slug: slug, produto_nome: nomeDe(slug) });
+        if (error && error.code !== '23505') throw error; // 23505 = já guardado, ok
+      }
+    } catch {
+      // desfaz o otimista
+      if (estava) desejos.add(slug);
+      else desejos.delete(slug);
+      repintarSlug(slug);
+      pintarTirinhas();
+    }
+  };
+
+  // Corações nos cards do catálogo (injetados por JS, como no cardápio).
+  if (grid) {
+    grid.querySelectorAll('[data-produto][data-slug]').forEach((card) => {
+      const slug = card.dataset.slug;
+      if (!slug) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'prod-fav';
+      btn.dataset.desejo = slug;
+      btn.innerHTML = '<i data-lucide="heart"></i>';
+      pintarBtn(btn, desejos.has(slug));
+      card.appendChild(btn);
+      registrar(slug, btn);
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        await alternar(slug);
+        btn.disabled = false;
+      });
+    });
+  }
+
+  // Botão "guardar pra depois" na página de produto (revela e liga).
+  if (btnProduto) {
+    const slug = btnProduto.dataset.desejoProduto;
+    btnProduto.hidden = false;
+    pintarBtn(btnProduto, desejos.has(slug));
+    registrar(slug, btnProduto);
+    btnProduto.addEventListener('click', async () => {
+      btnProduto.disabled = true;
+      await alternar(slug);
+      btnProduto.disabled = false;
+    });
+  }
+
+  // × das tirinhas (delegação por container, sobrevive ao re-render).
+  for (const sec of tirinhas) {
+    const chipsEl = sec.querySelector('[data-ld-chips]');
+    chipsEl?.addEventListener('click', (e) => {
+      const x = e.target.closest('[data-ld-remove]');
+      if (!x) return;
+      alternar(x.dataset.ldRemove);
+    });
+  }
+
+  pintarTirinhas();
+  renderIcons();
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -1967,7 +2126,7 @@ function cardProdutoHTML(p) {
     ? `<a href="/produto?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
     : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
   return `
-    <article class="prod" data-produto data-categoria="${p.categoria}">
+    <article class="prod" data-produto data-categoria="${p.categoria}" data-slug="${escapeHtml(p.slug)}">
       <a href="/produto?slug=${p.slug}" class="block" aria-label="${escapeHtml(p.nome)}">
         <div class="ph ${p.imagemPlaceholder}"></div>
       </a>
@@ -2093,6 +2252,9 @@ function initProductPage() {
               </button>
             </div>
             <button type="button" data-add-detail class="btn solid">adicionar ao carrinho</button>
+            <button type="button" class="btn ghost prod-guardar" data-desejo-produto="${escapeHtml(p.slug)}" hidden>
+              <i data-lucide="heart"></i><span>guardar pra depois</span>
+            </button>
           </div>
         </div>
         <p class="mt-6 text-xs text-muted">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
@@ -4046,6 +4208,17 @@ async function initPerfilPage() {
         </div>
       </section>
 
+      <!-- Ficou pra depois: espelho da lista de desejos da loja. Preenchido
+           pós-render por initLojaDesejos (chamada no fim desta função). Escondido
+           sem desejos / sem a migration 0029. -->
+      <section class="loja-desejos" data-desejos-perfil hidden>
+        <div class="pf-head">
+          <h2>ficou pra depois</h2>
+          <p>o que tu guardou na loja pra levar num outro dia. toca pra abrir, ou tira da lista.</p>
+        </div>
+        <div class="ld-chips" data-ld-chips></div>
+      </section>
+
       <section>
         <div class="pf-head">
           <h2>conta e privacidade</h2>
@@ -5404,6 +5577,11 @@ async function initPerfilPage() {
   });
 
   root.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
+
+  // Espelho da lista de desejos ("ficou pra depois"): a chamada do boot rodou
+  // antes deste HTML existir (o perfil é montado pós-guard), então religa aqui,
+  // já com a seção [data-desejos-perfil] no DOM. Tolerante: sem a 0029, some.
+  initLojaDesejos();
 }
 
 // --- Pontos + Recompensas (área logada) ----------------------------------------
@@ -6165,6 +6343,7 @@ export function initSite() {
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
   initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
+  initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])

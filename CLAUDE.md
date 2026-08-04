@@ -729,6 +729,38 @@ o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama*
 
 ---
 
+## Ficou pra depois (lista de desejos da loja) (Fase 3)
+
+O irmão do "teus favoritos" do cardápio, agora na loja: um **coração em cada produto**
+(catálogo e página de produto) que **salva pra depois** sem botar no carrinho. Uma tirinha
+**"ficou pra depois"** no topo da `/loja` e um **espelho no `/conta/perfil`** reúnem o que a
+pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa vê no console
+**o que a casa mais quer** (demanda represada por produto).
+
+- **Aberto a qualquer pessoa logada** (não é perk de assinante). O catálogo é mock no client
+  (`PRODUTOS`), então o produto é identificado pelo **mesmo `slug` da URL `/produto`**; o
+  `produto_nome` é snapshot pro console.
+- **Migration `0029_loja_desejos` (PENDENTE — aplicar no SQL Editor):** tabela `loja_desejos`
+  (`(user_id, produto_slug)` PK, `produto_nome` snapshot, `user_id` default `auth.uid()`).
+  Desejo é dado **benigno** (fora da lista de sensíveis do security-check): **escrita direta
+  pelo client via RLS**, sempre travada em `auth.uid()` (policies select/insert/delete own),
+  sem Edge Function. O console lê o agregado por `admin_loja_desejos()` (SECURITY DEFINER,
+  `tem_permissao('relatorios')`), que conta por slug e mostra o nome **mais frequente**
+  (resiliente a snapshot adulterado; o console escapa tudo).
+- **Front:** `initLojaDesejos()` só age logado, em três superfícies (tolerante sem a 0029,
+  sem sessão → nada aparece): (1) injeta um coração sobre a foto de cada card do catálogo
+  (`.prod-fav`, via `[data-produto][data-slug]`); (2) revela o botão "guardar pra depois" na
+  página de produto (`[data-desejo-produto]`, `hidden` até logar); (3) monta a tirinha de
+  chips (link pro produto + `×` pra tirar) nas seções `[data-loja-desejos]` (topo da `/loja`)
+  e `[data-desejos-perfil]` (perfil). Todos os corações de um mesmo slug andam juntos; toggle
+  **otimista** (insert/delete, `23505` = já guardado = sucesso), desfaz se o servidor recusar.
+  A chamada do boot não pega o perfil (montado pós-guard), então `initPerfilPage` **religa**
+  `initLojaDesejos()` no fim. No console, a aba **"desejos"** (`viewDesejos`, ícone `bookmark`,
+  quem tem `relatorios`) lista o ranking com barrinha, igual aos favoritos.
+- **Falta:** aplicar a `0029` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -918,6 +950,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   (`avatarBolha`). **Depende da `0026` estar aplicada** (usa `event_rsvps`). Tolerante:
   sem ela, `agenda_proximos` fica na versão da 0026 e a home só não mostra rostos. **Falta:**
   aplicar (depois da 0026) + subir o front. Ver "Quem vai" na seção da agenda.
+- **`0029_loja_desejos` — PENDENTE (aplicar no SQL Editor).** "Ficou pra depois": tabela
+  `loja_desejos` (PK `(user_id, produto_slug)`, `produto_nome` snapshot, `user_id` default
+  `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/delete own, sempre
+  `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC `admin_loja_desejos()`
+  (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por slug com o nome mais
+  frequente). Front: corações no catálogo/produto + tirinha "ficou pra depois" na `/loja` e
+  espelho no `/conta/perfil` (`initLojaDesejos`) + aba "desejos" no console. Tolerante à
+  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
+  Function. Ver "Ficou pra depois (lista de desejos da loja)" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
