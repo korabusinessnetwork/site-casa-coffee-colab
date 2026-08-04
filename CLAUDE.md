@@ -580,6 +580,35 @@ pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
 
 ---
 
+## Meu cantinho (perfil público do assinante)
+
+Um cartãozinho público e **opt-in** do assinante em **`/gente/{handle}`** — dá rosto à
+comunidade sem expor nada sensível. Mostra: apelido (ou 1º nome), foto, plano, "na casa
+desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mural.
+**Ficam SEMPRE de fora:** e-mail, telefone, pontos, endereço, nome real completo.
+
+- **Migration `0024_perfil_publico` (PENDENTE — aplicar no SQL Editor):** colunas
+  `profiles.perfil_publico` (bool, opt-in) e `profiles.handle` (slug único da URL) + 2 RPCs
+  SECURITY DEFINER:
+  - `definir_perfil_publico(ativar)` — o dono (`auth.uid()`) liga/desliga; ao ligar gera um
+    handle único e estável (slug do apelido/nome, tira acento). **Exige assinante**
+    (`tier_slug` não nulo), como o Mural. Granted a `authenticated`.
+  - `perfil_publico(handle)` — leitura **pública** (granted a `anon`), devolve um jsonb com
+    EXATAMENTE os campos seguros (hand-picked) + os recados do dono; `null` se não existe ou
+    não é público. **A exposição NÃO é RLS na `profiles`** (abriria a linha toda) — é este
+    payload curado.
+- **Rota `/gente/{handle}`:** `gente.html` (registrada no `rollupOptions.input`). URL
+  dinâmica servida por **rewrite**: `vercel.json` (`rewrites: /gente/:handle → /gente.html`)
+  em prod e o middleware `urlsLimpasNoDev` (regex `/gente/{x}` → `gente.html`) no dev.
+- **Front:** `initGentePage()` lê o handle do path, chama `perfil_publico`, monta o cartão
+  (café via `cafeFrase`, "desde" via `membroDesde`), escapa tudo; estado vazio gentil se o
+  handle não existe/fechou. `/conta/perfil` ganhou a seção **"meu cantinho"**
+  (`[data-cantinho]`): toggle liga/desliga (`definir_perfil_publico`), mostra o link + copiar.
+  Tudo tolerante à migration pendente (seção some, página cai no vazio).
+- **Falta:** aplicar a `0024` + subir o front. Nenhum secret novo.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -731,6 +760,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `salvar`/`remover`). Front: `initTrilha` (home) com `spotifyEmbed` trancando o src em
   `open.spotify.com/embed` + aba **trilha** no console (owner-only). Tolerante à migration
   pendente. **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "A trilha do Casa" acima.
+- **`0024_perfil_publico` — PENDENTE (aplicar no SQL Editor).** "Meu cantinho": colunas
+  `profiles.perfil_publico`/`handle` + RPCs `definir_perfil_publico(bool)` (dono liga/desliga,
+  exige assinante) e `perfil_publico(text)` (leitura pública anon, payload seguro curado —
+  NÃO é RLS na profiles). Front: página `/gente/{handle}` (rewrite no vercel.json + middleware
+  do dev) + seção "meu cantinho" no `/conta/perfil`. Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Ver "Meu cantinho" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

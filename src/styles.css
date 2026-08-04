@@ -440,6 +440,35 @@ a.txt-link.gold { color: var(--gold) }
 @keyframes trilha-eq { 0%, 100% { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
 @media (prefers-reduced-motion: reduce) { .trilha-eq i { animation: none; transform: scaleY(.7) } }
 
+/* ---------- /gente/{handle} — o cantinho público ---------- */
+.gente-sec .wrap { max-width: 640px }
+.gente-carregando { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 60px 0; color: var(--muted) }
+.gente-spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--coral); animation: gente-spin 800ms linear infinite }
+@keyframes gente-spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .gente-spin { animation-duration: 2s } }
+.gente-vazio { text-align: center; padding: 48px 0; display: flex; flex-direction: column; align-items: center; gap: 12px }
+.gente-vazio-ic { font-size: 40px }
+.gente-vazio h1 { font-family: var(--serif); font-size: clamp(24px, 4vw, 30px); font-weight: 500; color: var(--ink); margin: 0 }
+.gente-vazio p { font-size: 15px; color: var(--muted); margin: 0; max-width: 42ch }
+.gente-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 14px; padding: 40px 28px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(160deg, color-mix(in srgb, var(--coral) 8%, var(--card)), var(--card) 62%) }
+.gente-avatar { width: 104px; height: 104px; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--coral) 16%, var(--card)); display: grid; place-items: center; box-shadow: 0 14px 40px -26px color-mix(in srgb, var(--coral) 80%, transparent) }
+.gente-avatar-img { width: 100%; height: 100%; object-fit: cover }
+.gente-avatar-ini { font-family: var(--serif); font-size: 40px; font-weight: 500; color: var(--coral) }
+.gente-nome { font-family: var(--serif); font-size: clamp(26px, 5vw, 34px); font-weight: 500; line-height: 1.1; color: var(--ink); margin: 0 }
+.gente-meta { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px }
+.gente-tier, .gente-desde { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; font-family: var(--sans); font-size: 13px; font-weight: 600 }
+.gente-tier { background: color-mix(in srgb, var(--gold) 16%, transparent); color: color-mix(in srgb, var(--gold) 70%, #000) }
+.gente-desde { background: var(--paper-2); color: var(--muted) }
+.gente-tier svg, .gente-desde svg { width: 15px; height: 15px }
+.gente-cafe { margin: 6px 0 0; font-size: 16px; line-height: 1.5; color: var(--ink-2); display: flex; flex-direction: column; gap: 3px }
+.gente-cafe span { font-family: var(--sans); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--gold) }
+.gente-recados { margin-top: 34px }
+.gente-sub { font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--ink); margin: 0 0 16px; text-align: center }
+.gente-recados-lista { display: flex; flex-direction: column; gap: 12px }
+.gente-recado { padding: 16px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }
+.gente-recado p { margin: 0; font-family: 'Caveat', cursive; font-size: 21px; line-height: 1.4; color: var(--ink) }
+.gente-recado span { display: block; margin-top: 6px; font-size: 12px; color: var(--muted) }
+
 /* ---------- footer ---------- */
 .foot { background: var(--ink-3); color: var(--cream-soft) }
 .foot .wrap { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 34px; padding-top: 60px; padding-bottom: 30px }
@@ -857,6 +886,14 @@ a.txt-link.gold { color: var(--gold) }
 .pf-indica-copy.ok { background: var(--olive) }
 .pf-indica-conta { margin: 14px 0 0; font-size: 14px; color: var(--olive); font-weight: 500 }
 .pf-indica-conta[hidden] { display: none }
+.pf-indica-conta.text-coral { color: var(--coral) }
+.pf-indica-conta.text-olive { color: var(--olive) }
+
+/* meu cantinho (toggle do perfil público) */
+.pf-cantinho-toggle { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 500; color: var(--ink); cursor: pointer }
+.pf-cantinho-toggle input { width: 20px; height: 20px; accent-color: var(--coral); cursor: pointer; flex: 0 0 auto }
+.pf-cantinho-link { margin-top: 16px }
+.pf-cantinho-link[hidden] { display: none }
 
 /* aviso de "você foi convidado" no topo do /cadastro */
 .cadastro-convite { margin: 0 0 20px; padding: 14px 18px; border-radius: 12px; background: color-mix(in srgb, var(--coral) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--coral) 25%, var(--line)); font-size: 14px; line-height: 1.5; color: var(--ink) }
