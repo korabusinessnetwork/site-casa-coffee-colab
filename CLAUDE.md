@@ -527,6 +527,34 @@ compensa quando entra gente de verdade pagando, matando conta-fantasma.
 
 ---
 
+## Recado da casa (aviso no topo do site)
+
+Uma tarja fina no topo (antes do `<header>`) que o Casa acende com um recado curto e
+datado: *"hoje tem fornada de brioche a partir das 15h 🥐"*, *"a gente fecha 17h nesse
+sábado"*. Some sozinha quando a janela expira; a pessoa pode fechar e ela não volta
+(o front lembra pelo id). Editável **só pelo owner** no console do adm.
+
+- **Migration `0022_avisos` (PENDENTE — aplicar no SQL Editor):** tabela `avisos_casa`
+  (`texto` ≤160, `emoji`, `link_url`/`link_label`, janela `inicio_em`/`fim_em`,
+  `prioridade`, `ativo`) com RLS: **leitura pública SÓ do vigente** (a policy filtra
+  `ativo` + janela com `now()` — anon nunca vê rascunho/agendado/expirado; owner vê tudo).
+  **Escrita** só via 3 RPCs SECURITY DEFINER gated por `is_owner()`:
+  `admin_avisos_listar()`, `admin_aviso_salvar(...)` (cria/edita), `admin_aviso_remover(id)`
+  — deny-by-default pro client, sem INSERT/UPDATE/DELETE de RLS.
+- **Owner-only de propósito:** o whitelist de permissões do console é fechado por CHECK
+  (0017), então "avisos" **não** entra em `PERMISSOES` como grantável; a aba `recados`
+  usa `perm: 'avisos'`, que só quem tem `tudo` (adm do Casa) enxerga. Delegar pra outro
+  papel pediria uma migration alterando aquele CHECK.
+- **Front:** `renderAvisoBar()` (boot, toda página) lê o vigente (RLS), injeta a tarja
+  antes do header, escapa texto/link (link só interno `/x` ou `http(s)`), fecha com ×
+  (colapso via `grid-template-rows`, sem cortar texto) e lembra o id fechado no
+  localStorage (`casa_avisos_lidos`). Tolerante: sem a 0022, a tarja só não aparece.
+- **Console:** aba **recados** (`viewRecados` em `admin.js`) — form pra escrever/agendar/
+  ligar-desligar + lista com editar/remover.
+- **Falta:** aplicar a `0022` no SQL Editor + subir o front. Nenhum secret novo.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -666,6 +694,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   deployado em 03/ago/2026**) chama `premiar_indicacao` no primeiro pagamento do indicado;
   valores dos pontos são FICTÍCIOS nas constantes do webhook. Front tolerante à migration
   pendente. **Falta:** aplicar esta migration + subir o front. Ver "Indica um amigo" acima.
+- **`0022_avisos` — PENDENTE (aplicar no SQL Editor).** "Recado da casa": tabela
+  `avisos_casa` (RLS: leitura pública só do vigente por `ativo`+janela; owner vê tudo) +
+  3 RPCs SECURITY DEFINER `is_owner()` (`admin_avisos_listar`/`admin_aviso_salvar`/
+  `admin_aviso_remover`) — sem escrita pelo client. Front: `renderAvisoBar` (tarja no topo,
+  toda página) + aba **recados** no console (owner-only). Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "Recado da casa" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

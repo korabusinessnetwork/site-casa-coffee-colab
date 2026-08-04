@@ -623,6 +623,93 @@ function initHeaderInteractions() {
   }
 }
 
+// --- Recado da casa (tarja de aviso no topo) -----------------------------------
+const AVISOS_LIDOS_KEY = 'casa_avisos_lidos';
+
+function avisosLidos() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(AVISOS_LIDOS_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function marcarAvisoLido(id) {
+  try {
+    const lidos = avisosLidos().filter((x) => x !== id);
+    lidos.push(id);
+    // Mantém só os últimos 50 pra não crescer sem fim.
+    localStorage.setItem(AVISOS_LIDOS_KEY, JSON.stringify(lidos.slice(-50)));
+  } catch {
+    /* sem localStorage: ignora */
+  }
+}
+
+// Só aceita link interno ("/algo") ou http(s) absoluto — nada de javascript: etc.
+function linkAvisoSeguro(url) {
+  if (typeof url !== 'string' || !url) return null;
+  const u = url.trim();
+  if (/^\/(?![/\\])/.test(u)) return u; // caminho interno
+  if (/^https?:\/\//i.test(u)) return u; // absoluto http(s)
+  return null;
+}
+
+// Acende a tarja do "recado da casa" no topo (se houver um vigente e ainda não
+// fechado). Leitura pública: a RLS só devolve o recado ativo dentro da janela.
+// Injeta ANTES do <header> no #site-header, então rola junto com o topo da página.
+async function renderAvisoBar() {
+  const slot = document.getElementById('site-header');
+  if (!slot || !supabase) return;
+
+  let avisos = [];
+  try {
+    const { data, error } = await supabase
+      .from('avisos_casa')
+      .select('id, texto, emoji, link_url, link_label')
+      .order('prioridade', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(6);
+    if (error) return; // migration 0022 pendente / erro → sem tarja, sem ruído
+    avisos = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+
+  const lidos = avisosLidos();
+  const aviso = avisos.find((a) => !lidos.includes(a.id));
+  if (!aviso) return;
+
+  const barra = document.createElement('div');
+  barra.className = 'aviso-casa';
+  barra.setAttribute('role', 'status');
+
+  const emoji = aviso.emoji ? `<span class="aviso-casa-emoji" aria-hidden="true">${escapeHtml(aviso.emoji)}</span>` : '';
+  const href = linkAvisoSeguro(aviso.link_url);
+  const link = href
+    ? `<a class="aviso-casa-link" href="${escapeHtml(href)}">${escapeHtml(aviso.link_label || 'ver mais')} →</a>`
+    : '';
+
+  barra.innerHTML = `
+    <div class="aviso-casa-in">
+      <p class="aviso-casa-txt">${emoji}<span>${escapeHtml(aviso.texto)}</span>${link}</p>
+      <button type="button" class="aviso-casa-x" data-aviso-fechar aria-label="fechar este recado">
+        <i data-lucide="x"></i>
+      </button>
+    </div>`;
+
+  slot.insertBefore(barra, slot.firstChild);
+  renderIcons();
+
+  barra.querySelector('[data-aviso-fechar]')?.addEventListener('click', () => {
+    marcarAvisoLido(aviso.id);
+    barra.classList.add('saindo');
+    const remover = () => barra.remove();
+    // Some com uma transição curta (respeitada pelo CSS em prefers-reduced-motion).
+    barra.addEventListener('transitionend', remover, { once: true });
+    setTimeout(remover, 400); // fallback caso a transição não dispare
+  });
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -5268,6 +5355,7 @@ function initCarousels() {
 // --- Bootstrap -----------------------------------------------------------------
 export function initSite() {
   renderHeader();
+  renderAvisoBar(); // tarja "recado da casa" no topo (só se houver um vigente)
   renderFooter();
   renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)
