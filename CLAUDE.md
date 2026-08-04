@@ -588,21 +588,34 @@ pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
   lista com editar/remover. Bloqueia no submit link que não é do Spotify.
 - **Falta:** aplicar a `0023` + subir o front. Nenhum secret novo.
 
-### O som de agora (nota gentil pro Spotify, na home)
+### O som de agora (faixa ao vivo do Spotify, na home)
 
-Uma seção **minimalista e centralizada** entre as *features* e o rodapé da home: um
-equalizador miúdo, o selo "tocando agora" (pontinho pulsando), um título serifado
-("o que embala a casa") e um **link gentil "ouvir no Spotify"** — tudo na paleta da
-casa (terracota/paper), **sem card pesado**, no tom do DNA. Estilo `.som-*` no
-`styles.css`; markup estático na `home.html`.
+Uma seção **minimalista e centralizada** entre as *features* e o rodapé da home, na paleta
+da casa (terracota/paper), **sem card pesado**, dois estados:
 
-- **Fonte única do link:** `initSomDoCasa()` liga o `href` do botão `[data-som-spotify]`
-  ao `MARCA.redes › Spotify` (mesma fonte do rodapé). Enquanto for placeholder (`'#'`),
-  tira o `target` pra não abrir aba em branco; quando entrar a URL real, vale nos dois lugares.
-- **Só front, sem banco.** Não depende de migration nem de sessão (aparece pra todo mundo).
-- **TODO (som ao vivo de verdade):** mostrar a **faixa que toca agora** em tempo real exige
-  a Spotify Web API com o token da conta do Casa, atualizado numa **Edge Function** (OAuth +
-  refresh token como secret) — não dá client-side. Por ora o painel é o convite pra ouvir junto.
+- **AO VIVO** (`[data-som-live]`): capa do álbum, selo "tocando agora" (pontinho pulsando),
+  nome da faixa (serifado), artista e uma **barrinha de progresso** que anda sozinha. Vem da
+  faixa que realmente toca na conta Spotify do Casa.
+- **GENTIL** (`[data-som-idle]`): equalizador miúdo, "o som do Casa", título "o que embala a
+  casa" e o **link "ouvir no Spotify"** — quando nada está tocando (ou a integração está off).
+
+**Como o ao vivo funciona (built, DESLIGADO por enquanto):**
+- **Edge Function `spotify-now-playing`** (deploy com `--no-verify-jwt`, leitura pública):
+  troca o `SPOTIFY_REFRESH_TOKEN` por um access token (cacheado 1h na instância), chama
+  `GET /me/player/currently-playing` e devolve `{ tocando, nome, artista, album, capa, url,
+  progresso_ms, duracao_ms }` ou `{ tocando:false }`. **Não** importa o `_shared/lib.ts` (que
+  exige `ASAAS_API_KEY` no topo) — é auto-contida. Cache curto de 10s protege de rate limit.
+  Secrets **só na function**: `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`.
+- **Front `initSomDoCasa()`**: com a flag `SOM_AO_VIVO` (hoje `false`) sonda a function a cada
+  15s e alterna live↔idle; a barra avança client-side entre os polls; pausa em aba escondida;
+  para de sondar se a function some (erro) ou volta `configurado:false`. Capa só de `i.scdn.co`,
+  link só de `open.spotify.com` (trava anti-URL-forjada). Link do idle vem do `MARCA.redes`
+  (fonte única do rodapé); placeholder `'#'` não abre aba em branco.
+- **Pra LIGAR** (a Spotify Web API é **grátis**, não exige Premium pra LER): `npm run
+  spotify-token` (OAuth uma vez, pega o refresh token), `npx supabase secrets set` os três
+  `SPOTIFY_*`, `npx supabase functions deploy spotify-now-playing --no-verify-jwt`, e virar
+  `SOM_AO_VIVO = true` no `app.js`. **Condição prática:** o som do Casa precisa tocar por essa
+  conta Spotify (é o que a API enxerga). Passo a passo no cabeçalho de `scripts/spotify-token.mjs`.
 
 ---
 
