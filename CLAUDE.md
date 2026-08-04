@@ -619,6 +619,43 @@ desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mura
 
 ---
 
+## Hoje o Casa é teu — brunch de aniversário (Fase 3)
+
+Cumpre a promessa que a 0014 já deixava no ar (`profiles.nascimento`: "no dia tem café
+por nossa conta"), num tamanho maior: no **mês do aniversário**, o assinante reserva um
+**brunch de aniversário** (pra uma pessoa — o mesmo mimo que a casa já dá hoje). Resgata
+no `/conta/perfil`, recebe um **código** `CASA-XXXXXX`, mostra no balcão; o staff confere
+e dá baixa no console. **Um por ano.**
+
+- **Perk de assinante**, como o Mural/pontos/cantinho: só resgata quem tem `tier_slug`
+  vigente. E só **no mês** do aniversário (janela generosa — dá pra vir num dia de semana).
+  O código vale **30 dias** a partir do resgate.
+- **Migration `0025_brinde_aniversario` (PENDENTE — aplicar no SQL Editor):** tabela
+  `brindes_aniversario` (`user_id`, `ano`, `codigo` unique, `valido_ate`, `status`
+  ativo|usado, UNIQUE `(user_id, ano)`) com RLS (cada um lê o próprio; staff com
+  `resgates` lê todos; **escrita só via RPC**) + 4 RPCs SECURITY DEFINER:
+  - `meu_brinde_aniversario()` (authenticated) — só LÊ: devolve o estado pro card
+    (`tem_data`, `assinante`, `eh_mes`, `eh_dia`, `ja_resgatou`, `codigo`, `valido_ate`,
+    `situacao` ativo|usado|expirado). Fuso `America/Sao_Paulo`.
+  - `resgatar_brinde_aniversario()` (authenticated) — reserva o brunch do ano;
+    **recomputa todas as travas no banco** (mês, assinatura, duplicidade), lock na própria
+    linha + trata `unique_violation` → idempotente por `(user, ano)`.
+  - `admin_brindes_listar(busca, status, limite)` e `admin_brinde_usar(id)` — gated por
+    **`tem_permissao('resgates')`** (não precisou de permissão nova no whitelist do 0017:
+    honrar o brunch no balcão É baixa de recompensa em mãos). `usar` recusa código já usado
+    (idempotente) ou vencido, e grava no `audit_log`.
+- **Front:** o card `[data-aniversario]` no `/conta/perfil` aparece **só** quando faz
+  sentido (é o mês, ou há código vivo): assinante no mês → botão "quero meu brunch"; código
+  reservado → a caixa com o código + validade; usado/expirado → recado gentil; sem plano no
+  mês → CTA pros planos. No console, a aba **"aniversários"** (`viewAniversarios`, ícone
+  `cake`, visível a quem tem `resgates`) lista os brindes com busca (código/nome) + filtros
+  (a validar / usados / vencidos) e o botão "brunch entregue". Tudo tolerante à migration
+  pendente (a RPC falha → card some, sem ruído). Helper `dataDiaMes` formata datas FUTURAS
+  (validade) sem o drift de fuso do `new Date` — o `dataCurta` não serve (devolve "hoje").
+- **Falta:** aplicar a `0025` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -776,6 +813,14 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   NÃO é RLS na profiles). Front: página `/gente/{handle}` (rewrite no vercel.json + middleware
   do dev) + seção "meu cantinho" no `/conta/perfil`. Tolerante à migration pendente.
   **Falta:** aplicar + subir o front. Ver "Meu cantinho" acima.
+- **`0025_brinde_aniversario` — PENDENTE (aplicar no SQL Editor).** "Hoje o Casa é teu":
+  tabela `brindes_aniversario` (UNIQUE `(user_id, ano)`, RLS: dono lê o próprio, staff com
+  `resgates` lê todos, escrita só via RPC) + 4 RPCs SECURITY DEFINER
+  (`meu_brinde_aniversario`/`resgatar_brinde_aniversario` a `authenticated`;
+  `admin_brindes_listar`/`admin_brinde_usar` gated por `tem_permissao('resgates')`). Front:
+  card no `/conta/perfil` + aba "aniversários" no console. Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge Function. Ver
+  "Hoje o Casa é teu — brunch de aniversário" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

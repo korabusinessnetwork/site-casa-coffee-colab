@@ -739,6 +739,18 @@ function dataCurta(iso) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
+// "DD/MM" a partir de uma data. Diferente do `dataCurta` (que é pra datas
+// PASSADAS — devolve "hoje"/"ontem"): aqui serve datas FUTURAS (validade do
+// brinde) e parseia 'YYYY-MM-DD' na mão, sem o drift de fuso do `new Date`.
+function dataDiaMes(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
 // "desde ago/2026" a partir de um ISO.
 function membroDesde(iso) {
   const d = iso ? new Date(iso) : null;
@@ -3346,6 +3358,22 @@ async function initPerfilPage() {
         </div>
       </section>
 
+      <!-- Hoje o Casa é teu 🎂: no mês do aniversário, o assinante reserva um brunch
+           (pra uma pessoa) por nossa conta. Preenchido pós-render (RPC
+           meu_brinde_aniversario). Escondido por padrão; o JS revela só quando faz
+           sentido (é o teu mês, ou tem código vivo). Migration 0025 pendente → some. -->
+      <section class="card pf-aniver" data-aniversario hidden>
+        <div class="pf-aniver-head">
+          <span class="pf-aniver-emoji" aria-hidden="true">🎂</span>
+          <div>
+            <p class="pf-script" data-aniver-script>é o teu mês</p>
+            <h2 class="pf-aniver-titulo" data-aniver-titulo>este mês, o Casa é teu</h2>
+          </div>
+        </div>
+        <p class="pf-aniver-txt" data-aniver-txt></p>
+        <div class="pf-aniver-corpo" data-aniver-corpo></div>
+      </section>
+
       <section class="card pf-sec g-lg pf-presente" data-presente-resgate>
         <button
           type="button"
@@ -3979,6 +4007,85 @@ async function initPerfilPage() {
             }, 2200);
           }
         });
+      })();
+    }
+  }
+
+  // ── Hoje o Casa é teu 🎂: brunch de aniversário ───────────────────────────
+  // Lê o estado (RPC meu_brinde_aniversario) e desenha o card só quando importa:
+  // é o mês do aniversário, ou existe um código ainda válido pra mostrar no balcão.
+  // Tolerante: sem a migration 0025, a RPC falha e o card fica escondido.
+  {
+    const aniverSec = root.querySelector('[data-aniversario]');
+    if (aniverSec && supabase) {
+      (async () => {
+        const { data: st, error } = await supabase.rpc('meu_brinde_aniversario');
+        if (error || !st) return; // migration pendente / erro → card fica hidden
+
+        const temCodigo = Boolean(st.codigo);
+        const mostrar = st.eh_mes || (temCodigo && st.situacao === 'ativo');
+        if (!mostrar) return; // fora do mês e sem código vivo → nem aparece
+
+        const scriptEl = aniverSec.querySelector('[data-aniver-script]');
+        const titEl = aniverSec.querySelector('[data-aniver-titulo]');
+        const txtEl = aniverSec.querySelector('[data-aniver-txt]');
+        const corpo = aniverSec.querySelector('[data-aniver-corpo]');
+
+        if (scriptEl) scriptEl.textContent = st.eh_dia ? 'feliz aniversário' : 'é o teu mês';
+        if (titEl) titEl.textContent = st.eh_dia ? 'hoje o Casa é teu' : 'este mês, o Casa é teu';
+
+        // Desenha a caixa do código (reutilizada no resgate feito na hora).
+        const pintarCodigo = (codigo, validoAte) => {
+          txtEl.textContent = 'teu brunch de aniversário tá reservado — pra ti, por nossa conta. mostra esse código no balcão:';
+          corpo.innerHTML =
+            `<div class="pf-aniver-codebox"><span class="pf-aniver-code">${escapeHtml(codigo)}</span></div>` +
+            `<p class="pf-aniver-val">vale até ${escapeHtml(dataDiaMes(validoAte))} · é só pra ti 💛</p>`;
+        };
+
+        if (temCodigo && st.situacao === 'usado') {
+          txtEl.textContent = 'já comemoramos juntos esse ano 💛 até o teu próximo aniversário!';
+          corpo.innerHTML = '';
+        } else if (temCodigo && st.situacao === 'expirado') {
+          txtEl.textContent = 'teu brunch desse ano acabou vencendo — fica pro próximo, e a gente comemora dobrado 💛';
+          corpo.innerHTML = '';
+        } else if (temCodigo && st.situacao === 'ativo') {
+          pintarCodigo(st.codigo, st.valido_ate);
+        } else if (!st.assinante) {
+          txtEl.textContent = 'no teu mês, quem é do Casa (tem plano) ganha um brunch de aniversário por nossa conta. bora fazer parte?';
+          corpo.innerHTML = `<a class="btn solid sm" href="/planos">conhecer os planos</a>`;
+        } else {
+          txtEl.textContent = 'tem um brunch de aniversário te esperando — pra ti, por nossa conta. quando quiser, é teu.';
+          corpo.innerHTML =
+            `<button type="button" class="btn solid sm" data-aniver-btn>quero meu brunch 🎂</button>` +
+            `<p class="hidden text-sm" data-aniver-msg aria-live="polite"></p>`;
+          const btn = corpo.querySelector('[data-aniver-btn]');
+          const msg = corpo.querySelector('[data-aniver-msg]');
+          const erroMsg = (txt) => {
+            if (!msg) return;
+            msg.textContent = txt;
+            msg.className = 'text-sm text-coral';
+            msg.hidden = false;
+          };
+          btn?.addEventListener('click', async () => {
+            btn.disabled = true;
+            if (msg) msg.hidden = true;
+            try {
+              const { data: r, error: e } = await supabase.rpc('resgatar_brinde_aniversario');
+              if (e || !r?.ok) {
+                erroMsg(r?.erro || 'não deu pra reservar agora. tenta de novo? 💛');
+                btn.disabled = false;
+                return;
+              }
+              pintarCodigo(r.codigo, r.valido_ate);
+            } catch {
+              erroMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+              btn.disabled = false;
+            }
+          });
+        }
+
+        aniverSec.hidden = false;
+        renderIcons();
       })();
     }
   }
