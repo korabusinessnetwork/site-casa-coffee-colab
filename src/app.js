@@ -1000,6 +1000,47 @@ function googleCalUrl(ev) {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
+// --- "Como chegar" (/o-casa) ---------------------------------------------------
+// Botões de rota (Google Maps + Waze, os dois mais usados aqui) e "copiar
+// endereço" no bloco de localização. O mapa embed já MOSTRA onde fica; isto é a
+// AÇÃO de chegar. Front puro, sem chave: a URL de rota leva o endereço por texto
+// (o app de mapa geocoda o negócio certo). Endereço vem do MARCA (fonte única).
+function initComoChegar() {
+  const host = document.querySelector('[data-como-chegar]');
+  if (!host) return;
+
+  const endereco = MARCA.contato.endereco;
+  const destino = encodeURIComponent(`${MARCA.nome}, ${endereco}`);
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${destino}`;
+  const waze = `https://waze.com/ul?q=${destino}&navigate=yes`;
+
+  host.innerHTML = `
+    <a class="btn solid" href="${gmaps}" target="_blank" rel="noopener noreferrer">
+      <i data-lucide="map-pin" class="h-4 w-4"></i>traçar rota
+    </a>
+    <a class="btn ghost" href="${waze}" target="_blank" rel="noopener noreferrer">abrir no Waze</a>
+    <button type="button" class="btn ghost" data-copiar-endereco>
+      <i data-lucide="copy" class="h-4 w-4"></i>copiar endereço
+    </button>`;
+
+  const btn = host.querySelector('[data-copiar-endereco]');
+  const rotular = (icone, texto) => {
+    btn.innerHTML = `<i data-lucide="${icone}" class="h-4 w-4"></i>${texto}`;
+    renderIcons();
+  };
+  btn?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(endereco);
+      rotular('check', 'copiado');
+    } catch {
+      rotular('copy', 'copia na mão'); // sem clipboard API: recado gentil
+    }
+    setTimeout(() => rotular('copy', 'copiar endereço'), 1800);
+  });
+
+  renderIcons();
+}
+
 // --- "O som de agora" (painel Spotify na home) ---------------------------------
 // Mostra AO VIVO a faixa que toca na conta Spotify do Casa (capa, nome, artista e
 // progresso), consultando a Edge Function spotify-now-playing a cada 15s. Quando
@@ -7136,6 +7177,7 @@ export function initSite() {
   // initTeuDeSempre(); // DESATIVADO (a pedido, 04/ago/2026): cartão pessoal no topo
   // da home. O visual/posição ainda vão ser repensados pra não competir com o hero.
   // A função e a seção [data-teu-de-sempre] (hidden) seguem no código, prontas pra religar.
+  initComoChegar(); // botões de rota + copiar endereço no /o-casa (só age com [data-como-chegar])
   initSomDoCasa(); // painel "o som de agora" na home (liga o botão ao Spotify do MARCA)
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])

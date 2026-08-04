@@ -1031,6 +1031,9 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
   .som-barra span { transition: none }
 }
 
+/* ---------- "como chegar" (/o-casa): grupo de botões de rota ---------- */
+.como-chegar { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center }
+
 /* ---------- planos (tiers) ---------- */
 /* Tela grande: grade normal de 4 colunas (o arraste NÃO existe aqui). O
    min-width:0 evita o estouro do preço grande num 1fr apertado. */

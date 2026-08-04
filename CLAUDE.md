@@ -173,7 +173,7 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Página        | Arquivo             | URL                | Conteúdo                                                            |
 |---------------|---------------------|--------------------|--------------------------------------------------------------------|
 | Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
-| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, selo "Feito no Casa", localização (mapa TODO) |
+| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, selo "Feito no Casa", localização (mapa + "como chegar") |
 | Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) — informativo, **sem carrinho**   |
 | Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria                                    |
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=` (conta como "Loja" na nav)                    |
@@ -889,6 +889,22 @@ que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só
   escrita. Estilo `.tds-*` no `styles.css` (grid `auto-fit`, empilha no mobile).
 - **Falta:** nada de banco, é só front (subir o merge). As partes 2 e 3 ganham conteúdo
   conforme as migrations 0026/0027 forem aplicadas.
+
+---
+
+## Como chegar (/o-casa)
+
+O bloco de localização do `/o-casa` já tinha o **mapa** (embed do Google, que geocoda o
+negócio pelo nome+endereço). Faltava a **ação de chegar**: `initComoChegar()` preenche
+`[data-como-chegar]` com três botões, a partir do `MARCA.contato.endereco` (fonte única):
+
+- **"traçar rota"** → Google Maps directions (`maps/dir/?api=1&destination=<nome+endereço>`).
+- **"abrir no Waze"** → `waze.com/ul?q=<nome+endereço>&navigate=yes` (Waze é muito usado no RS).
+- **"copiar endereço"** → `navigator.clipboard` com feedback ("copiado"); fallback gentil
+  ("copia na mão") se o clipboard estiver bloqueado.
+
+Front puro, **sem chave/API paga, sem migration**: as URLs de rota levam o endereço por
+texto e o app de mapa geocoda o lugar certo. O endereço vive só no `MARCA` (mesmo do rodapé).
 
 ---
 
