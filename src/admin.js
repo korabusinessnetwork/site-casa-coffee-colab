@@ -37,6 +37,7 @@ import {
   Cake,
   CalendarDays,
   Heart,
+  Bookmark,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -65,6 +66,7 @@ const LUCIDE_ICONS = {
   Cake,
   CalendarDays,
   Heart,
+  Bookmark,
 };
 
 function renderIcons() {
@@ -239,6 +241,9 @@ const NAV = [
   // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
   // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
   { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'relatorios' },
+  // "o que a casa mais quer" — a lista de desejos da loja. Também é relatório,
+  // mesma permissão 'relatorios'.
+  { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -603,6 +608,7 @@ function abrirDoHash() {
     pessoas: viewPessoas,
     relatorios: viewRelatorios,
     favoritos: viewFavoritos,
+    desejos: viewDesejos,
     equipe: viewEquipe,
     recados: viewRecados,
     trilha: viewTrilha,
@@ -2204,6 +2210,54 @@ function cardFav(l, i, max) {
         <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
       </div>
       <span class="ad-fav-n"><i data-lucide="heart"></i>${formatNumero(n)}</span>
+    </div>`;
+}
+
+// ===== DESEJOS DA LOJA ("o que a casa mais quer") ==================
+async function viewDesejos(view) {
+  view.innerHTML =
+    cabecalho(
+      'o que a casa mais quer',
+      'os produtos da loja que mais viraram "ficou pra depois" de quem vem.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarDesejos(corpo));
+  renderIcons();
+  carregarDesejos(corpo);
+}
+
+async function carregarDesejos(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_loja_desejos');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém guardou nada ainda',
+        'quando alguém guardar um produto pra depois, ele aparece aqui, do mais desejado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.desejos) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardDesejo(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardDesejo(l, i, max) {
+  const n = Number(l.desejos) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.produto_nome || l.produto_slug || 'produto')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="bookmark"></i>${formatNumero(n)}</span>
     </div>`;
 }
 

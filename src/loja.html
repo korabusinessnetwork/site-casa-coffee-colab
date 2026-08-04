@@ -48,6 +48,21 @@
       </section>
 
       <!-- ===================================================================
+           FICOU PRA DEPOIS — a tirinha de desejos, preenchida pós-render pra
+           quem está logado (initLojaDesejos). Fica escondida sem desejos /
+           deslogado / sem a migration 0029.
+           =================================================================== -->
+      <section class="section tight loja-desejos" data-loja-desejos hidden aria-label="Ficou pra depois">
+        <div class="wrap">
+          <div class="ld-head reveal">
+            <span class="ld-eyebrow"><i data-lucide="bookmark" aria-hidden="true"></i> ficou pra depois</span>
+            <p class="ld-sub">o que tu guardou pra levar num outro dia.</p>
+          </div>
+          <div class="ld-chips" data-ld-chips></div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            FILTRO + GRID — o grid é preenchido pelo app.js (initCatalogPage)
            dentro de [data-catalog-grid]; o estado vazio [data-catalog-empty]
            some assim que há resultados visíveis.
