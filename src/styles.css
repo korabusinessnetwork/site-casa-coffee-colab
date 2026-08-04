@@ -418,6 +418,28 @@ a.txt-link.gold { color: var(--gold) }
 .feat h4 { font-family: var(--sans); font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; color: var(--ink); margin: 2px 0 0 }
 .feat p { font-size: 13.5px; color: var(--muted); margin: 0; max-width: 24ch; line-height: 1.6 }
 
+/* ---------- a trilha do Casa (playlists Spotify) ---------- */
+.trilha[hidden] { display: none }
+.trilha .wrap { padding-top: 64px; padding-bottom: 64px }
+.trilha-cabeca { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin-bottom: 34px }
+.trilha-eyebrow { font-family: var(--sans); font-size: 11.5px; letter-spacing: .22em; text-transform: uppercase; font-weight: 700; color: var(--gold) }
+.trilha-titulo { font-family: var(--serif); font-size: clamp(26px, 4vw, 34px); font-weight: 500; line-height: 1.1; color: var(--ink); margin: 0 }
+.trilha-sub { font-size: 15px; color: var(--muted); margin: 0 }
+.trilha-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px }
+.trilha-card { display: flex; flex-direction: column; gap: 14px; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--card) }
+.trilha-card.tocando { border-color: color-mix(in srgb, var(--coral) 55%, var(--line)); box-shadow: 0 14px 40px -28px color-mix(in srgb, var(--coral) 80%, transparent) }
+.trilha-card-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px }
+.trilha-clima { display: block; font-family: var(--sans); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--gold); margin-bottom: 3px }
+.trilha-nome { font-family: var(--serif); font-size: 20px; line-height: 1.2; color: var(--ink); margin: 0 }
+.trilha-embed { width: 100%; border: 0; border-radius: 12px; display: block }
+.trilha-agora { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: color-mix(in srgb, var(--coral) 12%, transparent); color: var(--coral); font-family: var(--sans); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; white-space: nowrap }
+.trilha-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px }
+.trilha-eq i { width: 3px; height: 100%; background: currentColor; border-radius: 2px; transform-origin: bottom; animation: trilha-eq 900ms ease-in-out infinite }
+.trilha-eq i:nth-child(2) { animation-delay: -300ms }
+.trilha-eq i:nth-child(3) { animation-delay: -600ms }
+@keyframes trilha-eq { 0%, 100% { transform: scaleY(.35) } 50% { transform: scaleY(1) } }
+@media (prefers-reduced-motion: reduce) { .trilha-eq i { animation: none; transform: scaleY(.7) } }
+
 /* ---------- footer ---------- */
 .foot { background: var(--ink-3); color: var(--cream-soft) }
 .foot .wrap { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 34px; padding-top: 60px; padding-bottom: 30px }
@@ -975,6 +997,7 @@ a.txt-link.gold { color: var(--gold) }
 .ad-recado-ativo { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-2); cursor: pointer }
 .ad-recado-ativo input { width: 18px; height: 18px; accent-color: var(--coral) }
 .ad-recado-lista { display: flex; flex-direction: column; gap: 14px }
+.ad-trilha-flags { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; align-self: end; padding-bottom: 4px }
 
 /* ---------- tabelas (pessoas e relatórios) ---------- */
 .ad-tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }

@@ -555,6 +555,31 @@ sábado"*. Some sozinha quando a janela expira; a pessoa pode fechar e ela não 
 
 ---
 
+## A trilha do Casa (playlists do Spotify)
+
+A seção "a trilha do Casa" na home: playlists reais do Spotify (embed), curadas por
+clima ("pra focar", "manhã lenta"), com uma marcada como **tocando agora** (selo
+pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
+
+- **Migration `0023_trilha` (PENDENTE — aplicar no SQL Editor):** tabela `playlists_casa`
+  (`nome`, `clima`, `spotify_url`, `ordem`, `ativo`, `tocando`) com RLS (**leitura pública
+  só das ativas**; owner vê tudo) + índice único parcial garantindo **uma `tocando` por
+  vez**. Escrita só via 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
+  `admin_trilha_salvar`/`admin_trilha_remover`) — `salvar` zera o `tocando` das outras.
+- **Owner-only:** aba `trilha` no console usa `perm: 'trilha'` (não grantável, igual a
+  `avisos` — o whitelist de permissões é fechado por CHECK).
+- **Front:** `initTrilha()` (boot, home) lê as ativas e monta os cards; a `tocando` vem
+  primeiro com selo. **`spotifyEmbed()` é a trava de segurança:** converte o link no src
+  de embed e **só devolve `open.spotify.com/embed/...`** (URL normal, `/embed`, `/intl-xx`
+  ou URI `spotify:`) — qualquer outra coisa vira `null` e NÃO vira `<iframe>` (bloqueia
+  host falso, subdomínio-armadilha `open.spotify.com.evil.com`, `javascript:`). Tolerante:
+  sem a 0023, a seção fica escondida.
+- **Console:** `viewTrilha` (`admin.js`) — form (nome/clima/link/ordem/na-home/tocando) +
+  lista com editar/remover. Bloqueia no submit link que não é do Spotify.
+- **Falta:** aplicar a `0023` + subir o front. Nenhum secret novo.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -700,6 +725,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `admin_aviso_remover`) — sem escrita pelo client. Front: `renderAvisoBar` (tarja no topo,
   toda página) + aba **recados** no console (owner-only). Tolerante à migration pendente.
   **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "Recado da casa" acima.
+- **`0023_trilha` — PENDENTE (aplicar no SQL Editor).** "A trilha do Casa": tabela
+  `playlists_casa` (RLS leitura pública só das ativas; owner vê tudo; índice único parcial
+  = uma `tocando` por vez) + 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
+  `salvar`/`remover`). Front: `initTrilha` (home) com `spotifyEmbed` trancando o src em
+  `open.spotify.com/embed` + aba **trilha** no console (owner-only). Tolerante à migration
+  pendente. **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "A trilha do Casa" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

@@ -33,6 +33,7 @@ import {
   Lock,
   ArrowLeft,
   Megaphone,
+  Music,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -57,6 +58,7 @@ const LUCIDE_ICONS = {
   Lock,
   ArrowLeft,
   Megaphone,
+  Music,
 };
 
 function renderIcons() {
@@ -229,6 +231,8 @@ const NAV = [
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
   // 'tudo' (adm do Casa) vê; ninguém mais recebe. Abrir pra delegar pediria migration.
   { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'avisos' },
+  // Trilha do Casa (playlists): owner-only, mesma lógica do 'avisos' (não grantável).
+  { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
@@ -581,6 +585,7 @@ function abrirDoHash() {
     relatorios: viewRelatorios,
     equipe: viewEquipe,
     recados: viewRecados,
+    trilha: viewTrilha,
     conta: viewConta,
   };
   (telas[item.id] || viewPainel)(view);
@@ -1590,6 +1595,207 @@ async function viewRecados(view) {
   $('[data-r-cancelar]', form).addEventListener('click', limparForm);
 
   carregarRecados();
+}
+
+// ===== TRILHA DO CASA ===============================================
+// Owner-only. As playlists do Spotify que aparecem na home. RPCs admin_trilha_*
+// (0023) trancam por is_owner() no banco.
+let trilhaEditando = null;
+
+// Cheiro de link do Spotify (bloqueio gentil no submit; a home revalida antes do embed).
+function pareceSpotify(url) {
+  const s = String(url || '').trim();
+  if (/^spotify:(playlist|album|track|artist|show|episode):[A-Za-z0-9]+$/i.test(s)) return true;
+  try {
+    return new URL(s).hostname === 'open.spotify.com';
+  } catch {
+    return false;
+  }
+}
+
+async function viewTrilha(view) {
+  view.innerHTML =
+    cabecalho(
+      'a trilha do Casa',
+      'as playlists do Spotify que tocam na home. cola o link, dá um clima, e marca qual está tocando agora.',
+    ) +
+    `<form class="card ad-form-recado" data-form-trilha novalidate>
+       <input type="hidden" data-t-id />
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="t-nome">nome da playlist</label>
+           <input id="t-nome" data-t-nome maxlength="80" placeholder="tarde de trabalho" required />
+         </div>
+         <div class="field">
+           <label for="t-clima">clima (opcional)</label>
+           <input id="t-clima" data-t-clima maxlength="40" placeholder="pra focar" />
+         </div>
+       </div>
+       <div class="field">
+         <label for="t-url">link do Spotify</label>
+         <input id="t-url" data-t-url placeholder="https://open.spotify.com/playlist/…" required />
+         <p class="ad-dica">abre a playlist no Spotify → compartilhar → copiar link. cola aqui.</p>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field ad-recado-prio">
+           <label for="t-ordem">ordem</label>
+           <input id="t-ordem" data-t-ordem type="number" value="0" step="1" />
+           <p class="ad-dica">menor aparece primeiro.</p>
+         </div>
+         <div class="ad-trilha-flags">
+           <label class="ad-recado-ativo"><input type="checkbox" data-t-ativo checked /> <span>na home</span></label>
+           <label class="ad-recado-ativo"><input type="checkbox" data-t-tocando /> <span>tocando agora 🎧</span></label>
+         </div>
+       </div>
+       <div data-t-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-t-salvar>adicionar playlist</button>
+         <button type="button" class="btn ghost" data-t-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+     <div class="ad-recado-lista" data-trilha-lista></div>`;
+
+  renderIcons();
+  const form = $('[data-form-trilha]', view);
+  const lista = $('[data-trilha-lista]', view);
+  const avisoForm = $('[data-t-aviso]', form);
+
+  const limparForm = () => {
+    trilhaEditando = null;
+    form.reset();
+    $('[data-t-id]', form).value = '';
+    $('[data-t-ativo]', form).checked = true;
+    $('[data-t-tocando]', form).checked = false;
+    $('[data-t-salvar]', form).textContent = 'adicionar playlist';
+    $('[data-t-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (p) => {
+    trilhaEditando = p.id;
+    $('[data-t-id]', form).value = p.id;
+    $('[data-t-nome]', form).value = p.nome || '';
+    $('[data-t-clima]', form).value = p.clima || '';
+    $('[data-t-url]', form).value = p.spotify_url || '';
+    $('[data-t-ordem]', form).value = Number(p.ordem) || 0;
+    $('[data-t-ativo]', form).checked = Boolean(p.ativo);
+    $('[data-t-tocando]', form).checked = Boolean(p.tocando);
+    $('[data-t-salvar]', form).textContent = 'salvar playlist';
+    $('[data-t-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-t-nome]', form).focus();
+  };
+
+  async function carregarTrilha() {
+    carregando(lista, 'buscando as playlists…');
+    try {
+      const dados = await rpc('admin_trilha_listar');
+      const pls = Array.isArray(dados) ? dados : [];
+      if (!pls.length) {
+        lista.innerHTML = vazio('nenhuma playlist ainda', 'cola a primeira aí em cima — ela aparece na home.');
+        return;
+      }
+      lista.innerHTML = pls.map(cardTrilha).join('');
+      renderIcons();
+      ligarCardsTrilha();
+    } catch (e) {
+      erroNaTela(lista, e);
+    }
+  }
+
+  function cardTrilha(p) {
+    const tags = [];
+    if (p.tocando) tags.push('<span class="tag olive">tocando agora</span>');
+    if (!p.ativo) tags.push('<span class="tag gold">fora da home</span>');
+    return `
+      <article class="card ad-card" data-trilha-item="${escapeHtml(p.id)}">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${p.clima ? escapeHtml(p.clima) + ' · ' : ''}${escapeHtml(p.nome || '')}</p>
+            <p class="ad-card-meta">ordem ${Number(p.ordem) || 0} · ${escapeHtml(p.spotify_url || '')}</p>
+          </div>
+          <div class="ad-card-tags">${tags.join('')}</div>
+        </div>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn ghost sm" data-t-editar="${escapeHtml(p.id)}">editar</button>
+          <button type="button" class="btn ghost sm" data-t-remover="${escapeHtml(p.id)}" data-t-nome="${escapeHtml(p.nome || 'essa playlist')}">remover</button>
+        </div>
+      </article>`;
+  }
+
+  function ligarCardsTrilha() {
+    $$('[data-t-editar]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_trilha_listar');
+          const p = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.tEditar);
+          if (p) preencherForm(p);
+        } catch (e) {
+          toast(e.message, 'erro');
+        }
+      });
+    });
+    $$('[data-t-remover]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: `remover "${b.dataset.tNome}"?`,
+          texto: 'some da home na hora e não dá pra desfazer.',
+          ok: 'sim, remover',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_trilha_remover', { p_id: b.dataset.tRemover });
+          toast('playlist removida');
+          if (trilhaEditando === b.dataset.tRemover) limparForm();
+          carregarTrilha();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const nome = $('[data-t-nome]', form).value.trim();
+    const url = $('[data-t-url]', form).value.trim();
+    if (!nome) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>dá um nome pra playlist 💛</p></div>';
+      return;
+    }
+    if (!pareceSpotify(url)) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>cola um link do Spotify (open.spotify.com/…).</p></div>';
+      return;
+    }
+    const botao = $('[data-t-salvar]', form);
+    botao.disabled = true;
+    try {
+      await rpc('admin_trilha_salvar', {
+        p_id: trilhaEditando || null,
+        p_nome: nome,
+        p_clima: $('[data-t-clima]', form).value.trim() || null,
+        p_url: url,
+        p_ordem: Number($('[data-t-ordem]', form).value) || 0,
+        p_ativo: $('[data-t-ativo]', form).checked,
+        p_tocando: $('[data-t-tocando]', form).checked,
+      });
+      toast(trilhaEditando ? 'playlist salva 💛' : 'playlist adicionada 💛');
+      limparForm();
+      carregarTrilha();
+    } catch (e2) {
+      toast(e2.message, 'erro');
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-t-cancelar]', form).addEventListener('click', limparForm);
+
+  carregarTrilha();
 }
 
 // ===== TUA CONTA ====================================================

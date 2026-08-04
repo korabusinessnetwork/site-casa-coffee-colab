@@ -710,6 +710,81 @@ async function renderAvisoBar() {
   });
 }
 
+// --- A trilha do Casa (playlists do Spotify, curadas no console) ----------------
+// Converte um link do Spotify (URL normal, /embed, /intl-xx, ou URI spotify:...)
+// no src de embed CANÔNICO. Só devolve open.spotify.com/embed/... — qualquer outra
+// coisa vira null e NÃO vira iframe (trava de injeção: o src é sempre nosso domínio).
+function spotifyEmbed(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  const tipos = /^(playlist|album|track|artist|show|episode)$/i;
+  const uri = s.match(/^spotify:(playlist|album|track|artist|show|episode):([A-Za-z0-9]+)$/i);
+  if (uri) return `https://open.spotify.com/embed/${uri[1].toLowerCase()}/${uri[2]}`;
+  try {
+    const u = new URL(s);
+    if (u.hostname !== 'open.spotify.com') return null;
+    const partes = u.pathname.split('/').filter(Boolean).filter((p) => p !== 'embed' && !/^intl-/i.test(p));
+    const [tipo, id] = partes;
+    if (!tipo || !id || !tipos.test(tipo) || !/^[A-Za-z0-9]+$/.test(id)) return null;
+    return `https://open.spotify.com/embed/${tipo.toLowerCase()}/${id}`;
+  } catch {
+    return null;
+  }
+}
+
+// Acende a seção "a trilha do Casa" na home com as playlists ativas (a marcada como
+// "tocando" vem primeiro, com selo pulsante). Leitura pública; tolerante à migration
+// 0023 pendente (sem tabela → seção fica escondida, sem ruído).
+async function initTrilha() {
+  const sec = document.querySelector('[data-trilha]');
+  if (!sec || !supabase) return;
+  const grid = sec.querySelector('[data-trilha-grid]');
+  if (!grid) return;
+
+  let lista = [];
+  try {
+    const { data, error } = await supabase
+      .from('playlists_casa')
+      .select('id, nome, clima, spotify_url, tocando, ordem')
+      .order('ordem', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) return;
+    lista = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+
+  // Converte + valida os embeds; descarta link que não é do Spotify.
+  const cards = lista
+    .map((p) => ({ ...p, embed: spotifyEmbed(p.spotify_url) }))
+    .filter((p) => p.embed);
+  if (!cards.length) return; // nada válido → seção segue escondida
+
+  // A "tocando" primeiro; o resto mantém a ordem.
+  cards.sort((a, b) => (b.tocando ? 1 : 0) - (a.tocando ? 1 : 0));
+
+  grid.innerHTML = cards
+    .map((p) => {
+      const agora = p.tocando
+        ? `<span class="trilha-agora"><span class="trilha-eq" aria-hidden="true"><i></i><i></i><i></i></span>tocando agora</span>`
+        : '';
+      const clima = p.clima ? `<span class="trilha-clima">${escapeHtml(p.clima)}</span>` : '';
+      return `
+        <article class="trilha-card${p.tocando ? ' tocando' : ''}">
+          <div class="trilha-card-topo">
+            <div>${clima}<h3 class="trilha-nome">${escapeHtml(p.nome || 'playlist')}</h3></div>
+            ${agora}
+          </div>
+          <iframe class="trilha-embed" src="${escapeHtml(p.embed)}" width="100%" height="152"
+                  loading="lazy" frameborder="0" allow="encrypted-media; clipboard-write"
+                  title="${escapeHtml(p.nome || 'playlist')} no Spotify"></iframe>
+        </article>`;
+    })
+    .join('');
+
+  sec.hidden = false;
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -5366,6 +5441,7 @@ export function initSite() {
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]
