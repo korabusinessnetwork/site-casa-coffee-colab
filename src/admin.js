@@ -374,8 +374,11 @@ async function initConsole() {
   }
 
   // Primeiro acesso do adm master: a senha inicial é combinada, então não vale
-  // deixar entrar em nada antes de trocar.
-  if (estado.perms.senha_trocada === false) {
+  // deixar entrar em nada antes de trocar. SÓ vale pro master: `senha_alterada_em`
+  // nasce null pra todo mundo (o handle_new_user não preenche), então sem o gate de
+  // `master` qualquer funcionário adicionado a partir de conta de cliente já
+  // existente cairia aqui e seria forçado a rotacionar a própria senha real.
+  if (estado.perms.master && estado.perms.senha_trocada === false) {
     telaTrocaObrigatoria(raiz);
     return;
   }
@@ -1200,7 +1203,11 @@ async function viewEquipe(view) {
           achados.innerHTML = '';
           $('#busca-equipe', view).value = '';
           const lista = $('.ad-lista', corpo);
-          if (lista && !$(`[data-pessoa="${nova.id}"]`, corpo)) {
+          if (!lista) {
+            // carregarEquipe falhou (corpo só tem o aviso de erro, sem .ad-lista) —
+            // não dá pra inserir o card; avisa em vez de mentir "já está na lista".
+            toast('a lista da equipe não carregou; recarrega a página pra adicionar');
+          } else if (!$(`[data-pessoa="${nova.id}"]`, corpo)) {
             lista.insertAdjacentHTML('afterbegin', cardEquipe(nova));
             ligarCardsEquipe(corpo);
             renderIcons();
