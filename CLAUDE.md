@@ -765,9 +765,9 @@ pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa v
 
 Puxa o gancho da lista de desejos: produto **esgotado** (`disponivel: false` no mock
 `PRODUTOS`) não fica mudo, ganha um selo **"esgotado"** e o botão **"me avisa quando
-voltar"**. Quando a casa repõe (flip pra disponível), a pessoa vê uma tirinha **"voltou
-pra vitrine"** na volta dela (`/loja` e `/conta/perfil`). Pro Casa, o console mostra
-**quantas pessoas esperam cada produto** — o sinal mais forte pra guiar a reposição.
+voltar"**. Quando a casa repõe (flip pra disponível), o aviso chega no **sino de
+notificações do header** ("voltou pra vitrine"), visível em qualquer página. Pro Casa, o
+console mostra **quantas pessoas esperam cada produto** — o sinal mais forte pra reposição.
 
 - **Disponibilidade no mock:** `PRODUTOS[].disponivel` (ausente = disponível; só marca-se
   `false`). Hoje **Torra Vale dos Sinos** e **Caneca de autor** estão esgotados.
@@ -777,18 +777,75 @@ pra vitrine"** na volta dela (`/loja` e `/conta/perfil`). Pro Casa, o console mo
   de sensíveis): **escrita direta pelo client via RLS** (select/insert/delete own), sem Edge
   Function. Agregado do console por `admin_avisos_reposicao()` (SECURITY DEFINER,
   `tem_permissao('relatorios')`, conta por slug com o nome mais frequente).
-- **Front:** o esgotado é 100% do mock (client), então `cardProdutoHTML` e `initProductPage`
-  já renderizam o selo + "me avisa" sem depender de sessão/banco (na página de produto,
-  esgotado troca quantidade/carrinho pela nota + botão). `initReposicao()` liga a lógica:
-  deslogado → o botão manda pro login; logado → carrega os avisos, pinta o estado dos botões
-  (toggle otimista, `23505` = já pediu = sucesso) e monta a tirinha "voltou pra vitrine"
-  (avisos cujo produto está disponível **agora**) em `[data-reposicao]` (loja) e
-  `[data-reposicao-perfil]` (perfil), com `×` "já vi" que apaga o aviso. Boot não pega o
-  perfil (montado pós-guard), então `initPerfilPage` religa `initReposicao()` no fim.
-  Tolerante: sem sessão, o botão só vai pro login; migration pendente → botão fica inerte
-  ("aviso em breve") e a tirinha some. Console: aba **"esperando"** (`viewReposicao`, ícone
-  `bell-ring`, quem tem `relatorios`) lista o ranking com barrinha.
+- **Front — botões "me avisa":** o esgotado é 100% do mock (client), então `cardProdutoHTML`
+  e `initProductPage` já renderizam o selo + "me avisa" sem depender de sessão/banco (na
+  página de produto, esgotado troca quantidade/carrinho pela nota + botão). `initReposicao()`
+  liga só os botões: deslogado → manda pro login; logado → carrega os avisos, pinta o estado
+  (toggle otimista, `23505` = já pediu = sucesso); migration pendente → botão inerte ("aviso
+  em breve"). **Não há mais tirinha inline** — quem mostra o "voltou" é o sino.
+- **Front — o "voltou" é UMA das fontes do sino de notificações** (`initNotificacoes`,
+  header, toda página — ver **"O Casa te avisa"** abaixo). Filtra os `avisos_reposicao` cujo
+  produto **voltou** (existe e está disponível agora); "já vi" **apaga a linha** do banco
+  (best-effort, RLS-direct).
+- **Console:** aba **"esperando"** (`viewReposicao`, ícone `bell-ring`, quem tem `relatorios`)
+  lista o ranking de quem espera cada produto, com barrinha.
 - **Falta:** aplicar a `0030` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
+## O Casa te avisa (central de notificações no header)
+
+O sino do header deixou de servir só o "voltou pra vitrine" e virou uma **central** que
+junta, num painel só, os avisos que antes viviam espalhados pelo site. **Cinco fontes**,
+todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o registro do
+**próprio** usuário (RLS own-record) — **nenhuma tabela, secret ou Edge Function nova**.
+
+- **As fontes** (`initNotificacoes`, boot, toda página — cada uma é tolerante: erro /
+  migration pendente → `[]`, some sem quebrar):
+  1. **voltou pra vitrine** — `avisos_reposicao` (0030) cujo produto está disponível agora.
+     Ícone `bell-ring`. Dispensa **apagando a linha** (RLS-direct).
+  2. **indicação premiada** — `referrals` (0021) com `referrer_id = eu` e `status='premiado'`.
+     Ícone `users`, leva pro `/conta/perfil`.
+  3. **presente resgatado** — `gift_subscriptions` (0019) com `comprador_id = eu` e
+     `status='resgatado'`. Ícone `gift`, leva pro `/conta/perfil`.
+  4. **brunch de aniversário** — RPC `meu_brinde_aniversario` (0025) quando `assinante &&
+     eh_mes && !ja_resgatou`. Ícone `cake`, leva pro `/conta/perfil`.
+  5. **encontro chegando** — RPC `agenda_proximos` (0026) com `eu_vou` e `data` numa janela
+     de **48h** (tolera 4h já começado). Ícone `calendar-days`, sub via `dataEvento`.
+- **Dispensar ("já vi"):** o **voltou** apaga a linha do banco; as **derivadas** (não há linha
+  pra apagar) guardam o `id` no **localStorage** (`casa_notif_lidas`, helpers `notifLidas()`/
+  `marcarNotifLida()`, mesmo padrão do `renderAvisoBar`). O badge tampa em **"9+"**.
+- **Markup/estilo:** cada item ganhou uma **coluna de ícone** (`.notif-item-ico` redondo +
+  `.notif-item-corpo` com tag/nome/sub). No **mobile** o painel é `position: fixed` com o
+  `top` medido do header ao abrir (respeita a tarja de recado). Mecânica de abrir/fechar
+  (clique-fora/Esc/scale-opacity) reusa o padrão do painel do usuário.
+- **Só-leitura, zero confiança nova:** o sino nunca **credita** nada, só **reflete** estado
+  que os webhooks/RPCs já produziram. Deslogado → escondido.
+- **Falta:** nada além do que cada fonte já pede (0019/0021/0025/0026/0030 + subir o front).
+  Migration pendente de uma fonte só apaga aquela fonte do painel.
+
+---
+
+## O teu de sempre (cartão pessoal na home)
+
+Um cartãozinho no **topo da home**, só pra **quem está logado**, que junta num olhar o
+que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só-leitura**,
+**sem migration, sem secret, sem Edge Function** (reusa tabelas/RPCs que já existem).
+
+- **O que mostra** (`initTeuDeSempre`, boot, só age com `[data-teu-de-sempre]` + logado):
+  uma saudação pela hora local com o 1º nome do `profile` e até três blocos:
+  1. **plano + pontos** — `profile.tier_slug` (nome via `tiers`) + `points_balance`, leva
+     pro `/conta/pontos`. **Sem plano** → um convite gentil "vem fazer parte" pro `/planos`.
+  2. **próximo encontro que confirmou** — `agenda_proximos` (0026) filtrando `eu_vou` e
+     pegando o mais próximo ainda por vir; leva pra `#a-agenda` (a seção da agenda ganhou
+     esse `id` na home). Sub via `dataEvento`.
+  3. **teus favoritos do cardápio** — `cardapio_favoritos` (0027), até 4 chips (link pro
+     `/cardapio`) + "+N".
+- **Tolerante:** cada fonte é isolada (erro/migration pendente → aquela parte some); o
+  cartão só depende do `profiles` (tabela base). Deslogado → seção fica `hidden`. Nada de
+  escrita. Estilo `.tds-*` no `styles.css` (grid `auto-fit`, empilha no mobile).
+- **Falta:** nada de banco, é só front (subir o merge). As partes 2 e 3 ganham conteúdo
+  conforme as migrations 0026/0027 forem aplicadas.
 
 ---
 

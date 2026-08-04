@@ -28,6 +28,7 @@ import {
   Award,
   Star,
   Gift,
+  Cake,
   Mail,
   MessageCircle,
   User,
@@ -81,6 +82,7 @@ const LUCIDE_ICONS = {
   Award,
   Star,
   Gift,
+  Cake,
   Mail,
   MessageCircle,
   User,
@@ -560,6 +562,19 @@ function renderHeader() {
           <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
           <div class="auth-desktop" data-auth-slot></div>
 
+          <!-- Notificações (sino) — escondido até initNotificacoes achar algo -->
+          <div class="relative notif-wrap" data-notif-wrap hidden>
+            <button type="button" class="hdr-icon" aria-label="Notificações" data-notif-trigger aria-haspopup="true" aria-expanded="false">
+              <i data-lucide="bell"></i>
+              <span class="cart-badge hidden" data-notif-count aria-live="polite">0</span>
+            </button>
+            <div data-notif-panel data-aberto="false" role="menu" aria-hidden="true"
+              class="notif-panel invisible absolute right-0 top-full z-50 mt-2 origin-top-right scale-95 card opacity-0 shadow-xl backdrop-blur-md transition duration-200">
+              <p class="notif-head"><i data-lucide="bell-ring" aria-hidden="true"></i>teus avisos</p>
+              <div class="notif-lista" data-notif-lista></div>
+            </div>
+          </div>
+
           <!-- Carrinho -->
           <button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
             <i data-lucide="shopping-bag"></i>
@@ -656,6 +671,29 @@ function marcarAvisoLido(id) {
     lidos.push(id);
     // Mantém só os últimos 50 pra não crescer sem fim.
     localStorage.setItem(AVISOS_LIDOS_KEY, JSON.stringify(lidos.slice(-50)));
+  } catch {
+    /* sem localStorage: ignora */
+  }
+}
+
+// --- Notificações lidas (sino do header) ---------------------------------------
+// Os avisos DERIVADOS (indicação, presente, aniversário, encontro) não têm uma
+// linha pra apagar como o "voltou"; então a dispensa mora no localStorage, cada
+// um por um id estável. Mesmo padrão do recado, chave própria.
+const NOTIF_LIDAS_KEY = 'casa_notif_lidas';
+function notifLidas() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(NOTIF_LIDAS_KEY) || '[]');
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+function marcarNotifLida(id) {
+  try {
+    const s = notifLidas();
+    s.add(id);
+    localStorage.setItem(NOTIF_LIDAS_KEY, JSON.stringify([...s].slice(-100)));
   } catch {
     /* sem localStorage: ignora */
   }
@@ -960,6 +998,120 @@ function googleCalUrl(ev) {
     location: ev.local ? `${ev.local}, ${ondeBase}` : `Casa Coffee Colab, ${ondeBase}`,
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// --- "O teu de sempre" (cartão pessoal no topo da home) ------------------------
+// Um cartãozinho só pra quem está logado: junta num olhar o que a pessoa já tem
+// espalhado — plano/pontos, favoritos do cardápio e o próximo encontro que
+// confirmou. Tudo SÓ-LEITURA (getProfile + tabelas próprias via RLS) e tolerante:
+// deslogado → some; migration de uma fonte pendente → aquela parte some. Zero escrita.
+async function initTeuDeSempre() {
+  const sec = document.querySelector('[data-teu-de-sempre]');
+  if (!sec || !supabase) return;
+  const card = sec.querySelector('[data-tds-card]');
+  if (!card) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // deslogado → cartão fica escondido
+
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const primeiro = (profile.full_name || '').trim().split(/\s+/)[0] || 'tu';
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? 'bom dia' : h < 18 ? 'boa tarde' : 'boa noite';
+
+  // ---- Fontes (cada uma tolerante; nunca derruba o cartão) --------------------
+  // Plano: nome do tier (o slug/pontos vêm do próprio profile).
+  let planoNome = '';
+  if (profile.tier_slug) {
+    try {
+      const { data } = await supabase.from('tiers').select('nome').eq('slug', profile.tier_slug).maybeSingle();
+      planoNome = data?.nome || '';
+    } catch { /* tolerante */ }
+  }
+  const pontos = Number(profile.points_balance) || 0;
+
+  // Favoritos do cardápio (0027) — aberto a qualquer logado.
+  let favoritos = [];
+  try {
+    const { data, error } = await supabase.from('cardapio_favoritos').select('item_slug, item_nome');
+    if (!error) favoritos = data || [];
+  } catch { /* migration 0027 pendente → sem favoritos */ }
+
+  // Próximo encontro confirmado (0026) — o mais próximo ainda por vir.
+  let encontro = null;
+  try {
+    const { data, error } = await supabase.rpc('agenda_proximos');
+    if (!error && Array.isArray(data)) {
+      encontro = data
+        .filter((e) => e.eu_vou && e.data && new Date(e.data).getTime() > Date.now() - 4 * 60 * 60 * 1000)
+        .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())[0] || null;
+    }
+  } catch { /* migration 0026 pendente → sem encontro */ }
+
+  // ---- Monta os blocos --------------------------------------------------------
+  const blocos = [];
+
+  if (planoNome) {
+    blocos.push(`
+      <a class="tds-bloco" href="/conta/pontos">
+        <span class="tds-ico"><i data-lucide="star" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">teu plano</span>
+          <span class="tds-bloco-nome">${escapeHtml(planoNome)}</span>
+          <span class="tds-bloco-sub">${pontos} ${pontos === 1 ? 'ponto' : 'pontos'} no bolso</span>
+        </span>
+      </a>`);
+  } else {
+    blocos.push(`
+      <a class="tds-bloco" href="/planos">
+        <span class="tds-ico"><i data-lucide="sparkles" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">o Clube Casa</span>
+          <span class="tds-bloco-nome">vem fazer parte</span>
+          <span class="tds-bloco-sub">pontos que viram mimo e mais</span>
+        </span>
+      </a>`);
+  }
+
+  if (encontro) {
+    blocos.push(`
+      <a class="tds-bloco" href="#a-agenda">
+        <span class="tds-ico"><i data-lucide="calendar-days" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">tu vai</span>
+          <span class="tds-bloco-nome">${escapeHtml(encontro.nome)}</span>
+          <span class="tds-bloco-sub">${escapeHtml(dataEvento(encontro.data))}</span>
+        </span>
+      </a>`);
+  }
+
+  if (favoritos.length) {
+    const chips = favoritos
+      .slice(0, 4)
+      .map((f) => `<a class="tds-chip" href="/cardapio">${escapeHtml(f.item_nome || f.item_slug)}</a>`)
+      .join('');
+    const resto = favoritos.length > 4 ? `<span class="tds-chip mais">+${favoritos.length - 4}</span>` : '';
+    blocos.push(`
+      <div class="tds-bloco tds-favs">
+        <span class="tds-ico"><i data-lucide="heart" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">teus favoritos</span>
+          <span class="tds-chips">${chips}${resto}</span>
+        </span>
+      </div>`);
+  }
+
+  card.innerHTML = `
+    <div class="tds-topo">
+      <p class="tds-saudacao">${escapeHtml(saudacao)}, <strong>${escapeHtml(primeiro)}</strong> 💛</p>
+      <p class="tds-sub">o teu de sempre, num olhar.</p>
+    </div>
+    <div class="tds-grid">${blocos.join('')}</div>`;
+
+  sec.hidden = false;
+  renderIcons();
 }
 
 // --- Agenda do Casa (próximos encontros, com "eu vou") -------------------------
@@ -1390,16 +1542,15 @@ async function initLojaDesejos() {
   renderIcons();
 }
 
-// --- Volta pra vitrine (avisa quando o produto esgotado voltar) ----------------
+// --- Volta pra vitrine: botões "me avisa quando voltar" ------------------------
 // Nos produtos esgotados (disponivel:false no mock), o botão "me avisa quando
-// voltar" registra interesse; quando a casa repõe (flip pra disponível), a tirinha
-// "voltou pra vitrine" aparece na volta da pessoa (/loja e /conta/perfil). Escrita
-// RLS-direct travada em auth.uid() (migration 0030). Deslogado → login; tolerante.
+// voltar" registra interesse. Quando a casa repõe, o "voltou" chega no SINO de
+// notificações do header (initNotificacoes) — não mais numa tirinha inline.
+// Escrita RLS-direct travada em auth.uid() (migration 0030). Deslogado → login.
 async function initReposicao() {
   if (!supabase) return;
   const avisarBtns = Array.from(document.querySelectorAll('[data-avisar]'));
-  const tirinhas = Array.from(document.querySelectorAll('[data-reposicao], [data-reposicao-perfil]'));
-  if (!avisarBtns.length && !tirinhas.length) return;
+  if (!avisarBtns.length) return;
 
   const irProLogin = () => {
     const destino = encodeURIComponent(window.location.pathname + window.location.search);
@@ -1408,8 +1559,7 @@ async function initReposicao() {
 
   const { data: sessData } = await supabase.auth.getSession();
   if (!sessData?.session) {
-    // Deslogado: o botão existe (produto esgotado), mas leva pro login. As
-    // tirinhas "voltou" dependem dos avisos do usuário, então nem aparecem.
+    // Deslogado: o botão existe (produto esgotado), mas leva pro login.
     avisarBtns.forEach((btn) => btn.addEventListener('click', irProLogin));
     return;
   }
@@ -1451,45 +1601,12 @@ async function initReposicao() {
     (botoesPorSlug.get(slug) || []).forEach((b) => pintarBtn(b, on));
   };
 
-  // Tirinha "voltou pra vitrine": avisos cujo produto está disponível AGORA.
-  const pintarTirinhas = () => {
-    if (!tirinhas.length) return;
-    const voltaram = [...avisos].filter((slug) => {
-      const prod = getProdutoPorSlug(slug);
-      return prod && prod.disponivel !== false;
-    });
-    for (const sec of tirinhas) {
-      const chipsEl = sec.querySelector('[data-rep-chips]');
-      if (!chipsEl) continue;
-      if (!voltaram.length) {
-        sec.hidden = true;
-        chipsEl.innerHTML = '';
-        continue;
-      }
-      chipsEl.innerHTML = voltaram
-        .map((slug) => {
-          const nome = nomeDe(slug);
-          return `<span class="rep-chip">
-            <a href="/produto?slug=${encodeURIComponent(slug)}">${escapeHtml(nome)}</a>
-            <span class="rep-tag">voltou 💛</span>
-            <button type="button" class="rep-chip-x" data-rep-visto="${escapeHtml(slug)}" aria-label="ok, já vi ${escapeHtml(nome)}">
-              <i data-lucide="x"></i>
-            </button>
-          </span>`;
-        })
-        .join('');
-      sec.hidden = false;
-    }
-    renderIcons();
-  };
-
   // Toggle otimista do "me avisa" (registra/cancela interesse).
   const alternar = async (slug) => {
     const estava = avisos.has(slug);
     if (estava) avisos.delete(slug);
     else avisos.add(slug);
     repintar(slug);
-    pintarTirinhas();
     try {
       if (estava) {
         const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
@@ -1502,21 +1619,6 @@ async function initReposicao() {
       if (estava) avisos.add(slug);
       else avisos.delete(slug);
       repintar(slug);
-      pintarTirinhas();
-    }
-  };
-
-  // "já vi" na tirinha: o produto voltou, apaga o aviso.
-  const dispensar = async (slug) => {
-    if (!avisos.has(slug)) return;
-    avisos.delete(slug);
-    pintarTirinhas();
-    try {
-      const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
-      if (error) throw error;
-    } catch {
-      avisos.add(slug);
-      pintarTirinhas();
     }
   };
 
@@ -1534,17 +1636,242 @@ async function initReposicao() {
     });
   });
 
-  for (const sec of tirinhas) {
-    const chipsEl = sec.querySelector('[data-rep-chips]');
-    chipsEl?.addEventListener('click', (e) => {
-      const x = e.target.closest('[data-rep-visto]');
-      if (!x) return;
-      dispensar(x.dataset.repVisto);
-    });
-  }
-
-  pintarTirinhas();
   renderIcons();
+}
+
+// --- Sino de notificações (header) ---------------------------------------------
+// "O Casa te avisa": uma central que junta os avisos que já existiam espalhados,
+// num sino só no header (toda página). Cinco fontes, todas SÓ-LEITURA de tabelas
+// que já existem, cada uma lendo só o registro do PRÓPRIO usuário (RLS):
+//   1. voltou pra vitrine  — avisos_reposicao (0030) cujo produto voltou.
+//   2. indicação premiada  — referrals (0021) que a pessoa fez e viraram prêmio.
+//   3. presente resgatado  — gift_subscriptions (0019) que a pessoa deu e abriram.
+//   4. brunch de aniversário — meu_brinde_aniversario() diz que é o mês e falta pegar.
+//   5. encontro chegando   — agenda_proximos() onde a pessoa marcou "eu vou" e tá perto.
+// Cada fonte é tolerante (erro/migration pendente → []): some sem quebrar. O
+// "voltou" dispensa apagando a linha (RLS-direct); as derivadas (sem linha pra
+// apagar) dispensam guardando o id no localStorage (casa_notif_lidas).
+async function initNotificacoes() {
+  const wrap = document.querySelector('[data-notif-wrap]');
+  if (!wrap || !supabase) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  const uid = sessData?.session?.user?.id;
+  if (!uid) return; // deslogado → sino fica escondido
+
+  const AGORA = Date.now();
+
+  // ---- Fontes (cada uma devolve um array de notificações; nunca lança) --------
+  // Notificação: { id, icone, href, tag, nome, sub, dismiss:'db-voltou'|'local', slug? }
+  const fonteVoltou = async () => {
+    try {
+      const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
+      if (error) return [];
+      return (data || [])
+        .filter((a) => {
+          const p = getProdutoPorSlug(a.produto_slug);
+          return p && p.disponivel !== false; // voltou pra vitrine
+        })
+        .map((a) => ({
+          id: `voltou:${a.produto_slug}`,
+          icone: 'bell-ring',
+          href: `/produto?slug=${encodeURIComponent(a.produto_slug)}`,
+          tag: 'voltou 💛',
+          nome: getProdutoPorSlug(a.produto_slug)?.nome || a.produto_nome,
+          sub: 'tá de volta na vitrine, passa lá?',
+          dismiss: 'db-voltou',
+          slug: a.produto_slug,
+        }));
+    } catch { return []; }
+  };
+
+  const fonteIndicacao = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('referrals')
+        .select('id')
+        .eq('referrer_id', uid)
+        .eq('status', 'premiado');
+      if (error) return [];
+      return (data || []).map((r) => ({
+        id: `indicacao:${r.id}`,
+        icone: 'users',
+        href: '/conta/perfil',
+        tag: 'indicação premiada 💛',
+        nome: 'um amigo teu entrou de vez',
+        sub: 'teus pontos de indicação já caíram, dá uma olhada',
+        dismiss: 'local',
+      }));
+    } catch { return []; }
+  };
+
+  const fontePresente = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gift_subscriptions')
+        .select('id')
+        .eq('comprador_id', uid)
+        .eq('status', 'resgatado');
+      if (error) return [];
+      return (data || []).map((g) => ({
+        id: `presente:${g.id}`,
+        icone: 'gift',
+        href: '/conta/perfil',
+        tag: 'presente aberto 💛',
+        nome: 'abriram o plano que tu deu',
+        sub: 'o presente que tu mandou já virou assinatura',
+        dismiss: 'local',
+      }));
+    } catch { return []; }
+  };
+
+  const fonteAniversario = async () => {
+    try {
+      const { data, error } = await supabase.rpc('meu_brinde_aniversario');
+      if (error || !data) return [];
+      if (!data.assinante || !data.eh_mes || data.ja_resgatou) return [];
+      return [{
+        id: `aniversario:${new Date().getFullYear()}`,
+        icone: 'cake',
+        href: '/conta/perfil',
+        tag: 'teu mês 🎂',
+        nome: 'neste mês o Casa é teu',
+        sub: 'vem pegar teu brunch de aniversário, é por nossa conta',
+        dismiss: 'local',
+      }];
+    } catch { return []; }
+  };
+
+  const fonteEncontros = async () => {
+    try {
+      const { data, error } = await supabase.rpc('agenda_proximos');
+      if (error || !Array.isArray(data)) return [];
+      const JANELA = 48 * 60 * 60 * 1000; // avisa quando falta 48h ou menos
+      return data
+        .filter((e) => {
+          if (!e.eu_vou || !e.data) return false;
+          const diff = new Date(e.data).getTime() - AGORA;
+          return diff <= JANELA && diff > -4 * 60 * 60 * 1000; // tolera 4h já começado
+        })
+        .map((e) => ({
+          id: `encontro:${e.id}`,
+          icone: 'calendar-days',
+          href: '/home',
+          tag: 'encontro chegando',
+          nome: e.nome,
+          sub: `tu confirmou presença, ${dataEvento(e.data)}`,
+          dismiss: 'local',
+        }));
+    } catch { return []; }
+  };
+
+  const grupos = await Promise.all([
+    fonteVoltou(),
+    fonteIndicacao(),
+    fontePresente(),
+    fonteAniversario(),
+    fonteEncontros(),
+  ]);
+
+  const lidas = notifLidas();
+  let itens = grupos.flat().filter((n) => !lidas.has(n.id));
+
+  const trigger = wrap.querySelector('[data-notif-trigger]');
+  const panel = wrap.querySelector('[data-notif-panel]');
+  const badge = wrap.querySelector('[data-notif-count]');
+  const lista = wrap.querySelector('[data-notif-lista]');
+
+  const fechar = () => {
+    panel.dataset.aberto = 'false';
+    trigger.setAttribute('aria-expanded', 'false');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.classList.add('scale-95', 'opacity-0');
+    panel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+      if (panel.dataset.aberto !== 'true') panel.classList.add('invisible');
+    }, 200);
+  };
+  const abrir = () => {
+    // No mobile o painel é fixo (CSS): ancora o topo logo abaixo do header real
+    // (respeita a tarja de recado, se houver). No desktop volta pro top-full.
+    if (window.matchMedia('(max-width: 520px)').matches) {
+      const hb = document.querySelector('[data-site-header]')?.getBoundingClientRect().bottom || 64;
+      panel.style.top = `${Math.max(8, Math.round(hb) + 6)}px`;
+    } else {
+      panel.style.top = '';
+    }
+    panel.dataset.aberto = 'true';
+    trigger.setAttribute('aria-expanded', 'true');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.classList.remove('invisible', 'scale-95', 'opacity-0');
+    panel.classList.add('scale-100', 'opacity-100');
+  };
+
+  const pintar = () => {
+    if (!itens.length) {
+      wrap.hidden = true;
+      if (panel.dataset.aberto === 'true') fechar();
+      return;
+    }
+    wrap.hidden = false;
+    badge.textContent = itens.length > 9 ? '9+' : String(itens.length);
+    badge.classList.remove('hidden');
+    lista.innerHTML = itens
+      .map(
+        (n) => `
+        <div class="notif-item" data-notif-item="${escapeHtml(n.id)}">
+          <a href="${escapeHtml(n.href)}" class="notif-item-link">
+            <span class="notif-item-ico"><i data-lucide="${escapeHtml(n.icone)}" aria-hidden="true"></i></span>
+            <span class="notif-item-corpo">
+              <span class="notif-item-tag">${escapeHtml(n.tag)}</span>
+              <span class="notif-item-nome">${escapeHtml(n.nome)}</span>
+              <span class="notif-item-sub">${escapeHtml(n.sub)}</span>
+            </span>
+          </a>
+          <button type="button" class="notif-item-x" data-notif-visto="${escapeHtml(n.id)}" aria-label="marcar como visto">
+            <i data-lucide="x"></i>
+          </button>
+        </div>`,
+      )
+      .join('');
+    renderIcons();
+  };
+
+  // "já vi": some da lista já. O "voltou" apaga a linha do banco (best-effort); as
+  // derivadas guardam o id no localStorage pra não voltar. Não recoloca pra não piscar.
+  const dispensar = (id) => {
+    const n = itens.find((x) => x.id === id);
+    itens = itens.filter((x) => x.id !== id);
+    pintar();
+    if (!n) return;
+    if (n.dismiss === 'db-voltou') {
+      supabase.from('avisos_reposicao').delete().eq('produto_slug', n.slug).then(() => {}, () => {});
+    } else {
+      marcarNotifLida(id);
+    }
+  };
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.dataset.aberto === 'true' ? fechar() : abrir();
+  });
+  lista.addEventListener('click', (e) => {
+    const x = e.target.closest('[data-notif-visto]');
+    if (!x) return;
+    e.preventDefault();
+    dispensar(x.dataset.notifVisto);
+  });
+  document.addEventListener('click', (e) => {
+    if (panel.dataset.aberto === 'true' && !wrap.contains(e.target)) fechar();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel.dataset.aberto === 'true') {
+      fechar();
+      trigger.focus();
+    }
+  });
+
+  pintar();
 }
 
 // --- Footer --------------------------------------------------------------------
@@ -4488,16 +4815,6 @@ async function initPerfilPage() {
         </div>
       </section>
 
-      <!-- Voltou pra vitrine: o que a pessoa esperava e voltou ao estoque.
-           Preenchido pós-render por initReposicao. Escondido sem nada / sem a 0030. -->
-      <section class="loja-desejos loja-voltou" data-reposicao-perfil hidden>
-        <div class="pf-head">
-          <h2>voltou pra vitrine</h2>
-          <p>produtos que tu pediu pra avisar e já voltaram ao estoque. toca pra abrir.</p>
-        </div>
-        <div class="ld-chips" data-rep-chips></div>
-      </section>
-
       <!-- Ficou pra depois: espelho da lista de desejos da loja. Preenchido
            pós-render por initLojaDesejos (chamada no fim desta função). Escondido
            sem desejos / sem a migration 0029. -->
@@ -5893,11 +6210,11 @@ async function initPerfilPage() {
 
   root.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
 
-  // Espelho da lista de desejos ("ficou pra depois") e a tirinha "voltou pra
-  // vitrine": a chamada do boot rodou antes deste HTML existir (o perfil é montado
-  // pós-guard), então religa aqui, já com as seções no DOM. Tolerante às migrations.
+  // Espelho da lista de desejos ("ficou pra depois"): a chamada do boot rodou antes
+  // deste HTML existir (o perfil é montado pós-guard), então religa aqui, já com a
+  // seção [data-desejos-perfil] no DOM. Tolerante à migration. (O "voltou pra
+  // vitrine" agora vive no sino do header, não no perfil.)
   initLojaDesejos();
-  initReposicao();
 }
 
 // --- Pontos + Recompensas (área logada) ----------------------------------------
@@ -6660,7 +6977,9 @@ export function initSite() {
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
   initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
-  initReposicao(); // "me avisa quando voltar" + "voltou pra vitrine" (loja/produto/perfil; migration 0030)
+  initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)
+  initNotificacoes(); // sino do header: "voltou pra vitrine" (toda página; migration 0030)
+  initTeuDeSempre(); // cartão pessoal no topo da home (só age logado + [data-teu-de-sempre])
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])

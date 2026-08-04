@@ -863,15 +863,78 @@ a.txt-link.gold { color: var(--gold) }
 /* nota de esgotado na página de produto */
 .prod-esgotado-nota { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 14px; color: var(--muted) }
 .prod-esgotado-nota svg { width: 17px; height: 17px; flex: 0 0 auto }
-/* tirinha "voltou pra vitrine" — reusa .loja-desejos/.ld-*; chip com selo */
-.rep-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 6px 6px 15px; border: 1px solid color-mix(in srgb, var(--olive) 34%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--olive) 8%, var(--card)); transition: background .15s var(--e), border-color .15s var(--e) }
-.rep-chip:hover { background: color-mix(in srgb, var(--olive) 15%, var(--card)); border-color: color-mix(in srgb, var(--olive) 55%, var(--line)) }
-.rep-chip a { color: var(--ink); font-family: var(--sans); font-size: 14px; text-decoration: none }
-.rep-chip a:hover { color: var(--coral) }
-.rep-tag { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--olive) }
-.rep-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; transition: color .15s var(--e), background .15s var(--e) }
-.rep-chip-x svg { width: 14px; height: 14px }
-.rep-chip-x:hover { color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent) }
+/* sino de notificações no header ("voltou pra vitrine") */
+.notif-wrap { display: inline-flex }
+.notif-wrap[hidden] { display: none }
+.notif-panel { width: min(320px, calc(100vw - 24px)); padding: 6px }
+.notif-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 6px; margin: 0; font-family: var(--sans); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--coral) }
+.notif-head svg { width: 15px; height: 15px }
+.notif-lista { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto }
+.notif-item { display: flex; align-items: stretch; gap: 4px; border-radius: 10px; transition: background .15s var(--e) }
+.notif-item:hover { background: color-mix(in srgb, var(--coral) 7%, transparent) }
+.notif-item-link { flex: 1; display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px; text-decoration: none; min-width: 0 }
+.notif-item-ico { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 999px; background: color-mix(in srgb, var(--coral) 12%, transparent); color: var(--coral) }
+.notif-item-ico svg { width: 16px; height: 16px }
+.notif-item-corpo { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0 }
+.notif-item-tag { font-family: var(--sans); font-size: 11px; font-weight: 700; color: var(--olive) }
+.notif-item-nome { font-family: var(--serif); font-size: 15px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.notif-item-sub { font-family: var(--sans); font-size: 12.5px; color: var(--muted) }
+.notif-item-x { flex: 0 0 auto; align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: 4px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; transition: color .15s var(--e), background .15s var(--e) }
+.notif-item-x svg { width: 15px; height: 15px }
+.notif-item-x:hover { color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent) }
+/* mobile: o sino não fica na ponta direita, então o painel ancorado a ele
+   estouraria a borda. Vira fixo, ocupando a largura com margem; o `top` (logo
+   abaixo do header, mesmo com a tarja de recado) é medido no JS ao abrir. */
+@media (max-width: 520px) {
+  .notif-panel { position: fixed; left: 12px; right: 12px; width: auto; margin-top: 0; z-index: 55 }
+}
+
+/* ---------- "o teu de sempre" (cartão pessoal na home, logado) ---------- */
+.tds-card {
+  padding: clamp(20px, 3vw, 30px) clamp(20px, 3.5vw, 34px);
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 130% at 0% 0%, color-mix(in srgb, var(--card) 82%, #fff) 0%, transparent 60%),
+    var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 44px -30px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.tds-topo { margin-bottom: 16px }
+.tds-saudacao { font-family: var(--serif); font-size: clamp(20px, 2.6vw, 27px); line-height: 1.15; color: var(--ink); margin: 0 }
+.tds-saudacao strong { color: var(--coral); font-weight: 700 }
+.tds-sub { font-family: var(--sans); font-size: 14px; color: var(--muted); margin: 5px 0 0 }
+.tds-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px }
+.tds-bloco {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 13px 14px; border-radius: 14px; text-decoration: none;
+  background: color-mix(in srgb, #fff 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink) 9%, transparent);
+  transition: transform .16s var(--e), box-shadow .16s var(--e), border-color .16s var(--e);
+}
+a.tds-bloco:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px -18px color-mix(in srgb, var(--ink) 60%, transparent);
+  border-color: color-mix(in srgb, var(--coral) 32%, transparent);
+}
+.tds-ico {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 12px;
+  background: color-mix(in srgb, var(--coral) 12%, transparent); color: var(--coral);
+}
+.tds-ico svg { width: 19px; height: 19px }
+.tds-bloco-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px }
+.tds-bloco-tag { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--olive) }
+.tds-bloco-nome { font-family: var(--serif); font-size: 16px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tds-bloco-sub { font-family: var(--sans); font-size: 12.5px; color: var(--muted) }
+.tds-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px }
+.tds-chip {
+  font-family: var(--sans); font-size: 12.5px; color: var(--cafe, #5b3c34); text-decoration: none;
+  padding: 4px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--gold) 20%, transparent);
+  transition: background .15s var(--e);
+}
+a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) }
+.tds-chip.mais { background: none; color: var(--muted) }
 
 /* ---------- planos (tiers) ---------- */
 /* Tela grande: grade normal de 4 colunas (o arraste NÃO existe aqui). O
