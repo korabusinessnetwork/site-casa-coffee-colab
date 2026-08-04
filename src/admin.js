@@ -38,6 +38,7 @@ import {
   CalendarDays,
   Heart,
   Bookmark,
+  BellRing,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -67,6 +68,7 @@ const LUCIDE_ICONS = {
   CalendarDays,
   Heart,
   Bookmark,
+  BellRing,
 };
 
 function renderIcons() {
@@ -244,6 +246,9 @@ const NAV = [
   // "o que a casa mais quer" — a lista de desejos da loja. Também é relatório,
   // mesma permissão 'relatorios'.
   { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'relatorios' },
+  // "quem espera reposição" — os avisos de produto esgotado. Relatório que guia a
+  // reposição, mesma permissão 'relatorios'.
+  { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -609,6 +614,7 @@ function abrirDoHash() {
     relatorios: viewRelatorios,
     favoritos: viewFavoritos,
     desejos: viewDesejos,
+    esperando: viewReposicao,
     equipe: viewEquipe,
     recados: viewRecados,
     trilha: viewTrilha,
@@ -2258,6 +2264,54 @@ function cardDesejo(l, i, max) {
         <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
       </div>
       <span class="ad-fav-n"><i data-lucide="bookmark"></i>${formatNumero(n)}</span>
+    </div>`;
+}
+
+// ===== ESPERANDO REPOSIÇÃO ("quem espera o quê") ===================
+async function viewReposicao(view) {
+  view.innerHTML =
+    cabecalho(
+      'quem espera reposição',
+      'os produtos esgotados que mais gente pediu pra avisar quando voltar, o teu norte pra repor.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarReposicao(corpo));
+  renderIcons();
+  carregarReposicao(corpo);
+}
+
+async function carregarReposicao(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_avisos_reposicao');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém esperando por enquanto',
+        'quando alguém pedir pra ser avisado de um produto esgotado, ele aparece aqui, do mais esperado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.esperando) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardReposicao(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardReposicao(l, i, max) {
+  const n = Number(l.esperando) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.produto_nome || l.produto_slug || 'produto')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="bell-ring"></i>${formatNumero(n)}</span>
     </div>`;
 }
 
