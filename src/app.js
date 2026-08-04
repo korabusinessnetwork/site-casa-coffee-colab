@@ -1020,7 +1020,7 @@ function updateModoUI(footer) {
     nota.textContent = `vamos levar até ${cartEndereco.resumo}.`;
   } else {
     nota.innerHTML =
-      'pra levar até tua casa, falta teu endereço — <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
+      'pra levar até tua casa, falta teu endereço, <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
   }
   nota.classList.remove('hidden');
 }
@@ -1194,7 +1194,7 @@ async function loadCartDiscount() {
   cartEndereco = {
     completo,
     resumo: completo
-      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''} — ` +
+      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''}, ` +
         `${txt(perfil.end_bairro)}, ${txt(perfil.end_cidade)}/${txt(perfil.end_uf)}`
       : '',
   };
@@ -3019,7 +3019,7 @@ async function initPerfilPage() {
           </button>
           <div class="pf-sessoes" id="pf-sessoes" data-sessoes hidden>
             <p class="pf-sessoes-intro">
-              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele — e,
+              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele, e,
               por garantia, troca a senha depois.
             </p>
             <div data-sessoes-lista></div>
@@ -3884,7 +3884,7 @@ async function initPerfilPage() {
   function avisarAssinaturaAtiva() {
     const nome = tiers.find((t) => t.slug === planoSlug)?.nome;
     dizerConta(
-      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura" — aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
+      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura", aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
       'text-coral',
     );
     root.querySelector('[data-gerenciar]')?.scrollIntoView({
@@ -3973,7 +3973,7 @@ async function initPerfilPage() {
         if (!excluirArmado) {
           excluirArmado = true;
           btn.querySelector('span').textContent = 'tem certeza? clica de novo pra apagar';
-          dizerConta('isso apaga teus dados pra sempre — pontos, histórico e assinatura.', 'text-coral');
+          dizerConta('isso apaga teus dados pra sempre, pontos, histórico e assinatura.', 'text-coral');
           clearTimeout(excluirTimer);
           excluirTimer = setTimeout(() => {
             excluirArmado = false;
