@@ -71,6 +71,12 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - Palavras: *gourmet, luxo, premium, exclusivo, hype, trend*.
 - Imperativos agressivos: *"aproveita já!"*, *"corre!"*.
 - Qualquer gamificação com cara de cassino (roleta, "gire pra ganhar", contadores de urgência falsos).
+- **Travessão (`—`) em texto que o usuário vê.** No copy visível (HTML e strings do
+  `app.js`/`admin.js` que renderizam na tela), **nunca** usar `—` como pontuação de frase —
+  usar **vírgula** no lugar. Vale pra qualquer texto novo. **Exceção:** o `—` sozinho como
+  glifo de "vazio/sem valor" (célula de tabela vazia, saldo carregando: `valor || '—'`) pode
+  ficar — ali a vírgula quebraria a tela. Em comentário de código, documentação e migrations
+  o `—` segue liberado (o usuário não vê).
 
 ---
 
