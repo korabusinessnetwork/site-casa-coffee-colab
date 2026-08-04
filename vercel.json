@@ -7,6 +7,6 @@
     { "source": "/pages/:pagina*", "destination": "/:pagina*", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/gente/:handle", "destination": "/gente.html" }
+    { "source": "/gente/:handle", "destination": "/gente" }
   ]
 }
