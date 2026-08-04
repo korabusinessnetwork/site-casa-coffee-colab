@@ -560,6 +560,19 @@ function renderHeader() {
           <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
           <div class="auth-desktop" data-auth-slot></div>
 
+          <!-- Notificações (sino) — escondido até initNotificacoes achar algo -->
+          <div class="relative notif-wrap" data-notif-wrap hidden>
+            <button type="button" class="hdr-icon" aria-label="Notificações" data-notif-trigger aria-haspopup="true" aria-expanded="false">
+              <i data-lucide="bell"></i>
+              <span class="cart-badge hidden" data-notif-count aria-live="polite">0</span>
+            </button>
+            <div data-notif-panel data-aberto="false" role="menu" aria-hidden="true"
+              class="notif-panel invisible absolute right-0 top-full z-50 mt-2 origin-top-right scale-95 card opacity-0 shadow-xl backdrop-blur-md transition duration-200">
+              <p class="notif-head"><i data-lucide="bell-ring" aria-hidden="true"></i>teus avisos</p>
+              <div class="notif-lista" data-notif-lista></div>
+            </div>
+          </div>
+
           <!-- Carrinho -->
           <button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
             <i data-lucide="shopping-bag"></i>
@@ -1390,16 +1403,15 @@ async function initLojaDesejos() {
   renderIcons();
 }
 
-// --- Volta pra vitrine (avisa quando o produto esgotado voltar) ----------------
+// --- Volta pra vitrine: botões "me avisa quando voltar" ------------------------
 // Nos produtos esgotados (disponivel:false no mock), o botão "me avisa quando
-// voltar" registra interesse; quando a casa repõe (flip pra disponível), a tirinha
-// "voltou pra vitrine" aparece na volta da pessoa (/loja e /conta/perfil). Escrita
-// RLS-direct travada em auth.uid() (migration 0030). Deslogado → login; tolerante.
+// voltar" registra interesse. Quando a casa repõe, o "voltou" chega no SINO de
+// notificações do header (initNotificacoes) — não mais numa tirinha inline.
+// Escrita RLS-direct travada em auth.uid() (migration 0030). Deslogado → login.
 async function initReposicao() {
   if (!supabase) return;
   const avisarBtns = Array.from(document.querySelectorAll('[data-avisar]'));
-  const tirinhas = Array.from(document.querySelectorAll('[data-reposicao], [data-reposicao-perfil]'));
-  if (!avisarBtns.length && !tirinhas.length) return;
+  if (!avisarBtns.length) return;
 
   const irProLogin = () => {
     const destino = encodeURIComponent(window.location.pathname + window.location.search);
@@ -1408,8 +1420,7 @@ async function initReposicao() {
 
   const { data: sessData } = await supabase.auth.getSession();
   if (!sessData?.session) {
-    // Deslogado: o botão existe (produto esgotado), mas leva pro login. As
-    // tirinhas "voltou" dependem dos avisos do usuário, então nem aparecem.
+    // Deslogado: o botão existe (produto esgotado), mas leva pro login.
     avisarBtns.forEach((btn) => btn.addEventListener('click', irProLogin));
     return;
   }
@@ -1451,45 +1462,12 @@ async function initReposicao() {
     (botoesPorSlug.get(slug) || []).forEach((b) => pintarBtn(b, on));
   };
 
-  // Tirinha "voltou pra vitrine": avisos cujo produto está disponível AGORA.
-  const pintarTirinhas = () => {
-    if (!tirinhas.length) return;
-    const voltaram = [...avisos].filter((slug) => {
-      const prod = getProdutoPorSlug(slug);
-      return prod && prod.disponivel !== false;
-    });
-    for (const sec of tirinhas) {
-      const chipsEl = sec.querySelector('[data-rep-chips]');
-      if (!chipsEl) continue;
-      if (!voltaram.length) {
-        sec.hidden = true;
-        chipsEl.innerHTML = '';
-        continue;
-      }
-      chipsEl.innerHTML = voltaram
-        .map((slug) => {
-          const nome = nomeDe(slug);
-          return `<span class="rep-chip">
-            <a href="/produto?slug=${encodeURIComponent(slug)}">${escapeHtml(nome)}</a>
-            <span class="rep-tag">voltou 💛</span>
-            <button type="button" class="rep-chip-x" data-rep-visto="${escapeHtml(slug)}" aria-label="ok, já vi ${escapeHtml(nome)}">
-              <i data-lucide="x"></i>
-            </button>
-          </span>`;
-        })
-        .join('');
-      sec.hidden = false;
-    }
-    renderIcons();
-  };
-
   // Toggle otimista do "me avisa" (registra/cancela interesse).
   const alternar = async (slug) => {
     const estava = avisos.has(slug);
     if (estava) avisos.delete(slug);
     else avisos.add(slug);
     repintar(slug);
-    pintarTirinhas();
     try {
       if (estava) {
         const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
@@ -1502,21 +1480,6 @@ async function initReposicao() {
       if (estava) avisos.add(slug);
       else avisos.delete(slug);
       repintar(slug);
-      pintarTirinhas();
-    }
-  };
-
-  // "já vi" na tirinha: o produto voltou, apaga o aviso.
-  const dispensar = async (slug) => {
-    if (!avisos.has(slug)) return;
-    avisos.delete(slug);
-    pintarTirinhas();
-    try {
-      const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
-      if (error) throw error;
-    } catch {
-      avisos.add(slug);
-      pintarTirinhas();
     }
   };
 
@@ -1534,17 +1497,125 @@ async function initReposicao() {
     });
   });
 
-  for (const sec of tirinhas) {
-    const chipsEl = sec.querySelector('[data-rep-chips]');
-    chipsEl?.addEventListener('click', (e) => {
-      const x = e.target.closest('[data-rep-visto]');
-      if (!x) return;
-      dispensar(x.dataset.repVisto);
-    });
+  renderIcons();
+}
+
+// --- Sino de notificações (header) ---------------------------------------------
+// Hoje a única fonte é o "voltou pra vitrine": avisos de reposição (0030) cujo
+// produto está disponível AGORA. O sino aparece no header (toda página) só quando
+// há algo; abre um painel com os itens, cada um linkando pro produto + "já vi"
+// (apaga o aviso). Escrita RLS-direct. Tolerante: deslogado / sem a 0030 → some.
+async function initNotificacoes() {
+  const wrap = document.querySelector('[data-notif-wrap]');
+  if (!wrap || !supabase) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // deslogado → sino fica escondido
+
+  let avisos = [];
+  try {
+    const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
+    if (error) return; // migration 0030 pendente → sino não aparece
+    avisos = data || [];
+  } catch {
+    return;
   }
 
-  pintarTirinhas();
-  renderIcons();
+  // "voltou": aviso cujo produto existe no catálogo e está disponível agora.
+  let itens = avisos
+    .map((a) => ({ slug: a.produto_slug, nome: getProdutoPorSlug(a.produto_slug)?.nome || a.produto_nome }))
+    .filter((a) => {
+      const p = getProdutoPorSlug(a.slug);
+      return p && p.disponivel !== false;
+    });
+
+  const trigger = wrap.querySelector('[data-notif-trigger]');
+  const panel = wrap.querySelector('[data-notif-panel]');
+  const badge = wrap.querySelector('[data-notif-count]');
+  const lista = wrap.querySelector('[data-notif-lista]');
+
+  const fechar = () => {
+    panel.dataset.aberto = 'false';
+    trigger.setAttribute('aria-expanded', 'false');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.classList.add('scale-95', 'opacity-0');
+    panel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+      if (panel.dataset.aberto !== 'true') panel.classList.add('invisible');
+    }, 200);
+  };
+  const abrir = () => {
+    // No mobile o painel é fixo (CSS): ancora o topo logo abaixo do header real
+    // (respeita a tarja de recado, se houver). No desktop volta pro top-full.
+    if (window.matchMedia('(max-width: 520px)').matches) {
+      const hb = document.querySelector('[data-site-header]')?.getBoundingClientRect().bottom || 64;
+      panel.style.top = `${Math.max(8, Math.round(hb) + 6)}px`;
+    } else {
+      panel.style.top = '';
+    }
+    panel.dataset.aberto = 'true';
+    trigger.setAttribute('aria-expanded', 'true');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.classList.remove('invisible', 'scale-95', 'opacity-0');
+    panel.classList.add('scale-100', 'opacity-100');
+  };
+
+  const pintar = () => {
+    if (!itens.length) {
+      wrap.hidden = true;
+      if (panel.dataset.aberto === 'true') fechar();
+      return;
+    }
+    wrap.hidden = false;
+    badge.textContent = String(itens.length);
+    badge.classList.remove('hidden');
+    lista.innerHTML = itens
+      .map(
+        (a) => `
+        <div class="notif-item" data-notif-item="${escapeHtml(a.slug)}">
+          <a href="/produto?slug=${encodeURIComponent(a.slug)}" class="notif-item-link">
+            <span class="notif-item-tag">voltou 💛</span>
+            <span class="notif-item-nome">${escapeHtml(a.nome)}</span>
+            <span class="notif-item-sub">tá de volta na vitrine, passa lá?</span>
+          </a>
+          <button type="button" class="notif-item-x" data-notif-visto="${escapeHtml(a.slug)}" aria-label="marcar como visto">
+            <i data-lucide="x"></i>
+          </button>
+        </div>`,
+      )
+      .join('');
+    renderIcons();
+  };
+
+  // "já vi": some da lista já e apaga o aviso (best-effort — se falhar, volta na
+  // próxima visita). Não recoloca pra não piscar.
+  const dispensar = (slug) => {
+    itens = itens.filter((a) => a.slug !== slug);
+    pintar();
+    supabase.from('avisos_reposicao').delete().eq('produto_slug', slug).then(() => {}, () => {});
+  };
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.dataset.aberto === 'true' ? fechar() : abrir();
+  });
+  lista.addEventListener('click', (e) => {
+    const x = e.target.closest('[data-notif-visto]');
+    if (!x) return;
+    e.preventDefault();
+    dispensar(x.dataset.notifVisto);
+  });
+  document.addEventListener('click', (e) => {
+    if (panel.dataset.aberto === 'true' && !wrap.contains(e.target)) fechar();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel.dataset.aberto === 'true') {
+      fechar();
+      trigger.focus();
+    }
+  });
+
+  pintar();
 }
 
 // --- Footer --------------------------------------------------------------------
@@ -4487,16 +4558,6 @@ async function initPerfilPage() {
         </div>
       </section>
 
-      <!-- Voltou pra vitrine: o que a pessoa esperava e voltou ao estoque.
-           Preenchido pós-render por initReposicao. Escondido sem nada / sem a 0030. -->
-      <section class="loja-desejos loja-voltou" data-reposicao-perfil hidden>
-        <div class="pf-head">
-          <h2>voltou pra vitrine</h2>
-          <p>produtos que tu pediu pra avisar e já voltaram ao estoque. toca pra abrir.</p>
-        </div>
-        <div class="ld-chips" data-rep-chips></div>
-      </section>
-
       <!-- Ficou pra depois: espelho da lista de desejos da loja. Preenchido
            pós-render por initLojaDesejos (chamada no fim desta função). Escondido
            sem desejos / sem a migration 0029. -->
@@ -5892,11 +5953,11 @@ async function initPerfilPage() {
 
   root.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
 
-  // Espelho da lista de desejos ("ficou pra depois") e a tirinha "voltou pra
-  // vitrine": a chamada do boot rodou antes deste HTML existir (o perfil é montado
-  // pós-guard), então religa aqui, já com as seções no DOM. Tolerante às migrations.
+  // Espelho da lista de desejos ("ficou pra depois"): a chamada do boot rodou antes
+  // deste HTML existir (o perfil é montado pós-guard), então religa aqui, já com a
+  // seção [data-desejos-perfil] no DOM. Tolerante à migration. (O "voltou pra
+  // vitrine" agora vive no sino do header, não no perfil.)
   initLojaDesejos();
-  initReposicao();
 }
 
 // --- Pontos + Recompensas (área logada) ----------------------------------------
@@ -6659,7 +6720,8 @@ export function initSite() {
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
   initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
-  initReposicao(); // "me avisa quando voltar" + "voltou pra vitrine" (loja/produto/perfil; migration 0030)
+  initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)
+  initNotificacoes(); // sino do header: "voltou pra vitrine" (toda página; migration 0030)
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])

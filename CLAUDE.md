@@ -765,9 +765,9 @@ pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa v
 
 Puxa o gancho da lista de desejos: produto **esgotado** (`disponivel: false` no mock
 `PRODUTOS`) não fica mudo, ganha um selo **"esgotado"** e o botão **"me avisa quando
-voltar"**. Quando a casa repõe (flip pra disponível), a pessoa vê uma tirinha **"voltou
-pra vitrine"** na volta dela (`/loja` e `/conta/perfil`). Pro Casa, o console mostra
-**quantas pessoas esperam cada produto** — o sinal mais forte pra guiar a reposição.
+voltar"**. Quando a casa repõe (flip pra disponível), o aviso chega no **sino de
+notificações do header** ("voltou pra vitrine"), visível em qualquer página. Pro Casa, o
+console mostra **quantas pessoas esperam cada produto** — o sinal mais forte pra reposição.
 
 - **Disponibilidade no mock:** `PRODUTOS[].disponivel` (ausente = disponível; só marca-se
   `false`). Hoje **Torra Vale dos Sinos** e **Caneca de autor** estão esgotados.
@@ -777,17 +777,23 @@ pra vitrine"** na volta dela (`/loja` e `/conta/perfil`). Pro Casa, o console mo
   de sensíveis): **escrita direta pelo client via RLS** (select/insert/delete own), sem Edge
   Function. Agregado do console por `admin_avisos_reposicao()` (SECURITY DEFINER,
   `tem_permissao('relatorios')`, conta por slug com o nome mais frequente).
-- **Front:** o esgotado é 100% do mock (client), então `cardProdutoHTML` e `initProductPage`
-  já renderizam o selo + "me avisa" sem depender de sessão/banco (na página de produto,
-  esgotado troca quantidade/carrinho pela nota + botão). `initReposicao()` liga a lógica:
-  deslogado → o botão manda pro login; logado → carrega os avisos, pinta o estado dos botões
-  (toggle otimista, `23505` = já pediu = sucesso) e monta a tirinha "voltou pra vitrine"
-  (avisos cujo produto está disponível **agora**) em `[data-reposicao]` (loja) e
-  `[data-reposicao-perfil]` (perfil), com `×` "já vi" que apaga o aviso. Boot não pega o
-  perfil (montado pós-guard), então `initPerfilPage` religa `initReposicao()` no fim.
-  Tolerante: sem sessão, o botão só vai pro login; migration pendente → botão fica inerte
-  ("aviso em breve") e a tirinha some. Console: aba **"esperando"** (`viewReposicao`, ícone
-  `bell-ring`, quem tem `relatorios`) lista o ranking com barrinha.
+- **Front — botões "me avisa":** o esgotado é 100% do mock (client), então `cardProdutoHTML`
+  e `initProductPage` já renderizam o selo + "me avisa" sem depender de sessão/banco (na
+  página de produto, esgotado troca quantidade/carrinho pela nota + botão). `initReposicao()`
+  liga só os botões: deslogado → manda pro login; logado → carrega os avisos, pinta o estado
+  (toggle otimista, `23505` = já pediu = sucesso); migration pendente → botão inerte ("aviso
+  em breve"). **Não há mais tirinha inline** — quem mostra o "voltou" é o sino.
+- **Front — sino de notificações (`initNotificacoes`, header, toda página):** o `renderHeader`
+  injeta um sino `[data-notif-wrap]` (escondido) antes do carrinho. `initNotificacoes` lê os
+  `avisos_reposicao`, filtra os que **voltaram** (produto existe e está disponível agora) e,
+  se houver, revela o sino com badge de contagem + um painel (mesma mecânica de abrir/fechar
+  do painel do usuário: clique-fora/Esc) listando cada item (link pro produto + "já vi" que
+  apaga o aviso, best-effort). No **mobile** o painel vira `position: fixed` (o sino não fica
+  na ponta direita, ancorá-lo estouraria a borda), com o `top` medido do header ao abrir (
+  respeita a tarja de recado). Tolerante: deslogado / sem a 0030 / nada que voltou → o sino
+  fica escondido.
+- **Console:** aba **"esperando"** (`viewReposicao`, ícone `bell-ring`, quem tem `relatorios`)
+  lista o ranking de quem espera cada produto, com barrinha.
 - **Falta:** aplicar a `0030` + subir o front. Nenhum secret novo; nenhuma Edge Function.
 
 ---
