@@ -710,6 +710,191 @@ async function renderAvisoBar() {
   });
 }
 
+// --- Meu cantinho (perfil público do assinante em /gente/{handle}) --------------
+const CAFE_METODO_LABEL = { coado: 'coado', prensa: 'na prensa', aeropress: 'aeropress', espresso: 'espresso', moka: 'na moka' };
+const CAFE_TORRA_LABEL = { clara: 'torra clara', media: 'torra média', escura: 'torra escura' };
+const CAFE_LEITE_LABEL = { puro: 'puro', integral: 'com leite', vegetal: 'com leite vegetal', tanto: 'com ou sem leite' };
+const CAFE_HORARIO_LABEL = { manha: 'de manhã', almoco: 'no almoço', tarde: 'à tarde', fim: 'no fim do dia' };
+
+// "coado · torra média · com leite" a partir dos campos do café (o que estiver preenchido).
+function cafeFrase(p) {
+  const partes = [
+    CAFE_METODO_LABEL[p.cafe_metodo],
+    CAFE_TORRA_LABEL[p.cafe_torra],
+    CAFE_LEITE_LABEL[p.cafe_leite],
+    CAFE_HORARIO_LABEL[p.cafe_horario],
+  ].filter(Boolean);
+  return partes.join(' · ');
+}
+
+// "hoje" / "ontem" / "04/08" a partir de um ISO. (Versão de módulo; o mural tem um
+// const local homônimo que a sombreia lá dentro — sem conflito.)
+function dataCurta(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const umDia = 86_400_000;
+  const diff = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(iso).setHours(0, 0, 0, 0)) / umDia);
+  if (diff <= 0) return 'hoje';
+  if (diff === 1) return 'ontem';
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+// "desde ago/2026" a partir de um ISO.
+function membroDesde(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const mes = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  return `desde ${mes}/${d.getFullYear()}`;
+}
+
+// Página /gente/{handle}: o cartão público de quem optou. Leitura pública via RPC
+// perfil_publico (só campos seguros). Tolerante: sem a migration 0024, cai no vazio.
+async function initGentePage() {
+  const root = document.querySelector('[data-gente-root]');
+  if (!root) return;
+
+  const partes = window.location.pathname.split('/').filter(Boolean);
+  const handle = decodeURIComponent(partes[1] || '').trim(); // /gente/{handle}
+
+  const vazio = (titulo, texto) => {
+    root.innerHTML = `
+      <div class="gente-vazio">
+        <span class="gente-vazio-ic" aria-hidden="true">☕</span>
+        <h1>${escapeHtml(titulo)}</h1>
+        <p>${escapeHtml(texto)}</p>
+        <a href="/home" class="btn ghost">voltar pro Casa</a>
+      </div>`;
+    renderIcons();
+  };
+
+  if (!handle) return vazio('cadê o cantinho?', 'esse link tá sem nome. confere se copiou ele inteiro?');
+  if (!supabase) return vazio('cantinho fora do ar', 'a gente não conseguiu abrir agora. tenta de novo daqui a pouco? 💛');
+
+  let dados = null;
+  try {
+    const { data, error } = await supabase.rpc('perfil_publico', { p_handle: handle });
+    if (error) return vazio('cantinho fora do ar', 'a gente não conseguiu abrir agora. tenta de novo daqui a pouco? 💛');
+    dados = data;
+  } catch {
+    return vazio('cantinho fora do ar', 'a gente não conseguiu abrir agora. tenta de novo daqui a pouco? 💛');
+  }
+  if (!dados) return vazio('esse cantinho não existe (ou fechou)', 'talvez a pessoa tenha preferido guardar o dela só pra si. tá tudo bem 💛');
+
+  const nome = escapeHtml(dados.nome || 'alguém do Casa');
+  document.title = `${dados.nome || 'Gente'} · Casa Coffee Colab`;
+  const iniciais = escapeHtml(iniciaisDoNome(dados.nome || 'Casa'));
+  const avatar = dados.avatar_url
+    ? `<img class="gente-avatar-img" src="${escapeHtml(dados.avatar_url)}" alt="foto de ${nome}" />`
+    : `<span class="gente-avatar-ini">${iniciais}</span>`;
+  const tier = dados.tier_nome
+    ? `<span class="gente-tier"><i data-lucide="award" class="h-4 w-4"></i>${escapeHtml(dados.tier_nome)}</span>`
+    : '';
+  const desde = membroDesde(dados.membro_desde);
+  const cafe = cafeFrase(dados);
+  const recados = Array.isArray(dados.recados) ? dados.recados : [];
+
+  const recadosHtml = recados.length
+    ? `<div class="gente-recados">
+         <h2 class="gente-sub">recados que deixou na parede</h2>
+         <div class="gente-recados-lista">
+           ${recados
+             .map(
+               (r) => `<article class="gente-recado"><p>${escapeHtml(r.texto || '')}</p><span>${dataCurta(r.created_at)}</span></article>`,
+             )
+             .join('')}
+         </div>
+       </div>`
+    : '';
+
+  root.innerHTML = `
+    <article class="gente-card">
+      <div class="gente-avatar">${avatar}</div>
+      <h1 class="gente-nome">${nome}</h1>
+      <div class="gente-meta">
+        ${tier}
+        ${desde ? `<span class="gente-desde"><i data-lucide="heart" class="h-4 w-4"></i>na casa ${escapeHtml(desde)}</span>` : ''}
+      </div>
+      ${cafe ? `<p class="gente-cafe"><span>o café de sempre</span>${escapeHtml(cafe)}</p>` : ''}
+    </article>
+    ${recadosHtml}`;
+  renderIcons();
+}
+
+// --- A trilha do Casa (playlists do Spotify, curadas no console) ----------------
+// Converte um link do Spotify (URL normal, /embed, /intl-xx, ou URI spotify:...)
+// no src de embed CANÔNICO. Só devolve open.spotify.com/embed/... — qualquer outra
+// coisa vira null e NÃO vira iframe (trava de injeção: o src é sempre nosso domínio).
+function spotifyEmbed(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  const tipos = /^(playlist|album|track|artist|show|episode)$/i;
+  const uri = s.match(/^spotify:(playlist|album|track|artist|show|episode):([A-Za-z0-9]+)$/i);
+  if (uri) return `https://open.spotify.com/embed/${uri[1].toLowerCase()}/${uri[2]}`;
+  try {
+    const u = new URL(s);
+    if (u.hostname !== 'open.spotify.com') return null;
+    const partes = u.pathname.split('/').filter(Boolean).filter((p) => p !== 'embed' && !/^intl-/i.test(p));
+    const [tipo, id] = partes;
+    if (!tipo || !id || !tipos.test(tipo) || !/^[A-Za-z0-9]+$/.test(id)) return null;
+    return `https://open.spotify.com/embed/${tipo.toLowerCase()}/${id}`;
+  } catch {
+    return null;
+  }
+}
+
+// Acende a seção "a trilha do Casa" na home com as playlists ativas (a marcada como
+// "tocando" vem primeiro, com selo pulsante). Leitura pública; tolerante à migration
+// 0023 pendente (sem tabela → seção fica escondida, sem ruído).
+async function initTrilha() {
+  const sec = document.querySelector('[data-trilha]');
+  if (!sec || !supabase) return;
+  const grid = sec.querySelector('[data-trilha-grid]');
+  if (!grid) return;
+
+  let lista = [];
+  try {
+    const { data, error } = await supabase
+      .from('playlists_casa')
+      .select('id, nome, clima, spotify_url, tocando, ordem')
+      .order('ordem', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) return;
+    lista = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+
+  // Converte + valida os embeds; descarta link que não é do Spotify.
+  const cards = lista
+    .map((p) => ({ ...p, embed: spotifyEmbed(p.spotify_url) }))
+    .filter((p) => p.embed);
+  if (!cards.length) return; // nada válido → seção segue escondida
+
+  // A "tocando" primeiro; o resto mantém a ordem.
+  cards.sort((a, b) => (b.tocando ? 1 : 0) - (a.tocando ? 1 : 0));
+
+  grid.innerHTML = cards
+    .map((p) => {
+      const agora = p.tocando
+        ? `<span class="trilha-agora"><span class="trilha-eq" aria-hidden="true"><i></i><i></i><i></i></span>tocando agora</span>`
+        : '';
+      const clima = p.clima ? `<span class="trilha-clima">${escapeHtml(p.clima)}</span>` : '';
+      return `
+        <article class="trilha-card${p.tocando ? ' tocando' : ''}">
+          <div class="trilha-card-topo">
+            <div>${clima}<h3 class="trilha-nome">${escapeHtml(p.nome || 'playlist')}</h3></div>
+            ${agora}
+          </div>
+          <iframe class="trilha-embed" src="${escapeHtml(p.embed)}" width="100%" height="152"
+                  loading="lazy" frameborder="0" allow="encrypted-media; clipboard-write"
+                  title="${escapeHtml(p.nome || 'playlist')} no Spotify"></iframe>
+        </article>`;
+    })
+    .join('');
+
+  sec.hidden = false;
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -3494,6 +3679,31 @@ async function initPerfilPage() {
         </div>
       </section>
 
+      <!-- Meu cantinho: perfil público opt-in em /gente/{handle}. Preenchido
+           pós-render (RPCs do 0024). Escondido até sabermos o estado; se a migration
+           ainda não foi aplicada, some sem deixar caco. -->
+      <section class="pf-indica" data-cantinho hidden>
+        <div class="pf-head">
+          <h2>meu cantinho</h2>
+          <p>um cartãozinho teu, público, pra dar rosto à comunidade — apelido, teu café de sempre, teus recados. <strong>e-mail, telefone e pontos ficam de fora</strong>, sempre.</p>
+        </div>
+        <div class="pf-indica-card">
+          <label class="pf-cantinho-toggle">
+            <input type="checkbox" data-cantinho-check />
+            <span data-cantinho-label>mostrar meu cantinho</span>
+          </label>
+          <div class="pf-cantinho-link" data-cantinho-linkwrap hidden>
+            <div class="pf-indica-linkbox">
+              <a class="pf-indica-link" data-cantinho-link href="#" target="_blank" rel="noopener"></a>
+              <button type="button" class="pf-indica-copy" data-cantinho-copy aria-label="copiar o link">
+                <i data-lucide="copy" class="h-4 w-4"></i><span>copiar</span>
+              </button>
+            </div>
+          </div>
+          <p class="pf-indica-conta" data-cantinho-msg hidden></p>
+        </div>
+      </section>
+
       <section>
         <div class="pf-head">
           <h2>conta e privacidade</h2>
@@ -3662,6 +3872,109 @@ async function initPerfilPage() {
         } catch {
           /* tabela ainda não existe: ignora */
         }
+      })();
+    }
+  }
+
+  // ── Meu cantinho: perfil público opt-in (/gente/{handle}) ─────────────────
+  // Lê o estado atual (perfil_publico/handle) e liga o toggle → definir_perfil_publico.
+  // Tolerante: sem a migration 0024, a seção fica escondida.
+  {
+    const cantinhoSec = root.querySelector('[data-cantinho]');
+    if (cantinhoSec && supabase) {
+      (async () => {
+        let estado = null;
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('perfil_publico, handle')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (error) return; // colunas ainda não existem → seção fica hidden
+          estado = data || {};
+        } catch {
+          return;
+        }
+
+        const check = cantinhoSec.querySelector('[data-cantinho-check]');
+        const labelEl = cantinhoSec.querySelector('[data-cantinho-label]');
+        const linkWrap = cantinhoSec.querySelector('[data-cantinho-linkwrap]');
+        const linkEl = cantinhoSec.querySelector('[data-cantinho-link]');
+        const copyEl = cantinhoSec.querySelector('[data-cantinho-copy]');
+        const msgEl = cantinhoSec.querySelector('[data-cantinho-msg]');
+
+        const mostrarMsgC = (txt, tom = 'neutro') => {
+          if (!msgEl) return;
+          msgEl.textContent = txt;
+          msgEl.className = 'pf-indica-conta ' + (tom === 'erro' ? 'text-coral' : tom === 'ok' ? 'text-olive' : '');
+          msgEl.hidden = !txt;
+        };
+
+        const pintarLink = (handle) => {
+          if (!handle || !linkEl) {
+            if (linkWrap) linkWrap.hidden = true;
+            return;
+          }
+          const url = `${siteBase()}/gente/${encodeURIComponent(handle)}`;
+          linkEl.textContent = url;
+          linkEl.href = url;
+          if (linkWrap) linkWrap.hidden = false;
+        };
+
+        const aplicarEstado = (ativo, handle) => {
+          if (check) check.checked = Boolean(ativo);
+          if (labelEl) labelEl.textContent = ativo ? 'teu cantinho está no ar' : 'mostrar meu cantinho';
+          if (ativo) pintarLink(handle);
+          else if (linkWrap) linkWrap.hidden = true;
+        };
+
+        aplicarEstado(estado.perfil_publico, estado.handle);
+        cantinhoSec.hidden = false;
+
+        check?.addEventListener('change', async () => {
+          const ativar = check.checked;
+          check.disabled = true;
+          mostrarMsgC('');
+          try {
+            const { data, error } = await supabase.rpc('definir_perfil_publico', { p_ativar: ativar });
+            if (error || !data?.ok) {
+              check.checked = !ativar; // desfaz o toggle
+              mostrarMsgC(data?.erro || 'não deu pra mudar agora. tenta de novo? 💛', 'erro');
+              return;
+            }
+            aplicarEstado(data.ativo, data.handle);
+            mostrarMsgC(
+              data.ativo ? 'pronto, teu cantinho está no ar 💛' : 'teu cantinho voltou a ser só teu.',
+              'ok',
+            );
+          } catch {
+            check.checked = !ativar;
+            mostrarMsgC('a gente não conseguiu falar com o servidor agora. confere tua conexão?', 'erro');
+          } finally {
+            check.disabled = false;
+          }
+        });
+
+        copyEl?.addEventListener('click', async () => {
+          const url = linkEl?.href || '';
+          if (!url) return;
+          const span = copyEl.querySelector('span');
+          let ok = false;
+          try {
+            await navigator.clipboard.writeText(url);
+            ok = true;
+          } catch {
+            ok = false;
+          }
+          if (span) {
+            span.textContent = ok ? 'copiado!' : 'copia daí ☝️';
+            copyEl.classList.toggle('ok', ok);
+            setTimeout(() => {
+              span.textContent = 'copiar';
+              copyEl.classList.remove('ok');
+            }, 2200);
+          }
+        });
       })();
     }
   }
@@ -5421,6 +5734,8 @@ export function initSite() {
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
+  initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]

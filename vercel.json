@@ -5,5 +5,8 @@
   "redirects": [
     { "source": "/pages/conta/:pagina*", "destination": "/conta/:pagina*", "permanent": true },
     { "source": "/pages/:pagina*", "destination": "/:pagina*", "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/gente/:handle", "destination": "/gente.html" }
   ]
 }

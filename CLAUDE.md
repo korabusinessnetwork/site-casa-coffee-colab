@@ -565,6 +565,60 @@ sábado"*. Some sozinha quando a janela expira; a pessoa pode fechar e ela não 
 
 ---
 
+## A trilha do Casa (playlists do Spotify)
+
+A seção "a trilha do Casa" na home: playlists reais do Spotify (embed), curadas por
+clima ("pra focar", "manhã lenta"), com uma marcada como **tocando agora** (selo
+pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
+
+- **Migration `0023_trilha` (PENDENTE — aplicar no SQL Editor):** tabela `playlists_casa`
+  (`nome`, `clima`, `spotify_url`, `ordem`, `ativo`, `tocando`) com RLS (**leitura pública
+  só das ativas**; owner vê tudo) + índice único parcial garantindo **uma `tocando` por
+  vez**. Escrita só via 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
+  `admin_trilha_salvar`/`admin_trilha_remover`) — `salvar` zera o `tocando` das outras.
+- **Owner-only:** aba `trilha` no console usa `perm: 'trilha'` (não grantável, igual a
+  `avisos` — o whitelist de permissões é fechado por CHECK).
+- **Front:** `initTrilha()` (boot, home) lê as ativas e monta os cards; a `tocando` vem
+  primeiro com selo. **`spotifyEmbed()` é a trava de segurança:** converte o link no src
+  de embed e **só devolve `open.spotify.com/embed/...`** (URL normal, `/embed`, `/intl-xx`
+  ou URI `spotify:`) — qualquer outra coisa vira `null` e NÃO vira `<iframe>` (bloqueia
+  host falso, subdomínio-armadilha `open.spotify.com.evil.com`, `javascript:`). Tolerante:
+  sem a 0023, a seção fica escondida.
+- **Console:** `viewTrilha` (`admin.js`) — form (nome/clima/link/ordem/na-home/tocando) +
+  lista com editar/remover. Bloqueia no submit link que não é do Spotify.
+- **Falta:** aplicar a `0023` + subir o front. Nenhum secret novo.
+
+---
+
+## Meu cantinho (perfil público do assinante)
+
+Um cartãozinho público e **opt-in** do assinante em **`/gente/{handle}`** — dá rosto à
+comunidade sem expor nada sensível. Mostra: apelido (ou 1º nome), foto, plano, "na casa
+desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mural.
+**Ficam SEMPRE de fora:** e-mail, telefone, pontos, endereço, nome real completo.
+
+- **Migration `0024_perfil_publico` (PENDENTE — aplicar no SQL Editor):** colunas
+  `profiles.perfil_publico` (bool, opt-in) e `profiles.handle` (slug único da URL) + 2 RPCs
+  SECURITY DEFINER:
+  - `definir_perfil_publico(ativar)` — o dono (`auth.uid()`) liga/desliga; ao ligar gera um
+    handle único e estável (slug do apelido/nome, tira acento). **Exige assinante**
+    (`tier_slug` não nulo), como o Mural. Granted a `authenticated`.
+  - `perfil_publico(handle)` — leitura **pública** (granted a `anon`), devolve um jsonb com
+    EXATAMENTE os campos seguros (hand-picked) + os recados do dono; `null` se não existe ou
+    não é público. **A exposição NÃO é RLS na `profiles`** (abriria a linha toda) — é este
+    payload curado.
+- **Rota `/gente/{handle}`:** `gente.html` (registrada no `rollupOptions.input`). URL
+  dinâmica servida por **rewrite**: `vercel.json` (`rewrites: /gente/:handle → /gente.html`)
+  em prod e o middleware `urlsLimpasNoDev` (regex `/gente/{x}` → `gente.html`) no dev.
+- **Front:** `initGentePage()` lê o handle do path, chama `perfil_publico`, monta o cartão
+  (café via `cafeFrase`, "desde" via `membroDesde`), escapa tudo; estado vazio gentil se o
+  handle não existe/fechou. `/conta/perfil` ganhou a seção **"meu cantinho"**
+  (`[data-cantinho]`): toggle liga/desliga (`definir_perfil_publico`), mostra o link + copiar.
+  Tudo tolerante à migration pendente (seção some, página cai no vazio).
+- **Falta:** aplicar a `0024` + subir o front. Nenhum secret novo.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -710,6 +764,18 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `admin_aviso_remover`) — sem escrita pelo client. Front: `renderAvisoBar` (tarja no topo,
   toda página) + aba **recados** no console (owner-only). Tolerante à migration pendente.
   **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "Recado da casa" acima.
+- **`0023_trilha` — PENDENTE (aplicar no SQL Editor).** "A trilha do Casa": tabela
+  `playlists_casa` (RLS leitura pública só das ativas; owner vê tudo; índice único parcial
+  = uma `tocando` por vez) + 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
+  `salvar`/`remover`). Front: `initTrilha` (home) com `spotifyEmbed` trancando o src em
+  `open.spotify.com/embed` + aba **trilha** no console (owner-only). Tolerante à migration
+  pendente. **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "A trilha do Casa" acima.
+- **`0024_perfil_publico` — PENDENTE (aplicar no SQL Editor).** "Meu cantinho": colunas
+  `profiles.perfil_publico`/`handle` + RPCs `definir_perfil_publico(bool)` (dono liga/desliga,
+  exige assinante) e `perfil_publico(text)` (leitura pública anon, payload seguro curado —
+  NÃO é RLS na profiles). Front: página `/gente/{handle}` (rewrite no vercel.json + middleware
+  do dev) + seção "meu cantinho" no `/conta/perfil`. Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Ver "Meu cantinho" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

@@ -16,6 +16,12 @@ function urlsLimpasNoDev() {
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
         const [caminho, query] = (req.url || '/').split('?');
+        // Rota dinâmica: /gente/{handle} → gente.html (o JS lê o handle do path).
+        // Espelha o rewrite do vercel.json pra o dev funcionar igual à prod.
+        if (/^\/gente\/[^/]+\/?$/.test(caminho)) {
+          req.url = '/gente.html' + (query ? '?' + query : '');
+          return next();
+        }
         if (caminho !== '/' && !extname(caminho)) {
           const arquivo = resolve(root, '.' + caminho + '.html');
           if (existsSync(arquivo)) {
@@ -56,6 +62,7 @@ export default defineConfig({
         produto: resolve(root, 'produto.html'),
         planos: resolve(root, 'planos.html'),
         presentear: resolve(root, 'presentear.html'),
+        gente: resolve(root, 'gente.html'),
         colab: resolve(root, 'colab.html'),
         cadastro: resolve(root, 'cadastro.html'),
         login: resolve(root, 'login.html'),
