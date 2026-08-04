@@ -364,6 +364,29 @@
           <div class="trilha-grid" data-trilha-grid></div>
         </div>
       </section>
+
+      <!-- ===================================================================
+           O SOM DE AGORA — painel "tá tocando no Casa", com link pro Spotify.
+           O href do botão vem do MARCA.redes (via initSomDoCasa), mesma fonte do
+           rodapé: quando entrar a URL real do Spotify, vale nos dois lugares.
+           O equalizador é decorativo (CSS puro, para no prefers-reduced-motion).
+           TODO (som ao vivo de verdade): mostrar a faixa que toca agora exige a
+           Spotify Web API com o token da conta do Casa, atualizado numa Edge
+           Function (OAuth + secret). Por ora o painel convida a ouvir junto.
+           =================================================================== -->
+      <section class="som reveal" aria-label="O som de agora no Casa">
+        <div class="wrap">
+          <div class="som-inner">
+            <span class="som-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+            <span class="som-eyebrow"><span class="som-dot" aria-hidden="true"></span>tocando agora</span>
+            <h2 class="som-titulo">o que embala a casa</h2>
+            <p class="som-sub">a nossa trilha muda com o dia. dá play e leva o Casa contigo.</p>
+            <a class="som-link" href="#" target="_blank" rel="noopener noreferrer" data-som-spotify>
+              ouvir no Spotify <span class="arrow" aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer injetado pelo app.js -->

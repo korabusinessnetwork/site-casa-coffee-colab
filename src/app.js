@@ -1000,6 +1000,22 @@ function googleCalUrl(ev) {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
+// --- "O som de agora" (painel Spotify na home) ---------------------------------
+// Só liga o href do botão à fonte única (MARCA.redes › Spotify), mesma do rodapé:
+// quando entrar a URL real do Spotify do Casa, vale nos dois lugares. Enquanto for
+// placeholder ('#'), tira o target pra não abrir uma aba em branco.
+function initSomDoCasa() {
+  const btn = document.querySelector('[data-som-spotify]');
+  if (!btn) return;
+  const sp = MARCA.redes.find((r) => /spotify/i.test(r.nome));
+  const href = sp?.href || '#';
+  btn.setAttribute('href', href);
+  if (!/^https?:\/\//i.test(href)) {
+    btn.removeAttribute('target');
+    btn.removeAttribute('rel');
+  }
+}
+
 // --- "O teu de sempre" (cartão pessoal no topo da home) ------------------------
 // Um cartãozinho só pra quem está logado: junta num olhar o que a pessoa já tem
 // espalhado — plano/pontos, favoritos do cardápio e o próximo encontro que
@@ -6982,6 +6998,7 @@ export function initSite() {
   // initTeuDeSempre(); // DESATIVADO (a pedido, 04/ago/2026): cartão pessoal no topo
   // da home. O visual/posição ainda vão ser repensados pra não competir com o hero.
   // A função e a seção [data-teu-de-sempre] (hidden) seguem no código, prontas pra religar.
+  initSomDoCasa(); // painel "o som de agora" na home (liga o botão ao Spotify do MARCA)
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
