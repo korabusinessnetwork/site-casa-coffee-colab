@@ -656,6 +656,79 @@ e dá baixa no console. **Um por ano.**
 
 ---
 
+## A agenda do Casa — encontros (Fase 3)
+
+O Casa se define como *"um café-casa de **encontros**"*, e agora o site tem encontro. A
+tabela `events` já existia na `0004_reconcile` (nome, descrição, data, vagas, ativo) e
+**nunca fora usada** — a `0026` a acorda: o owner cadastra os próximos encontros no
+console, eles aparecem numa seção **"a agenda do Casa"** na home, e o **assinante confirma
+presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já previa).
+
+- **Migration `0026_agenda` (PENDENTE — aplicar no SQL Editor):** duas colunas novas em
+  `events` (`local`, `updated_at`) + tabela `event_rsvps` (`(event_id, user_id)` PK =
+  anti-duplicata, RLS: cada um lê o próprio, owner lê todos; **escrita só via RPC**) + 6
+  RPCs SECURITY DEFINER:
+  - `agenda_proximos()` — leitura **pública** (anon vê a agenda; só não tem "eu vou"),
+    devolve os ativos e futuros (tolera 4h de folga) com `confirmados` (contagem SEM expor
+    quem) e `eu_vou`/`lotado` do próprio caller. Granted a `anon`+`authenticated`.
+  - `confirmar_presenca(id)` / `cancelar_presenca(id)` (authenticated) — RSVP. Confirmar é
+    **perk de assinante** (exige `tier_slug`); recomputa tudo no banco (assinante, evento
+    ativo/futuro, lotação) com **lock na linha do evento** (a vaga não estoura); idempotente.
+  - `admin_eventos_listar()` / `admin_evento_salvar(...)` / `admin_evento_remover(id)` —
+    gated por `is_owner()` (owner-only, `perm:'eventos'` não grantável, igual a avisos/trilha).
+- **Front:** `initAgenda()` (boot, home) lê `agenda_proximos` e monta os cards (data via
+  `dataEvento`, "eu vou" alterna sem recarregar; deslogado → login e volta; sem-plano → a
+  RPC barra com recado gentil). A seção fica escondida sem encontros ou sem a migration. No
+  console, a aba **"agenda"** (`viewAgenda`, ícone `calendar-days`, owner-only) tem form
+  (nome/data/local/vagas/descrição/na-home) + lista com confirmados, editar e remover.
+- **"Quem vai" (`0028_agenda_quem_vai`, PENDENTE):** a `agenda_proximos` ganhou a coluna
+  `vao_publicos` (jsonb) — os **rostinhos** de quem confirmou **E** ligou o perfil público
+  (`perfil_publico`), com `handle`/nome de exibição/`avatar_url` (os mesmos campos já
+  públicos do `/gente`). Quem não optou nunca aparece, só soma em `confirmados`. O card da
+  home mostra até 6 avatares (`avatarBolha`, link pro `/gente/{handle}`, inicial como
+  fallback) + um "+N" pro resto. Reescreve só a função de leitura (DROP+CREATE, muda a
+  assinatura); nenhuma tabela/permissão nova.
+- **"Guarda no teu calendário" (só front, sem migration):** cada card com data marcada
+  ganha o link **"guarda no teu calendário"** (`googleCalUrl`), um **link direto pro Google
+  Agenda** (`calendar.google.com/calendar/render?action=TEMPLATE&…`) — abre numa aba nova
+  com nome/quando/onde/descrição prontos, **sem baixar arquivo** (`.ics`). Monta a URL 100%
+  no client a partir dos dados que a `initAgenda` já tem: `text=nome`, `dates` em UTC
+  compacto (`YYYYMMDDTHHMMSSZ`, sufixo `Z` → cai certo em qualquer fuso), duração assumida
+  de **2h** (os eventos não têm hora de fim), `location = local + endereço do Casa` e
+  `details=descricao`. Encontro **sem data** (`em breve`) não mostra o link (não dá pra
+  agendar o indefinido). Ícone `calendar-plus`.
+- **Falta:** aplicar a `0026` **e** a `0028` + subir o front. Nenhum secret novo; nenhuma
+  Edge Function.
+
+---
+
+## Teus favoritos no cardápio (Fase 3)
+
+O `/cardapio` era uma lista bonita mas estática. Agora quem está logado **favorita**
+um item (um coraçãozinho) e ganha um bloco **"teus favoritos"** no topo, pra reencontrar
+o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama**.
+
+- **Aberto a qualquer pessoa logada** (não é perk de assinante) — quanto mais gente marca,
+  mais sinal pra casa. O cardápio é HTML curado, então o item é identificado por um `slug`
+  **derivado do nome** (`slugify`, no client) — nada de tabela de menu.
+- **Migration `0027_cardapio_favoritos` (PENDENTE — aplicar no SQL Editor):** tabela
+  `cardapio_favoritos` (`(user_id, item_slug)` PK, `item_nome` snapshot pro console,
+  `user_id` default `auth.uid()`). Favorito é dado **benigno** (não entra na lista de
+  sensíveis do security-check): a **escrita é direta pelo client via RLS**, sempre travada
+  em `auth.uid()` (policies select/insert/delete own) — sem Edge Function. O console lê o
+  agregado por `admin_cardapio_favoritos()` (SECURITY DEFINER, gated por
+  `tem_permissao('relatorios')`), que conta por slug e mostra o nome **mais frequente**
+  (resiliente a um snapshot adulterado; o console escapa tudo).
+- **Front:** `initCardapioFavoritos()` (boot) só age logado: deriva o slug de cada
+  `.menu-item` pelo nome, injeta um coração em cada um, lê os favoritos do usuário e monta o
+  bloco de chips (cada chip rola até o item com um flash). Toggle otimista (insert/delete),
+  desfaz se o servidor recusar; `23505` (já favoritado) conta como sucesso. Tolerante: sem
+  sessão ou sem a migration, nenhum coração aparece. No console, a aba **"favoritos"**
+  (`viewFavoritos`, ícone `heart`, quem tem `relatorios`) lista o ranking com barrinha.
+- **Falta:** aplicar a `0027` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -821,6 +894,30 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   card no `/conta/perfil` + aba "aniversários" no console. Tolerante à migration pendente.
   **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge Function. Ver
   "Hoje o Casa é teu — brunch de aniversário" acima.
+- **`0026_agenda` — PENDENTE (aplicar no SQL Editor).** "A agenda do Casa": acorda a tabela
+  `events` (0004) com colunas `local`/`updated_at` + tabela `event_rsvps` (PK composta, RLS
+  dono/owner, escrita só via RPC) + 6 RPCs SECURITY DEFINER (`agenda_proximos` pública;
+  `confirmar_presenca`/`cancelar_presenca` a `authenticated`, RSVP perk de assinante com lock
+  anti-estouro de vaga; `admin_evento_listar/salvar/remover` gated por `is_owner()`,
+  owner-only). Front: seção "a agenda do Casa" na home (`initAgenda`) + aba "agenda" no
+  console. Tolerante à migration pendente. **Falta:** aplicar + subir o front. Nenhum secret
+  novo; nenhuma Edge Function. Ver "A agenda do Casa — encontros" acima.
+- **`0027_cardapio_favoritos` — PENDENTE (aplicar no SQL Editor).** "Teus favoritos":
+  tabela `cardapio_favoritos` (PK `(user_id, item_slug)`, `item_nome` snapshot,
+  `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
+  delete own, sempre `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC
+  `admin_cardapio_favoritos()` (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por
+  slug com o nome mais frequente). Front: corações no `/cardapio` + bloco "teus favoritos"
+  (`initCardapioFavoritos`, slug derivado do nome) + aba "favoritos" no console. Tolerante à
+  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
+  Function. Ver "Teus favoritos no cardápio" acima.
+- **`0028_agenda_quem_vai` — PENDENTE (aplicar no SQL Editor).** "Quem vai": reescreve a
+  função `agenda_proximos` (DROP+CREATE, muda a assinatura) pra devolver `vao_publicos`
+  (jsonb) — os presentes que ligaram o perfil público (handle/nome/avatar, curado, só campos
+  já públicos). Sem tabela nova, sem permissão nova. Front: avatares no card da agenda
+  (`avatarBolha`). **Depende da `0026` estar aplicada** (usa `event_rsvps`). Tolerante:
+  sem ela, `agenda_proximos` fica na versão da 0026 e a home só não mostra rostos. **Falta:**
+  aplicar (depois da 0026) + subir o front. Ver "Quem vai" na seção da agenda.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

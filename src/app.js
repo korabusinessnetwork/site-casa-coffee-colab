@@ -51,6 +51,8 @@ import {
   Tablet,
   Utensils,
   Users,
+  CalendarDays,
+  CalendarPlus,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -98,6 +100,8 @@ const LUCIDE_ICONS = {
   Tablet,
   Utensils,
   Users,
+  CalendarDays,
+  CalendarPlus,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -907,6 +911,316 @@ async function initTrilha() {
     .join('');
 
   sec.hidden = false;
+}
+
+// "sáb, 12 de set · 19h" a partir de um ISO. Sem hora certa (:00) mostra só o dia.
+// Data nula → "em breve" (encontro sem data marcada ainda).
+function dataEvento(iso) {
+  if (!iso) return 'em breve';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'em breve';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+  const temHora = d.getHours() !== 0 || d.getMinutes() !== 0;
+  if (!temHora) return dia;
+  const hora =
+    d.getMinutes() === 0
+      ? `${d.getHours()}h`
+      : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${dia} · ${hora}`;
+}
+
+// Link DIRETO pro Google Agenda (template de evento já preenchido) — sem baixar
+// arquivo: abre o Google Calendar numa aba nova com nome/quando/onde/descrição
+// prontos, a pessoa só confirma. Encontro sem data marcada → null (não dá pra
+// agendar o indefinido). Duração assumida de 2h (os eventos não têm hora de fim).
+function googleCalUrl(ev) {
+  if (!ev?.data) return null;
+  const inicio = new Date(ev.data);
+  if (Number.isNaN(inicio.getTime())) return null;
+  const fim = new Date(inicio.getTime() + 2 * 60 * 60 * 1000);
+  // Google quer UTC compacto: YYYYMMDDTHHMMSSZ. O sufixo Z faz o horário cair
+  // certo em qualquer fuso de quem clica.
+  const carimbo = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ondeBase = MARCA.contato.endereco;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: ev.nome || 'Encontro no Casa Coffee Colab',
+    dates: `${carimbo(inicio)}/${carimbo(fim)}`,
+    details: ev.descricao || 'Um encontro no Casa Coffee Colab. Passa aqui?',
+    location: ev.local ? `${ev.local}, ${ondeBase}` : `Casa Coffee Colab, ${ondeBase}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// --- Agenda do Casa (próximos encontros, com "eu vou") -------------------------
+// Lê a agenda pública (RPC agenda_proximos) e monta os cards. Confirmar presença
+// é perk de assinante: deslogado/sem-plano vê o convite gentil; assinante alterna
+// "eu vou" ↔ "não vou mais". Tolerante: sem a migration 0026, a seção fica escondida.
+async function initAgenda() {
+  const sec = document.querySelector('[data-agenda]');
+  if (!sec || !supabase) return;
+  const lista = sec.querySelector('[data-agenda-lista]');
+  if (!lista) return;
+
+  let itens = [];
+  try {
+    const { data, error } = await supabase.rpc('agenda_proximos');
+    if (error) return; // migration pendente / erro → seção fica hidden
+    itens = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+  if (!itens.length) return; // sem encontros → seção segue escondida
+
+  const { data: sessData } = await supabase.auth.getSession();
+  const logado = Boolean(sessData?.session);
+
+  // Um rostinho de quem vai (só de quem ligou o perfil público): avatar ou
+  // inicial, linkando pro /gente/{handle}. Tudo escapado.
+  const avatarBolha = (pessoa) => {
+    const nome = pessoa?.nome || 'alguém do Casa';
+    const ini = (nome.trim().charAt(0) || '?').toUpperCase();
+    const href = '/gente/' + encodeURIComponent(pessoa?.handle || '');
+    const dentro =
+      pessoa?.avatar_url && /^https?:\/\//.test(pessoa.avatar_url)
+        ? `<img src="${escapeHtml(pessoa.avatar_url)}" alt="" loading="lazy" />`
+        : `<span class="ini">${escapeHtml(ini)}</span>`;
+    return `<a class="agenda-av" href="${escapeHtml(href)}" title="${escapeHtml(nome)}">${dentro}</a>`;
+  };
+
+  const cardHtml = (ev) => {
+    const quando = dataEvento(ev.data);
+    const local = ev.local ? `<span class="agenda-local">${escapeHtml(ev.local)}</span>` : '';
+    const desc = ev.descricao ? `<p class="agenda-desc">${escapeHtml(ev.descricao)}</p>` : '';
+    // Lotação: "12 vão" ou "12/20 · faltam 8". Sem vagas definidas → só a contagem.
+    const n = Number(ev.confirmados) || 0;
+    let lot;
+    if (ev.vagas != null) {
+      const faltam = Math.max(0, Number(ev.vagas) - n);
+      lot = ev.lotado ? `${n}/${ev.vagas} · lotado` : `${n}/${ev.vagas} · ${faltam} ${faltam === 1 ? 'vaga' : 'vagas'}`;
+    } else {
+      lot = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
+    }
+    // Quem vai (rostinhos públicos). Mostra até 6; o "+N" cobre o resto (públicos
+    // além do limite + quem confirmou sem perfil público).
+    const vao = Array.isArray(ev.vao_publicos) ? ev.vao_publicos : [];
+    const mostrados = vao.slice(0, 6);
+    const extra = Math.max(0, n - mostrados.length);
+    // Guarda no calendário: link direto pro Google Agenda (só com data marcada).
+    const cal = googleCalUrl(ev);
+    const guardar = cal
+      ? `<a class="agenda-cal" href="${escapeHtml(cal)}" target="_blank" rel="noopener noreferrer">
+           <i data-lucide="calendar-plus" aria-hidden="true"></i><span>guarda no teu calendário</span>
+         </a>`
+      : '';
+    const quemVai = mostrados.length
+      ? `<div class="agenda-vao">
+           <div class="agenda-avatares">
+             ${mostrados.map(avatarBolha).join('')}
+             ${extra > 0 ? `<span class="agenda-av mais">+${extra}</span>` : ''}
+           </div>
+           <span class="agenda-vao-txt">${escapeHtml(mostrados[0].nome || 'gente do Casa')}${mostrados.length > 1 || extra > 0 ? ' e mais gente vão' : ' vai'}</span>
+         </div>`
+      : '';
+    return `
+      <article class="agenda-card${ev.eu_vou ? ' vou' : ''}" data-ev="${escapeHtml(ev.id)}">
+        <div class="agenda-quando"><i data-lucide="calendar-days" aria-hidden="true"></i><span>${escapeHtml(quando)}</span></div>
+        <div class="agenda-corpo">
+          <h3 class="agenda-nome">${escapeHtml(ev.nome || 'encontro')}</h3>
+          ${local}
+          ${desc}
+        </div>
+        ${quemVai}
+        <div class="agenda-rodape">
+          <span class="agenda-lot" data-ev-lot>${escapeHtml(lot)}</span>
+          <button type="button" class="btn ${ev.eu_vou ? 'ghost' : 'solid'} sm agenda-btn" data-ev-btn>
+            ${ev.eu_vou ? 'eu vou 💛' : 'eu vou'}
+          </button>
+        </div>
+        ${guardar}
+        <p class="agenda-msg hidden text-sm" data-ev-msg aria-live="polite"></p>
+      </article>`;
+  };
+
+  lista.innerHTML = itens.map(cardHtml).join('');
+  sec.hidden = false;
+  renderIcons();
+
+  // Estado local por evento (pra alternar sem recarregar a página).
+  const estado = new Map(itens.map((ev) => [String(ev.id), { eu_vou: ev.eu_vou, lotado: ev.lotado }]));
+
+  lista.querySelectorAll('[data-ev]').forEach((card) => {
+    const id = card.dataset.ev;
+    const btn = card.querySelector('[data-ev-btn]');
+    const lotEl = card.querySelector('[data-ev-lot]');
+    const msgEl = card.querySelector('[data-ev-msg]');
+    const vagas = itens.find((e) => String(e.id) === String(id))?.vagas ?? null;
+
+    const dizer = (txt, tom = 'erro') => {
+      if (!msgEl) return;
+      msgEl.textContent = txt;
+      msgEl.className = 'agenda-msg text-sm ' + (tom === 'ok' ? 'text-olive' : 'text-coral');
+      msgEl.hidden = !txt;
+    };
+    const pintarLot = (n) => {
+      if (!lotEl) return;
+      if (vagas != null) {
+        const faltam = Math.max(0, Number(vagas) - n);
+        lotEl.textContent = faltam === 0 ? `${n}/${vagas} · lotado` : `${n}/${vagas} · ${faltam} ${faltam === 1 ? 'vaga' : 'vagas'}`;
+      } else {
+        lotEl.textContent = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
+      }
+    };
+    const pintarBtn = (vou) => {
+      card.classList.toggle('vou', vou);
+      btn.classList.toggle('ghost', vou);
+      btn.classList.toggle('solid', !vou);
+      btn.textContent = vou ? 'eu vou 💛' : 'eu vou';
+    };
+
+    btn?.addEventListener('click', async () => {
+      dizer('');
+      // Deslogado → manda pro login e volta pra home.
+      if (!logado) {
+        window.location.href = '/login?redirect=' + encodeURIComponent('/home');
+        return;
+      }
+      const st = estado.get(String(id)) || { eu_vou: false };
+      btn.disabled = true;
+      try {
+        const rpcNome = st.eu_vou ? 'cancelar_presenca' : 'confirmar_presenca';
+        const { data: r, error } = await supabase.rpc(rpcNome, { p_event_id: id });
+        if (error || !r?.ok) {
+          dizer(r?.erro || 'não deu pra confirmar agora. tenta de novo? 💛');
+          if (r?.lotado) pintarLot(Number(r?.confirmados) || (vagas ?? 0));
+          return;
+        }
+        st.eu_vou = Boolean(r.eu_vou);
+        estado.set(String(id), st);
+        pintarBtn(st.eu_vou);
+        pintarLot(Number(r.confirmados) || 0);
+        if (st.eu_vou) dizer('teu lugar tá guardado 💛', 'ok');
+        else dizer('');
+      } catch {
+        dizer('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// --- Cardápio: teus favoritos --------------------------------------------------
+// O /cardapio é HTML curado (não vem do banco), então o item é identificado por
+// um slug estável derivado do NOME (slugify). Favoritar é aberto a qualquer pessoa
+// logada; a escrita é direta na `cardapio_favoritos` via RLS (dado benigno, sempre
+// travado em auth.uid()). Tolerante: sem sessão ou sem a migration 0027, nada aparece.
+function slugify(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function initCardapioFavoritos() {
+  const secBlock = document.querySelector('[data-cardapio-favoritos]');
+  const items = Array.from(document.querySelectorAll('.menu-item'));
+  if (!secBlock || !items.length || !supabase) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // corações só pra quem está logado
+
+  // Mapeia slug → { el, nome } (o slug estável vem do nome curado no HTML).
+  const porSlug = new Map();
+  for (const li of items) {
+    const nome = li.querySelector('.mi-name')?.textContent.trim() || '';
+    const slug = slugify(nome);
+    if (!nome || !slug || porSlug.has(slug)) continue;
+    porSlug.set(slug, { el: li, nome });
+    li.dataset.item = slug;
+  }
+  if (!porSlug.size) return;
+
+  const favs = new Set();
+  try {
+    const { data, error } = await supabase.from('cardapio_favoritos').select('item_slug');
+    if (error) return; // migration pendente → sem corações
+    (data || []).forEach((r) => favs.add(r.item_slug));
+  } catch {
+    return;
+  }
+
+  const chipsEl = secBlock.querySelector('[data-cf-chips]');
+
+  const pintarBloco = () => {
+    const marcados = [...porSlug.entries()].filter(([slug]) => favs.has(slug));
+    if (!marcados.length) {
+      secBlock.hidden = true;
+      return;
+    }
+    chipsEl.innerHTML = marcados
+      .map(([slug, { nome }]) => `<button type="button" class="cf-chip" data-cf-goto="${escapeHtml(slug)}">${escapeHtml(nome)}</button>`)
+      .join('');
+    secBlock.hidden = false;
+    chipsEl.querySelectorAll('[data-cf-goto]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const alvo = porSlug.get(b.dataset.cfGoto)?.el;
+        if (!alvo) return;
+        alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        alvo.classList.add('mi-flash');
+        setTimeout(() => alvo.classList.remove('mi-flash'), 1200);
+      });
+    });
+  };
+
+  const pintarCoracao = (btn, on) => {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-label', on ? 'tirar dos favoritos' : 'adicionar aos favoritos');
+  };
+
+  for (const [slug, { el, nome }] of porSlug) {
+    el.classList.add('has-fav');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mi-fav';
+    btn.dataset.fav = slug;
+    btn.innerHTML = '<i data-lucide="heart"></i>';
+    pintarCoracao(btn, favs.has(slug));
+    el.appendChild(btn);
+
+    btn.addEventListener('click', async () => {
+      const on = favs.has(slug);
+      btn.disabled = true;
+      // Otimista: pinta já e reflete no bloco.
+      if (on) favs.delete(slug);
+      else favs.add(slug);
+      pintarCoracao(btn, !on);
+      pintarBloco();
+      try {
+        if (on) {
+          const { error } = await supabase.from('cardapio_favoritos').delete().eq('item_slug', slug);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('cardapio_favoritos').insert({ item_slug: slug, item_nome: nome });
+          if (error && error.code !== '23505') throw error; // 23505 = já era favorito, ok
+        }
+      } catch {
+        // Desfaz o otimista se o servidor recusou.
+        if (on) favs.add(slug);
+        else favs.delete(slug);
+        pintarCoracao(btn, on);
+        pintarBloco();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  pintarBloco();
+  renderIcons();
 }
 
 // --- Footer --------------------------------------------------------------------
@@ -5892,6 +6206,8 @@ export function initSite() {
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
+  initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)

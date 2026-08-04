@@ -50,6 +50,21 @@
       </section>
 
       <!-- ===================================================================
+           TEUS FAVORITOS — preenchido pós-render pra quem está logado
+           (initCardapioFavoritos). Fica escondido sem favoritos / deslogado /
+           sem a migration 0027.
+           =================================================================== -->
+      <section class="section tight cardapio-favoritos" data-cardapio-favoritos hidden aria-label="Teus favoritos">
+        <div class="wrap">
+          <div class="cf-head reveal">
+            <span class="cf-eyebrow"><i data-lucide="heart" aria-hidden="true"></i> teus favoritos</span>
+            <p class="cf-sub">o teu de sempre, num toque.</p>
+          </div>
+          <div class="cf-chips" data-cf-chips></div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            Cafés & Bebidas
            =================================================================== -->
       <section class="section tight" aria-labelledby="cafes-title">

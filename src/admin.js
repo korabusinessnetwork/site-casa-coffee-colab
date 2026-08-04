@@ -35,6 +35,8 @@ import {
   Megaphone,
   Music,
   Cake,
+  CalendarDays,
+  Heart,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -61,6 +63,8 @@ const LUCIDE_ICONS = {
   Megaphone,
   Music,
   Cake,
+  CalendarDays,
+  Heart,
 };
 
 function renderIcons() {
@@ -232,6 +236,9 @@ const NAV = [
   { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'resgates' },
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
+  // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
+  // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
+  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -239,6 +246,8 @@ const NAV = [
   { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'avisos' },
   // Trilha do Casa (playlists): owner-only, mesma lógica do 'avisos' (não grantável).
   { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha' },
+  // Agenda (encontros): owner-only, mesma lógica (perm 'eventos' não grantável).
+  { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'eventos' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
@@ -593,9 +602,11 @@ function abrirDoHash() {
     aniversarios: viewAniversarios,
     pessoas: viewPessoas,
     relatorios: viewRelatorios,
+    favoritos: viewFavoritos,
     equipe: viewEquipe,
     recados: viewRecados,
     trilha: viewTrilha,
+    agenda: viewAgenda,
     conta: viewConta,
   };
   (telas[item.id] || viewPainel)(view);
@@ -1949,6 +1960,251 @@ async function viewTrilha(view) {
   $('[data-t-cancelar]', form).addEventListener('click', limparForm);
 
   carregarTrilha();
+}
+
+// ===== AGENDA (encontros) ===========================================
+// Os próximos encontros que aparecem na home. Trancam por is_owner() no banco
+// (0026); aqui é só a tela. O RSVP (confirmar presença) é do lado do assinante,
+// na home — aqui a gente só vê quantos confirmaram.
+let agendaEditando = null;
+
+async function viewAgenda(view) {
+  view.innerHTML =
+    cabecalho(
+      'a agenda do Casa',
+      'os próximos encontros que aparecem na home. marca a data, o lugar e quantas vagas.',
+    ) +
+    `<form class="card ad-form-recado" data-form-agenda novalidate>
+       <input type="hidden" data-a-id />
+       <div class="field">
+         <label for="a-nome">nome do encontro</label>
+         <input id="a-nome" data-a-nome maxlength="120" placeholder="sarau de quarta" required />
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="a-data">quando</label>
+           <input id="a-data" data-a-data type="datetime-local" />
+           <p class="ad-dica">deixa em branco pra "em breve".</p>
+         </div>
+         <div class="field">
+           <label for="a-local">onde (opcional)</label>
+           <input id="a-local" data-a-local maxlength="120" placeholder="no salão de cima" />
+         </div>
+       </div>
+       <div class="field">
+         <label for="a-desc">descrição (opcional)</label>
+         <textarea id="a-desc" data-a-desc rows="2" maxlength="400" placeholder="uma linha sobre o encontro"></textarea>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field ad-recado-prio">
+           <label for="a-vagas">vagas</label>
+           <input id="a-vagas" data-a-vagas type="number" min="0" step="1" placeholder="sem limite" />
+           <p class="ad-dica">em branco = sem limite.</p>
+         </div>
+         <div class="ad-trilha-flags">
+           <label class="ad-recado-ativo"><input type="checkbox" data-a-ativo checked /> <span>na home</span></label>
+         </div>
+       </div>
+       <div data-a-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-a-salvar>adicionar encontro</button>
+         <button type="button" class="btn ghost" data-a-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+     <div class="ad-recado-lista" data-agenda-lista></div>`;
+
+  renderIcons();
+  const form = $('[data-form-agenda]', view);
+  const lista = $('[data-agenda-lista]', view);
+  const avisoForm = $('[data-a-aviso]', form);
+
+  const limparForm = () => {
+    agendaEditando = null;
+    form.reset();
+    $('[data-a-id]', form).value = '';
+    $('[data-a-ativo]', form).checked = true;
+    $('[data-a-salvar]', form).textContent = 'adicionar encontro';
+    $('[data-a-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (e) => {
+    agendaEditando = e.id;
+    $('[data-a-id]', form).value = e.id;
+    $('[data-a-nome]', form).value = e.nome || '';
+    $('[data-a-data]', form).value = dtLocalDeIso(e.data);
+    $('[data-a-local]', form).value = e.local || '';
+    $('[data-a-desc]', form).value = e.descricao || '';
+    $('[data-a-vagas]', form).value = e.vagas == null ? '' : Number(e.vagas);
+    $('[data-a-ativo]', form).checked = Boolean(e.ativo);
+    $('[data-a-salvar]', form).textContent = 'salvar encontro';
+    $('[data-a-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-a-nome]', form).focus();
+  };
+
+  async function carregarAgenda() {
+    carregando(lista, 'buscando os encontros…');
+    try {
+      const dados = await rpc('admin_eventos_listar');
+      const evs = Array.isArray(dados) ? dados : [];
+      if (!evs.length) {
+        lista.innerHTML = vazio('nenhum encontro ainda', 'marca o primeiro aí em cima — ele aparece na home.');
+        return;
+      }
+      lista.innerHTML = evs.map(cardAgenda).join('');
+      renderIcons();
+      ligarCardsAgenda();
+    } catch (e) {
+      erroNaTela(lista, e);
+    }
+  }
+
+  function cardAgenda(e) {
+    const tags = [];
+    if (!e.ativo) tags.push('<span class="tag gold">fora da home</span>');
+    const passou = e.data && Date.parse(e.data) < Date.now();
+    if (passou) tags.push('<span class="tag">já passou</span>');
+    const vagas =
+      e.vagas == null
+        ? `${formatNumero(e.confirmados)} confirmados`
+        : `${formatNumero(e.confirmados)}/${formatNumero(e.vagas)} confirmados`;
+    return `
+      <article class="card ad-card" data-agenda-item="${escapeHtml(e.id)}">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${escapeHtml(e.nome || '')}</p>
+            <p class="ad-card-meta">${escapeHtml(formatData(e.data))}${e.local ? ' · ' + escapeHtml(e.local) : ''} · ${vagas}</p>
+          </div>
+          <div class="ad-card-tags">${tags.join('')}</div>
+        </div>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn ghost sm" data-a-editar="${escapeHtml(e.id)}">editar</button>
+          <button type="button" class="btn ghost sm" data-a-remover="${escapeHtml(e.id)}" data-a-nome="${escapeHtml(e.nome || 'esse encontro')}">remover</button>
+        </div>
+      </article>`;
+  }
+
+  function ligarCardsAgenda() {
+    $$('[data-a-editar]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_eventos_listar');
+          const e = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.aEditar);
+          if (e) preencherForm(e);
+        } catch (e2) {
+          toast(e2.message, 'erro');
+        }
+      });
+    });
+    $$('[data-a-remover]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: `remover "${b.dataset.aNome}"?`,
+          texto: 'some da home na hora, junto com as confirmações. não dá pra desfazer.',
+          ok: 'sim, remover',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_evento_remover', { p_id: b.dataset.aRemover });
+          toast('encontro removido');
+          if (agendaEditando === b.dataset.aRemover) limparForm();
+          carregarAgenda();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const nome = $('[data-a-nome]', form).value.trim();
+    if (!nome) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>dá um nome pro encontro 💛</p></div>';
+      return;
+    }
+    const vagasRaw = $('[data-a-vagas]', form).value.trim();
+    const botao = $('[data-a-salvar]', form);
+    botao.disabled = true;
+    try {
+      await rpc('admin_evento_salvar', {
+        p_id: agendaEditando || null,
+        p_nome: nome,
+        p_descricao: $('[data-a-desc]', form).value.trim() || null,
+        p_data: isoDeDtLocal($('[data-a-data]', form).value),
+        p_local: $('[data-a-local]', form).value.trim() || null,
+        p_vagas: vagasRaw === '' ? null : Math.max(0, Number(vagasRaw) || 0),
+        p_ativo: $('[data-a-ativo]', form).checked,
+      });
+      toast(agendaEditando ? 'encontro salvo 💛' : 'encontro adicionado 💛');
+      limparForm();
+      carregarAgenda();
+    } catch (e2) {
+      toast(e2.message, 'erro');
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-a-cancelar]', form).addEventListener('click', limparForm);
+
+  carregarAgenda();
+}
+
+// ===== FAVORITOS (o que a casa mais ama) ============================
+// Os itens do cardápio mais favoritados. Trava por tem_permissao('relatorios')
+// no banco (0027); o agregado usa o nome mais frequente por slug (defesa contra
+// snapshot adulterado). Só leitura — nenhuma baixa.
+async function viewFavoritos(view) {
+  view.innerHTML =
+    cabecalho(
+      'o que a casa mais ama',
+      'os itens do cardápio que mais viraram favorito de quem vem.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarFavoritos(corpo));
+  renderIcons();
+  carregarFavoritos(corpo);
+}
+
+async function carregarFavoritos(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_cardapio_favoritos');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém favoritou ainda',
+        'quando alguém marcar um item no cardápio, ele aparece aqui, do mais amado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.favoritos) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardFav(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardFav(l, i, max) {
+  const n = Number(l.favoritos) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.item_nome || l.item_slug || 'item')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="heart"></i>${formatNumero(n)}</span>
+    </div>`;
 }
 
 // ===== TUA CONTA ====================================================
