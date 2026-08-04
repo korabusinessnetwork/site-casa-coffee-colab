@@ -681,7 +681,15 @@ presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já prev
   RPC barra com recado gentil). A seção fica escondida sem encontros ou sem a migration. No
   console, a aba **"agenda"** (`viewAgenda`, ícone `calendar-days`, owner-only) tem form
   (nome/data/local/vagas/descrição/na-home) + lista com confirmados, editar e remover.
-- **Falta:** aplicar a `0026` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+- **"Quem vai" (`0028_agenda_quem_vai`, PENDENTE):** a `agenda_proximos` ganhou a coluna
+  `vao_publicos` (jsonb) — os **rostinhos** de quem confirmou **E** ligou o perfil público
+  (`perfil_publico`), com `handle`/nome de exibição/`avatar_url` (os mesmos campos já
+  públicos do `/gente`). Quem não optou nunca aparece, só soma em `confirmados`. O card da
+  home mostra até 6 avatares (`avatarBolha`, link pro `/gente/{handle}`, inicial como
+  fallback) + um "+N" pro resto. Reescreve só a função de leitura (DROP+CREATE, muda a
+  assinatura); nenhuma tabela/permissão nova.
+- **Falta:** aplicar a `0026` **e** a `0028` + subir o front. Nenhum secret novo; nenhuma
+  Edge Function.
 
 ---
 
@@ -894,6 +902,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   (`initCardapioFavoritos`, slug derivado do nome) + aba "favoritos" no console. Tolerante à
   migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
   Function. Ver "Teus favoritos no cardápio" acima.
+- **`0028_agenda_quem_vai` — PENDENTE (aplicar no SQL Editor).** "Quem vai": reescreve a
+  função `agenda_proximos` (DROP+CREATE, muda a assinatura) pra devolver `vao_publicos`
+  (jsonb) — os presentes que ligaram o perfil público (handle/nome/avatar, curado, só campos
+  já públicos). Sem tabela nova, sem permissão nova. Front: avatares no card da agenda
+  (`avatarBolha`). **Depende da `0026` estar aplicada** (usa `event_rsvps`). Tolerante:
+  sem ela, `agenda_proximos` fica na versão da 0026 e a home só não mostra rostos. **Falta:**
+  aplicar (depois da 0026) + subir o front. Ver "Quem vai" na seção da agenda.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

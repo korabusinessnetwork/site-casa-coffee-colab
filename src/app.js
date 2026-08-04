@@ -948,6 +948,19 @@ async function initAgenda() {
   const { data: sessData } = await supabase.auth.getSession();
   const logado = Boolean(sessData?.session);
 
+  // Um rostinho de quem vai (só de quem ligou o perfil público): avatar ou
+  // inicial, linkando pro /gente/{handle}. Tudo escapado.
+  const avatarBolha = (pessoa) => {
+    const nome = pessoa?.nome || 'alguém do Casa';
+    const ini = (nome.trim().charAt(0) || '?').toUpperCase();
+    const href = '/gente/' + encodeURIComponent(pessoa?.handle || '');
+    const dentro =
+      pessoa?.avatar_url && /^https?:\/\//.test(pessoa.avatar_url)
+        ? `<img src="${escapeHtml(pessoa.avatar_url)}" alt="" loading="lazy" />`
+        : `<span class="ini">${escapeHtml(ini)}</span>`;
+    return `<a class="agenda-av" href="${escapeHtml(href)}" title="${escapeHtml(nome)}">${dentro}</a>`;
+  };
+
   const cardHtml = (ev) => {
     const quando = dataEvento(ev.data);
     const local = ev.local ? `<span class="agenda-local">${escapeHtml(ev.local)}</span>` : '';
@@ -961,6 +974,20 @@ async function initAgenda() {
     } else {
       lot = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
     }
+    // Quem vai (rostinhos públicos). Mostra até 6; o "+N" cobre o resto (públicos
+    // além do limite + quem confirmou sem perfil público).
+    const vao = Array.isArray(ev.vao_publicos) ? ev.vao_publicos : [];
+    const mostrados = vao.slice(0, 6);
+    const extra = Math.max(0, n - mostrados.length);
+    const quemVai = mostrados.length
+      ? `<div class="agenda-vao">
+           <div class="agenda-avatares">
+             ${mostrados.map(avatarBolha).join('')}
+             ${extra > 0 ? `<span class="agenda-av mais">+${extra}</span>` : ''}
+           </div>
+           <span class="agenda-vao-txt">${escapeHtml(mostrados[0].nome || 'gente do Casa')}${mostrados.length > 1 || extra > 0 ? ' e mais gente vão' : ' vai'}</span>
+         </div>`
+      : '';
     return `
       <article class="agenda-card${ev.eu_vou ? ' vou' : ''}" data-ev="${escapeHtml(ev.id)}">
         <div class="agenda-quando"><i data-lucide="calendar-days" aria-hidden="true"></i><span>${escapeHtml(quando)}</span></div>
@@ -969,6 +996,7 @@ async function initAgenda() {
           ${local}
           ${desc}
         </div>
+        ${quemVai}
         <div class="agenda-rodape">
           <span class="agenda-lot" data-ev-lot>${escapeHtml(lot)}</span>
           <button type="button" class="btn ${ev.eu_vou ? 'ghost' : 'solid'} sm agenda-btn" data-ev-btn>

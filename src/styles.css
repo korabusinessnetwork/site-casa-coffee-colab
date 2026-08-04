@@ -464,6 +464,15 @@ a.txt-link.gold { color: var(--gold) }
 .agenda-local { font-family: var(--sans); font-size: 13px; color: var(--muted) }
 .agenda-local::before { content: "📍 " }
 .agenda-desc { font-size: 14.5px; line-height: 1.5; color: var(--muted); margin: 2px 0 0 }
+.agenda-vao { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.agenda-avatares { display: inline-flex; align-items: center }
+.agenda-av { position: relative; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; border: 2px solid var(--card); background: color-mix(in srgb, var(--gold) 22%, var(--card)); margin-left: -8px; text-decoration: none; transition: transform .12s var(--e) }
+.agenda-av:first-child { margin-left: 0 }
+.agenda-av:hover { transform: translateY(-2px); z-index: 2 }
+.agenda-av img { width: 100%; height: 100%; object-fit: cover }
+.agenda-av .ini { font-family: var(--sans); font-size: 12px; font-weight: 700; color: color-mix(in srgb, var(--gold) 72%, var(--ink)) }
+.agenda-av.mais { background: var(--paper-2); color: var(--muted); font-family: var(--sans); font-size: 11px; font-weight: 700 }
+.agenda-vao-txt { font-family: var(--sans); font-size: 13px; color: var(--muted) }
 .agenda-rodape { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px }
 .agenda-lot { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--muted) }
 .agenda-btn { flex: 0 0 auto; white-space: nowrap }
