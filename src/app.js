@@ -1675,6 +1675,7 @@ function setupDragScroll() {
 
     el.addEventListener('pointerdown', (e) => {
       if (e.pointerType !== 'mouse' || e.button !== 0) return; // toque/trackpad = nativo
+      if (el.scrollWidth <= el.clientWidth) return; // tela grande (grade): nada a arrastar
       ativo = true;
       arrastou = false;
       x0 = e.clientX;
