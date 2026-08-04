@@ -28,6 +28,7 @@ import {
   Award,
   Star,
   Gift,
+  Cake,
   Mail,
   MessageCircle,
   User,
@@ -81,6 +82,7 @@ const LUCIDE_ICONS = {
   Award,
   Star,
   Gift,
+  Cake,
   Mail,
   MessageCircle,
   User,
@@ -669,6 +671,29 @@ function marcarAvisoLido(id) {
     lidos.push(id);
     // Mantém só os últimos 50 pra não crescer sem fim.
     localStorage.setItem(AVISOS_LIDOS_KEY, JSON.stringify(lidos.slice(-50)));
+  } catch {
+    /* sem localStorage: ignora */
+  }
+}
+
+// --- Notificações lidas (sino do header) ---------------------------------------
+// Os avisos DERIVADOS (indicação, presente, aniversário, encontro) não têm uma
+// linha pra apagar como o "voltou"; então a dispensa mora no localStorage, cada
+// um por um id estável. Mesmo padrão do recado, chave própria.
+const NOTIF_LIDAS_KEY = 'casa_notif_lidas';
+function notifLidas() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(NOTIF_LIDAS_KEY) || '[]');
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+function marcarNotifLida(id) {
+  try {
+    const s = notifLidas();
+    s.add(id);
+    localStorage.setItem(NOTIF_LIDAS_KEY, JSON.stringify([...s].slice(-100)));
   } catch {
     /* sem localStorage: ignora */
   }
@@ -1501,33 +1526,141 @@ async function initReposicao() {
 }
 
 // --- Sino de notificações (header) ---------------------------------------------
-// Hoje a única fonte é o "voltou pra vitrine": avisos de reposição (0030) cujo
-// produto está disponível AGORA. O sino aparece no header (toda página) só quando
-// há algo; abre um painel com os itens, cada um linkando pro produto + "já vi"
-// (apaga o aviso). Escrita RLS-direct. Tolerante: deslogado / sem a 0030 → some.
+// "O Casa te avisa": uma central que junta os avisos que já existiam espalhados,
+// num sino só no header (toda página). Cinco fontes, todas SÓ-LEITURA de tabelas
+// que já existem, cada uma lendo só o registro do PRÓPRIO usuário (RLS):
+//   1. voltou pra vitrine  — avisos_reposicao (0030) cujo produto voltou.
+//   2. indicação premiada  — referrals (0021) que a pessoa fez e viraram prêmio.
+//   3. presente resgatado  — gift_subscriptions (0019) que a pessoa deu e abriram.
+//   4. brunch de aniversário — meu_brinde_aniversario() diz que é o mês e falta pegar.
+//   5. encontro chegando   — agenda_proximos() onde a pessoa marcou "eu vou" e tá perto.
+// Cada fonte é tolerante (erro/migration pendente → []): some sem quebrar. O
+// "voltou" dispensa apagando a linha (RLS-direct); as derivadas (sem linha pra
+// apagar) dispensam guardando o id no localStorage (casa_notif_lidas).
 async function initNotificacoes() {
   const wrap = document.querySelector('[data-notif-wrap]');
   if (!wrap || !supabase) return;
 
   const { data: sessData } = await supabase.auth.getSession();
-  if (!sessData?.session) return; // deslogado → sino fica escondido
+  const uid = sessData?.session?.user?.id;
+  if (!uid) return; // deslogado → sino fica escondido
 
-  let avisos = [];
-  try {
-    const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
-    if (error) return; // migration 0030 pendente → sino não aparece
-    avisos = data || [];
-  } catch {
-    return;
-  }
+  const AGORA = Date.now();
 
-  // "voltou": aviso cujo produto existe no catálogo e está disponível agora.
-  let itens = avisos
-    .map((a) => ({ slug: a.produto_slug, nome: getProdutoPorSlug(a.produto_slug)?.nome || a.produto_nome }))
-    .filter((a) => {
-      const p = getProdutoPorSlug(a.slug);
-      return p && p.disponivel !== false;
-    });
+  // ---- Fontes (cada uma devolve um array de notificações; nunca lança) --------
+  // Notificação: { id, icone, href, tag, nome, sub, dismiss:'db-voltou'|'local', slug? }
+  const fonteVoltou = async () => {
+    try {
+      const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
+      if (error) return [];
+      return (data || [])
+        .filter((a) => {
+          const p = getProdutoPorSlug(a.produto_slug);
+          return p && p.disponivel !== false; // voltou pra vitrine
+        })
+        .map((a) => ({
+          id: `voltou:${a.produto_slug}`,
+          icone: 'bell-ring',
+          href: `/produto?slug=${encodeURIComponent(a.produto_slug)}`,
+          tag: 'voltou 💛',
+          nome: getProdutoPorSlug(a.produto_slug)?.nome || a.produto_nome,
+          sub: 'tá de volta na vitrine, passa lá?',
+          dismiss: 'db-voltou',
+          slug: a.produto_slug,
+        }));
+    } catch { return []; }
+  };
+
+  const fonteIndicacao = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('referrals')
+        .select('id')
+        .eq('referrer_id', uid)
+        .eq('status', 'premiado');
+      if (error) return [];
+      return (data || []).map((r) => ({
+        id: `indicacao:${r.id}`,
+        icone: 'users',
+        href: '/conta/perfil',
+        tag: 'indicação premiada 💛',
+        nome: 'um amigo teu entrou de vez',
+        sub: 'teus pontos de indicação já caíram, dá uma olhada',
+        dismiss: 'local',
+      }));
+    } catch { return []; }
+  };
+
+  const fontePresente = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gift_subscriptions')
+        .select('id')
+        .eq('comprador_id', uid)
+        .eq('status', 'resgatado');
+      if (error) return [];
+      return (data || []).map((g) => ({
+        id: `presente:${g.id}`,
+        icone: 'gift',
+        href: '/conta/perfil',
+        tag: 'presente aberto 💛',
+        nome: 'abriram o plano que tu deu',
+        sub: 'o presente que tu mandou já virou assinatura',
+        dismiss: 'local',
+      }));
+    } catch { return []; }
+  };
+
+  const fonteAniversario = async () => {
+    try {
+      const { data, error } = await supabase.rpc('meu_brinde_aniversario');
+      if (error || !data) return [];
+      if (!data.assinante || !data.eh_mes || data.ja_resgatou) return [];
+      return [{
+        id: `aniversario:${new Date().getFullYear()}`,
+        icone: 'cake',
+        href: '/conta/perfil',
+        tag: 'teu mês 🎂',
+        nome: 'neste mês o Casa é teu',
+        sub: 'vem pegar teu brunch de aniversário, é por nossa conta',
+        dismiss: 'local',
+      }];
+    } catch { return []; }
+  };
+
+  const fonteEncontros = async () => {
+    try {
+      const { data, error } = await supabase.rpc('agenda_proximos');
+      if (error || !Array.isArray(data)) return [];
+      const JANELA = 48 * 60 * 60 * 1000; // avisa quando falta 48h ou menos
+      return data
+        .filter((e) => {
+          if (!e.eu_vou || !e.data) return false;
+          const diff = new Date(e.data).getTime() - AGORA;
+          return diff <= JANELA && diff > -4 * 60 * 60 * 1000; // tolera 4h já começado
+        })
+        .map((e) => ({
+          id: `encontro:${e.id}`,
+          icone: 'calendar-days',
+          href: '/home',
+          tag: 'encontro chegando',
+          nome: e.nome,
+          sub: `tu confirmou presença, ${dataEvento(e.data)}`,
+          dismiss: 'local',
+        }));
+    } catch { return []; }
+  };
+
+  const grupos = await Promise.all([
+    fonteVoltou(),
+    fonteIndicacao(),
+    fontePresente(),
+    fonteAniversario(),
+    fonteEncontros(),
+  ]);
+
+  const lidas = notifLidas();
+  let itens = grupos.flat().filter((n) => !lidas.has(n.id));
 
   const trigger = wrap.querySelector('[data-notif-trigger]');
   const panel = wrap.querySelector('[data-notif-panel]');
@@ -1567,18 +1700,21 @@ async function initNotificacoes() {
       return;
     }
     wrap.hidden = false;
-    badge.textContent = String(itens.length);
+    badge.textContent = itens.length > 9 ? '9+' : String(itens.length);
     badge.classList.remove('hidden');
     lista.innerHTML = itens
       .map(
-        (a) => `
-        <div class="notif-item" data-notif-item="${escapeHtml(a.slug)}">
-          <a href="/produto?slug=${encodeURIComponent(a.slug)}" class="notif-item-link">
-            <span class="notif-item-tag">voltou 💛</span>
-            <span class="notif-item-nome">${escapeHtml(a.nome)}</span>
-            <span class="notif-item-sub">tá de volta na vitrine, passa lá?</span>
+        (n) => `
+        <div class="notif-item" data-notif-item="${escapeHtml(n.id)}">
+          <a href="${escapeHtml(n.href)}" class="notif-item-link">
+            <span class="notif-item-ico"><i data-lucide="${escapeHtml(n.icone)}" aria-hidden="true"></i></span>
+            <span class="notif-item-corpo">
+              <span class="notif-item-tag">${escapeHtml(n.tag)}</span>
+              <span class="notif-item-nome">${escapeHtml(n.nome)}</span>
+              <span class="notif-item-sub">${escapeHtml(n.sub)}</span>
+            </span>
           </a>
-          <button type="button" class="notif-item-x" data-notif-visto="${escapeHtml(a.slug)}" aria-label="marcar como visto">
+          <button type="button" class="notif-item-x" data-notif-visto="${escapeHtml(n.id)}" aria-label="marcar como visto">
             <i data-lucide="x"></i>
           </button>
         </div>`,
@@ -1587,12 +1723,18 @@ async function initNotificacoes() {
     renderIcons();
   };
 
-  // "já vi": some da lista já e apaga o aviso (best-effort — se falhar, volta na
-  // próxima visita). Não recoloca pra não piscar.
-  const dispensar = (slug) => {
-    itens = itens.filter((a) => a.slug !== slug);
+  // "já vi": some da lista já. O "voltou" apaga a linha do banco (best-effort); as
+  // derivadas guardam o id no localStorage pra não voltar. Não recoloca pra não piscar.
+  const dispensar = (id) => {
+    const n = itens.find((x) => x.id === id);
+    itens = itens.filter((x) => x.id !== id);
     pintar();
-    supabase.from('avisos_reposicao').delete().eq('produto_slug', slug).then(() => {}, () => {});
+    if (!n) return;
+    if (n.dismiss === 'db-voltou') {
+      supabase.from('avisos_reposicao').delete().eq('produto_slug', n.slug).then(() => {}, () => {});
+    } else {
+      marcarNotifLida(id);
+    }
   };
 
   trigger.addEventListener('click', (e) => {

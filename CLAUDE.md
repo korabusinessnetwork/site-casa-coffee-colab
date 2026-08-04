@@ -783,18 +783,46 @@ console mostra **quantas pessoas esperam cada produto** — o sinal mais forte p
   liga só os botões: deslogado → manda pro login; logado → carrega os avisos, pinta o estado
   (toggle otimista, `23505` = já pediu = sucesso); migration pendente → botão inerte ("aviso
   em breve"). **Não há mais tirinha inline** — quem mostra o "voltou" é o sino.
-- **Front — sino de notificações (`initNotificacoes`, header, toda página):** o `renderHeader`
-  injeta um sino `[data-notif-wrap]` (escondido) antes do carrinho. `initNotificacoes` lê os
-  `avisos_reposicao`, filtra os que **voltaram** (produto existe e está disponível agora) e,
-  se houver, revela o sino com badge de contagem + um painel (mesma mecânica de abrir/fechar
-  do painel do usuário: clique-fora/Esc) listando cada item (link pro produto + "já vi" que
-  apaga o aviso, best-effort). No **mobile** o painel vira `position: fixed` (o sino não fica
-  na ponta direita, ancorá-lo estouraria a borda), com o `top` medido do header ao abrir (
-  respeita a tarja de recado). Tolerante: deslogado / sem a 0030 / nada que voltou → o sino
-  fica escondido.
+- **Front — o "voltou" é UMA das fontes do sino de notificações** (`initNotificacoes`,
+  header, toda página — ver **"O Casa te avisa"** abaixo). Filtra os `avisos_reposicao` cujo
+  produto **voltou** (existe e está disponível agora); "já vi" **apaga a linha** do banco
+  (best-effort, RLS-direct).
 - **Console:** aba **"esperando"** (`viewReposicao`, ícone `bell-ring`, quem tem `relatorios`)
   lista o ranking de quem espera cada produto, com barrinha.
 - **Falta:** aplicar a `0030` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
+## O Casa te avisa (central de notificações no header)
+
+O sino do header deixou de servir só o "voltou pra vitrine" e virou uma **central** que
+junta, num painel só, os avisos que antes viviam espalhados pelo site. **Cinco fontes**,
+todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o registro do
+**próprio** usuário (RLS own-record) — **nenhuma tabela, secret ou Edge Function nova**.
+
+- **As fontes** (`initNotificacoes`, boot, toda página — cada uma é tolerante: erro /
+  migration pendente → `[]`, some sem quebrar):
+  1. **voltou pra vitrine** — `avisos_reposicao` (0030) cujo produto está disponível agora.
+     Ícone `bell-ring`. Dispensa **apagando a linha** (RLS-direct).
+  2. **indicação premiada** — `referrals` (0021) com `referrer_id = eu` e `status='premiado'`.
+     Ícone `users`, leva pro `/conta/perfil`.
+  3. **presente resgatado** — `gift_subscriptions` (0019) com `comprador_id = eu` e
+     `status='resgatado'`. Ícone `gift`, leva pro `/conta/perfil`.
+  4. **brunch de aniversário** — RPC `meu_brinde_aniversario` (0025) quando `assinante &&
+     eh_mes && !ja_resgatou`. Ícone `cake`, leva pro `/conta/perfil`.
+  5. **encontro chegando** — RPC `agenda_proximos` (0026) com `eu_vou` e `data` numa janela
+     de **48h** (tolera 4h já começado). Ícone `calendar-days`, sub via `dataEvento`.
+- **Dispensar ("já vi"):** o **voltou** apaga a linha do banco; as **derivadas** (não há linha
+  pra apagar) guardam o `id` no **localStorage** (`casa_notif_lidas`, helpers `notifLidas()`/
+  `marcarNotifLida()`, mesmo padrão do `renderAvisoBar`). O badge tampa em **"9+"**.
+- **Markup/estilo:** cada item ganhou uma **coluna de ícone** (`.notif-item-ico` redondo +
+  `.notif-item-corpo` com tag/nome/sub). No **mobile** o painel é `position: fixed` com o
+  `top` medido do header ao abrir (respeita a tarja de recado). Mecânica de abrir/fechar
+  (clique-fora/Esc/scale-opacity) reusa o padrão do painel do usuário.
+- **Só-leitura, zero confiança nova:** o sino nunca **credita** nada, só **reflete** estado
+  que os webhooks/RPCs já produziram. Deslogado → escondido.
+- **Falta:** nada além do que cada fonte já pede (0019/0021/0025/0026/0030 + subir o front).
+  Migration pendente de uma fonte só apaga aquela fonte do painel.
 
 ---
 

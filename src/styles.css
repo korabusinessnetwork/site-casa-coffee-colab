@@ -879,7 +879,10 @@ a.txt-link.gold { color: var(--gold) }
 .notif-lista { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto }
 .notif-item { display: flex; align-items: stretch; gap: 4px; border-radius: 10px; transition: background .15s var(--e) }
 .notif-item:hover { background: color-mix(in srgb, var(--coral) 7%, transparent) }
-.notif-item-link { flex: 1; display: flex; flex-direction: column; gap: 1px; padding: 9px 10px; text-decoration: none; min-width: 0 }
+.notif-item-link { flex: 1; display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px; text-decoration: none; min-width: 0 }
+.notif-item-ico { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 999px; background: color-mix(in srgb, var(--coral) 12%, transparent); color: var(--coral) }
+.notif-item-ico svg { width: 16px; height: 16px }
+.notif-item-corpo { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0 }
 .notif-item-tag { font-family: var(--sans); font-size: 11px; font-weight: 700; color: var(--olive) }
 .notif-item-nome { font-family: var(--serif); font-size: 15px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .notif-item-sub { font-family: var(--sans); font-size: 12.5px; color: var(--muted) }
