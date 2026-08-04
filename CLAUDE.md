@@ -761,6 +761,37 @@ pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa v
 
 ---
 
+## Volta pra vitrine (avisa quando o produto voltar) (Fase 3)
+
+Puxa o gancho da lista de desejos: produto **esgotado** (`disponivel: false` no mock
+`PRODUTOS`) não fica mudo, ganha um selo **"esgotado"** e o botão **"me avisa quando
+voltar"**. Quando a casa repõe (flip pra disponível), a pessoa vê uma tirinha **"voltou
+pra vitrine"** na volta dela (`/loja` e `/conta/perfil`). Pro Casa, o console mostra
+**quantas pessoas esperam cada produto** — o sinal mais forte pra guiar a reposição.
+
+- **Disponibilidade no mock:** `PRODUTOS[].disponivel` (ausente = disponível; só marca-se
+  `false`). Hoje **Torra Vale dos Sinos** e **Caneca de autor** estão esgotados.
+- **Migration `0030_avisos_reposicao` (PENDENTE — aplicar no SQL Editor):** tabela
+  `avisos_reposicao` (mesma forma do `loja_desejos`: PK `(user_id, produto_slug)`,
+  `produto_nome` snapshot, `user_id` default `auth.uid()`). Dado **benigno** (fora da lista
+  de sensíveis): **escrita direta pelo client via RLS** (select/insert/delete own), sem Edge
+  Function. Agregado do console por `admin_avisos_reposicao()` (SECURITY DEFINER,
+  `tem_permissao('relatorios')`, conta por slug com o nome mais frequente).
+- **Front:** o esgotado é 100% do mock (client), então `cardProdutoHTML` e `initProductPage`
+  já renderizam o selo + "me avisa" sem depender de sessão/banco (na página de produto,
+  esgotado troca quantidade/carrinho pela nota + botão). `initReposicao()` liga a lógica:
+  deslogado → o botão manda pro login; logado → carrega os avisos, pinta o estado dos botões
+  (toggle otimista, `23505` = já pediu = sucesso) e monta a tirinha "voltou pra vitrine"
+  (avisos cujo produto está disponível **agora**) em `[data-reposicao]` (loja) e
+  `[data-reposicao-perfil]` (perfil), com `×` "já vi" que apaga o aviso. Boot não pega o
+  perfil (montado pós-guard), então `initPerfilPage` religa `initReposicao()` no fim.
+  Tolerante: sem sessão, o botão só vai pro login; migration pendente → botão fica inerte
+  ("aviso em breve") e a tirinha some. Console: aba **"esperando"** (`viewReposicao`, ícone
+  `bell-ring`, quem tem `relatorios`) lista o ranking com barrinha.
+- **Falta:** aplicar a `0030` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -959,6 +990,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   espelho no `/conta/perfil` (`initLojaDesejos`) + aba "desejos" no console. Tolerante à
   migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
   Function. Ver "Ficou pra depois (lista de desejos da loja)" acima.
+- **`0030_avisos_reposicao` — PENDENTE (aplicar no SQL Editor).** "Volta pra vitrine":
+  tabela `avisos_reposicao` (PK `(user_id, produto_slug)`, `produto_nome` snapshot,
+  `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
+  delete own — dado benigno, fora da lista de sensíveis) + RPC `admin_avisos_reposicao()`
+  (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por slug com o nome mais
+  frequente). Front: selo "esgotado" + "me avisa quando voltar" nos produtos `disponivel:
+  false`, tirinha "voltou pra vitrine" na `/loja` e no `/conta/perfil` (`initReposicao`) +
+  aba "esperando" no console. Tolerante à migration pendente. **Falta:** aplicar + subir o
+  front. Nenhum secret novo; nenhuma Edge Function. Ver "Volta pra vitrine" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

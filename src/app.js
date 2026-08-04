@@ -54,6 +54,9 @@ import {
   CalendarDays,
   CalendarPlus,
   Bookmark,
+  Bell,
+  BellOff,
+  BellRing,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -104,6 +107,9 @@ const LUCIDE_ICONS = {
   CalendarDays,
   CalendarPlus,
   Bookmark,
+  Bell,
+  BellOff,
+  BellRing,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -319,6 +325,7 @@ const PRODUTOS = [
       'Micro-lote de um produtor vizinho, com notas de castanha e caramelo. A gente serve por tempo limitado.',
     imagemPlaceholder: 'ph-tote',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
+    disponivel: false,
   },
   {
     id: 'cafe-afeto',
@@ -374,6 +381,7 @@ const PRODUTOS = [
       'Cerâmica feita à mão pelo Ateliê Lomba Grande, em residência com a gente. Cada peça é única.',
     imagemPlaceholder: 'ph-drink',
     variantes: null,
+    disponivel: false,
   },
   {
     id: 'bolsa-linho',
@@ -1382,6 +1390,163 @@ async function initLojaDesejos() {
   renderIcons();
 }
 
+// --- Volta pra vitrine (avisa quando o produto esgotado voltar) ----------------
+// Nos produtos esgotados (disponivel:false no mock), o botão "me avisa quando
+// voltar" registra interesse; quando a casa repõe (flip pra disponível), a tirinha
+// "voltou pra vitrine" aparece na volta da pessoa (/loja e /conta/perfil). Escrita
+// RLS-direct travada em auth.uid() (migration 0030). Deslogado → login; tolerante.
+async function initReposicao() {
+  if (!supabase) return;
+  const avisarBtns = Array.from(document.querySelectorAll('[data-avisar]'));
+  const tirinhas = Array.from(document.querySelectorAll('[data-reposicao], [data-reposicao-perfil]'));
+  if (!avisarBtns.length && !tirinhas.length) return;
+
+  const irProLogin = () => {
+    const destino = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login?redirect=${destino}`;
+  };
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) {
+    // Deslogado: o botão existe (produto esgotado), mas leva pro login. As
+    // tirinhas "voltou" dependem dos avisos do usuário, então nem aparecem.
+    avisarBtns.forEach((btn) => btn.addEventListener('click', irProLogin));
+    return;
+  }
+
+  const avisos = new Set();
+  const nomePorSlug = new Map();
+  try {
+    const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
+    if (error) {
+      // migration 0030 pendente: sem onde registrar. Deixa o botão gentilmente inerte.
+      avisarBtns.forEach((btn) => {
+        btn.disabled = true;
+        const txt = btn.querySelector('span');
+        if (txt) txt.textContent = 'aviso em breve';
+      });
+      return;
+    }
+    (data || []).forEach((r) => {
+      avisos.add(r.produto_slug);
+      nomePorSlug.set(r.produto_slug, r.produto_nome);
+    });
+  } catch {
+    return;
+  }
+
+  const nomeDe = (slug) => getProdutoPorSlug(slug)?.nome || nomePorSlug.get(slug) || slug;
+
+  // Todos os botões "me avisa" de um mesmo slug (card + página de produto) juntos.
+  const botoesPorSlug = new Map();
+  const pintarBtn = (btn, on) => {
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+    const txt = btn.querySelector('span');
+    if (txt) txt.textContent = on ? 'a gente te avisa 💛' : 'me avisa quando voltar';
+    btn.setAttribute('aria-label', on ? 'cancelar o aviso de reposição' : 'me avisa quando voltar');
+  };
+  const repintar = (slug) => {
+    const on = avisos.has(slug);
+    (botoesPorSlug.get(slug) || []).forEach((b) => pintarBtn(b, on));
+  };
+
+  // Tirinha "voltou pra vitrine": avisos cujo produto está disponível AGORA.
+  const pintarTirinhas = () => {
+    if (!tirinhas.length) return;
+    const voltaram = [...avisos].filter((slug) => {
+      const prod = getProdutoPorSlug(slug);
+      return prod && prod.disponivel !== false;
+    });
+    for (const sec of tirinhas) {
+      const chipsEl = sec.querySelector('[data-rep-chips]');
+      if (!chipsEl) continue;
+      if (!voltaram.length) {
+        sec.hidden = true;
+        chipsEl.innerHTML = '';
+        continue;
+      }
+      chipsEl.innerHTML = voltaram
+        .map((slug) => {
+          const nome = nomeDe(slug);
+          return `<span class="rep-chip">
+            <a href="/produto?slug=${encodeURIComponent(slug)}">${escapeHtml(nome)}</a>
+            <span class="rep-tag">voltou 💛</span>
+            <button type="button" class="rep-chip-x" data-rep-visto="${escapeHtml(slug)}" aria-label="ok, já vi ${escapeHtml(nome)}">
+              <i data-lucide="x"></i>
+            </button>
+          </span>`;
+        })
+        .join('');
+      sec.hidden = false;
+    }
+    renderIcons();
+  };
+
+  // Toggle otimista do "me avisa" (registra/cancela interesse).
+  const alternar = async (slug) => {
+    const estava = avisos.has(slug);
+    if (estava) avisos.delete(slug);
+    else avisos.add(slug);
+    repintar(slug);
+    pintarTirinhas();
+    try {
+      if (estava) {
+        const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('avisos_reposicao').insert({ produto_slug: slug, produto_nome: nomeDe(slug) });
+        if (error && error.code !== '23505') throw error; // 23505 = já pediu, ok
+      }
+    } catch {
+      if (estava) avisos.add(slug);
+      else avisos.delete(slug);
+      repintar(slug);
+      pintarTirinhas();
+    }
+  };
+
+  // "já vi" na tirinha: o produto voltou, apaga o aviso.
+  const dispensar = async (slug) => {
+    if (!avisos.has(slug)) return;
+    avisos.delete(slug);
+    pintarTirinhas();
+    try {
+      const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
+      if (error) throw error;
+    } catch {
+      avisos.add(slug);
+      pintarTirinhas();
+    }
+  };
+
+  avisarBtns.forEach((btn) => {
+    const slug = btn.dataset.avisar;
+    if (!slug) return;
+    if (!botoesPorSlug.has(slug)) botoesPorSlug.set(slug, new Set());
+    botoesPorSlug.get(slug).add(btn);
+    pintarBtn(btn, avisos.has(slug));
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      await alternar(slug);
+      btn.disabled = false;
+    });
+  });
+
+  for (const sec of tirinhas) {
+    const chipsEl = sec.querySelector('[data-rep-chips]');
+    chipsEl?.addEventListener('click', (e) => {
+      const x = e.target.closest('[data-rep-visto]');
+      if (!x) return;
+      dispensar(x.dataset.repVisto);
+    });
+  }
+
+  pintarTirinhas();
+  renderIcons();
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -2216,13 +2381,19 @@ function setupCarousel(trackEl, { dots = false, autoplay = false, interval = 550
 // DOM: [data-catalog-grid] pro grid; [data-filter="all|<categoria>"] nos botões.
 // =============================================================================
 function cardProdutoHTML(p) {
-  const acao = p.variantes
-    ? `<a href="/produto?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
-    : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
+  // Esgotado / fora da vitrine: em vez de "adicionar", oferece "me avisa quando
+  // voltar" (initReposicao liga o botão; deslogado → login). Selo sobre a foto.
+  const esgotado = p.disponivel === false;
+  const acao = esgotado
+    ? `<button type="button" class="btn ghost sm prod-avisar" data-avisar="${escapeHtml(p.slug)}" style="flex:1"><i data-lucide="bell"></i><span>me avisa quando voltar</span></button>`
+    : p.variantes
+      ? `<a href="/produto?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
+      : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
+  const selo = esgotado ? `<span class="prod-esgotado">esgotado</span>` : '';
   return `
-    <article class="prod" data-produto data-categoria="${p.categoria}" data-slug="${escapeHtml(p.slug)}">
+    <article class="prod${esgotado ? ' is-esgotado' : ''}" data-produto data-categoria="${p.categoria}" data-slug="${escapeHtml(p.slug)}">
       <a href="/produto?slug=${p.slug}" class="block" aria-label="${escapeHtml(p.nome)}">
-        <div class="ph ${p.imagemPlaceholder}"></div>
+        <div class="ph ${p.imagemPlaceholder}">${selo}</div>
       </a>
       <div class="prod-body">
         <p class="prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
@@ -2303,6 +2474,7 @@ function initProductPage() {
 
   let variante = p.variantes ? p.variantes.opcoes[0] : null;
   let qtd = 1;
+  const esgotado = p.disponivel === false;
 
   const variantesHTML = p.variantes
     ? `
@@ -2321,19 +2493,21 @@ function initProductPage() {
       </div>`
     : '';
 
-  rootEl.innerHTML = `
-    <div class="grid gap-8 lg:grid-cols-2">
-      <div class="ph ${p.imagemPlaceholder} aspect-square w-full"></div>
-      <div>
-        <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
-          <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
-        </a>
-        <p class="mt-4 prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
-        <h1 class="title md mt-1">${escapeHtml(p.nome)}</h1>
-        <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
-        <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
-        ${variantesHTML}
-        <div class="mt-6">
+  // Bloco de compra: disponível → quantidade + adicionar; esgotado → "me avisa
+  // quando voltar" (initReposicao liga; deslogado → login). O "guardar pra depois"
+  // (coração) fica nos dois casos, dá pra guardar mesmo esgotado.
+  const guardarBtn = `<button type="button" class="btn ghost prod-guardar" data-desejo-produto="${escapeHtml(p.slug)}" hidden>
+              <i data-lucide="heart"></i><span>guardar pra depois</span>
+            </button>`;
+  const compraHTML = esgotado
+    ? `<div class="mt-6">
+          <p class="prod-esgotado-nota"><i data-lucide="bell-off"></i>esse saiu da vitrine por enquanto. deixa que a gente te avisa quando voltar.</p>
+          <div class="mt-3 flex flex-wrap items-center gap-4">
+            <button type="button" class="btn solid prod-avisar" data-avisar="${escapeHtml(p.slug)}"><i data-lucide="bell"></i><span>me avisa quando voltar</span></button>
+            ${guardarBtn}
+          </div>
+        </div>`
+    : `<div class="mt-6">
           <span class="lbl">Quantidade</span>
           <div class="mt-2 flex flex-wrap items-center gap-4">
             <div class="inline-flex items-center rounded-full border border-line">
@@ -2346,11 +2520,23 @@ function initProductPage() {
               </button>
             </div>
             <button type="button" data-add-detail class="btn solid">adicionar ao carrinho</button>
-            <button type="button" class="btn ghost prod-guardar" data-desejo-produto="${escapeHtml(p.slug)}" hidden>
-              <i data-lucide="heart"></i><span>guardar pra depois</span>
-            </button>
+            ${guardarBtn}
           </div>
-        </div>
+        </div>`;
+
+  rootEl.innerHTML = `
+    <div class="grid gap-8 lg:grid-cols-2">
+      <div class="ph ${p.imagemPlaceholder} aspect-square w-full">${esgotado ? '<span class="prod-esgotado">esgotado</span>' : ''}</div>
+      <div>
+        <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
+          <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
+        </a>
+        <p class="mt-4 prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
+        <h1 class="title md mt-1">${escapeHtml(p.nome)}</h1>
+        <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
+        <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
+        ${esgotado ? '' : variantesHTML}
+        ${compraHTML}
         <p class="mt-6 text-xs text-muted">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
       </div>
     </div>`;
@@ -4302,6 +4488,16 @@ async function initPerfilPage() {
         </div>
       </section>
 
+      <!-- Voltou pra vitrine: o que a pessoa esperava e voltou ao estoque.
+           Preenchido pós-render por initReposicao. Escondido sem nada / sem a 0030. -->
+      <section class="loja-desejos loja-voltou" data-reposicao-perfil hidden>
+        <div class="pf-head">
+          <h2>voltou pra vitrine</h2>
+          <p>produtos que tu pediu pra avisar e já voltaram ao estoque. toca pra abrir.</p>
+        </div>
+        <div class="ld-chips" data-rep-chips></div>
+      </section>
+
       <!-- Ficou pra depois: espelho da lista de desejos da loja. Preenchido
            pós-render por initLojaDesejos (chamada no fim desta função). Escondido
            sem desejos / sem a migration 0029. -->
@@ -5697,10 +5893,11 @@ async function initPerfilPage() {
 
   root.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
 
-  // Espelho da lista de desejos ("ficou pra depois"): a chamada do boot rodou
-  // antes deste HTML existir (o perfil é montado pós-guard), então religa aqui,
-  // já com a seção [data-desejos-perfil] no DOM. Tolerante: sem a 0029, some.
+  // Espelho da lista de desejos ("ficou pra depois") e a tirinha "voltou pra
+  // vitrine": a chamada do boot rodou antes deste HTML existir (o perfil é montado
+  // pós-guard), então religa aqui, já com as seções no DOM. Tolerante às migrations.
   initLojaDesejos();
+  initReposicao();
 }
 
 // --- Pontos + Recompensas (área logada) ----------------------------------------
@@ -6463,6 +6660,7 @@ export function initSite() {
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
   initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
+  initReposicao(); // "me avisa quando voltar" + "voltou pra vitrine" (loja/produto/perfil; migration 0030)
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
