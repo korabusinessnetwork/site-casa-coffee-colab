@@ -60,6 +60,7 @@ import {
   Bell,
   BellOff,
   BellRing,
+  Ruler,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -116,6 +117,7 @@ const LUCIDE_ICONS = {
   Bell,
   BellOff,
   BellRing,
+  Ruler,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -301,7 +303,10 @@ function mensagemDeErroAuth(error) {
 // CATÁLOGO (MOCK, virá do Supabase na Fase 2)
 // TODO: substituir este array pela tabela `products` do Supabase (ver CLAUDE.md).
 // Cada produto: id, nome, slug, categoria, preco_centavos, descricao,
-// imagemPlaceholder (classe .photo-*), variantes (opcional).
+// imagemPlaceholder (classe .photo-*), variantes (opcional), medidas (opcional).
+// `medidas` é a tabela de medidas da roupa (a loja não tem provador, então a
+// pessoa precisa conferir o tamanho antes de comprar): { colunas: [...],
+// linhas: [[...]], nota } — os valores em centímetros, na ordem das colunas.
 // =============================================================================
 const CATEGORIAS = {
   vestuario: 'Vestuário',
@@ -354,6 +359,16 @@ const PRODUTOS = [
       'Quentinho pra vestir nos dias de café e chuva. Algodão macio, bordado discreto do Casa no peito.',
     imagemPlaceholder: 'ph-tote',
     variantes: { rotulo: 'Tamanho', opcoes: ['P', 'M', 'G', 'GG'] },
+    medidas: {
+      colunas: ['Tamanho', 'Largura', 'Comprimento', 'Manga'],
+      linhas: [
+        ['P', '53', '68', '60'],
+        ['M', '56', '70', '62'],
+        ['G', '59', '72', '64'],
+        ['GG', '62', '74', '66'],
+      ],
+      nota: 'modelagem unissex, um pouco folgada. o corpo veste o tamanho de sempre; se tu gosta de moletom bem solto, sobe um.',
+    },
   },
   {
     id: 'camiseta-feito',
@@ -365,6 +380,16 @@ const PRODUTOS = [
       'Leve, de algodão, com a nossa frase preferida estampada. Pra levar um pedacinho do Casa por aí.',
     imagemPlaceholder: 'ph-drink',
     variantes: { rotulo: 'Tamanho', opcoes: ['P', 'M', 'G', 'GG'] },
+    medidas: {
+      colunas: ['Tamanho', 'Largura', 'Comprimento', 'Manga'],
+      linhas: [
+        ['P', '48', '68', '19'],
+        ['M', '51', '71', '20'],
+        ['G', '54', '74', '21'],
+        ['GG', '57', '77', '22'],
+      ],
+      nota: 'modelagem unissex, corte reto. veste no teu tamanho de sempre; entre dois, vai no maior que cai melhor.',
+    },
   },
   {
     id: 'avental-casa',
@@ -376,6 +401,11 @@ const PRODUTOS = [
       'O mesmo avental que a gente usa na cozinha. Linho encorpado, bolso na frente, feito pra durar.',
     imagemPlaceholder: 'ph-tan light',
     variantes: { rotulo: 'Tamanho', opcoes: ['Único'] },
+    medidas: {
+      colunas: ['Tamanho', 'Largura', 'Comprimento', 'Alça'],
+      linhas: [['Único', '70', '85', 'regulável, até 130']],
+      nota: 'tamanho único, com alça de pescoço e tira de cintura reguláveis. serve do P ao GG.',
+    },
   },
   {
     id: 'caneca-autor',
@@ -3201,6 +3231,43 @@ function initProductPage() {
       </div>`
     : '';
 
+  // Tabela de medidas (roupa): a loja não tem provador, então a pessoa precisa
+  // conferir o tamanho ANTES de comprar, senão vira troca. Fica recolhida num
+  // <details> pra não empurrar o botão de comprar pra baixo, e aparece mesmo
+  // esgotado (quem espera a volta já quer saber o tamanho).
+  const medidasHTML = p.medidas
+    ? `
+      <details class="medidas mt-5">
+        <summary><i data-lucide="ruler"></i><span>ver a tabela de medidas</span></summary>
+        <div class="medidas-corpo">
+          <div class="medidas-scroll">
+            <table>
+              <caption>medidas da peça (não do corpo), em centímetros</caption>
+              <thead>
+                <tr>${p.medidas.colunas.map((c) => `<th scope="col">${escapeHtml(c)}</th>`).join('')}</tr>
+              </thead>
+              <tbody>
+                ${p.medidas.linhas
+                  .map(
+                    (linha) =>
+                      `<tr>${linha
+                        .map((celula, i) =>
+                          i === 0
+                            ? `<th scope="row">${escapeHtml(celula)}</th>`
+                            : `<td>${escapeHtml(celula)}</td>`
+                        )
+                        .join('')}</tr>`
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          </div>
+          ${p.medidas.nota ? `<p class="medidas-nota">${escapeHtml(p.medidas.nota)}</p>` : ''}
+          <p class="medidas-nota">a gente mede com a peça deitada, então pode variar 1 ou 2 cm de uma pra outra. na dúvida, chama a gente que a gente te ajuda a escolher.</p>
+        </div>
+      </details>`
+    : '';
+
   // Bloco de compra: disponível → quantidade + adicionar; esgotado → "me avisa
   // quando voltar" (initReposicao liga; deslogado → login). O "guardar pra depois"
   // (coração) fica nos dois casos, dá pra guardar mesmo esgotado.
@@ -3235,7 +3302,9 @@ function initProductPage() {
   rootEl.innerHTML = `
     <div class="grid gap-8 lg:grid-cols-2">
       <div class="ph ${p.imagemPlaceholder} aspect-square w-full">${esgotado ? '<span class="prod-esgotado">esgotado</span>' : ''}</div>
-      <div>
+      <!-- min-w-0: sem isso a tabela de medidas (células sem quebra) estica a coluna
+           do grid e a página inteira ganha scroll lateral no mobile. -->
+      <div class="min-w-0">
         <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
           <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
         </a>
@@ -3244,6 +3313,7 @@ function initProductPage() {
         <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
         <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
         ${esgotado ? '' : variantesHTML}
+        ${medidasHTML}
         ${compraHTML}
         <p class="mt-6 text-xs text-muted">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
       </div>

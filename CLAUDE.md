@@ -140,6 +140,16 @@ cores da marca, via utilitários no `styles.css`:
   `id, nome, slug, categoria (vestuario|acessorios|cafe_grao), preco_centavos, descricao,
   imagemPlaceholder (.photo-*), variantes ({ rotulo, opcoes[] } | null)`.
   > **TODO (Fase 2):** substituir o mock pela tabela **`products` do Supabase** (mesma forma).
+- **Tabela de medidas (roupa)**: campo opcional `medidas` (`{ colunas[], linhas[][], nota }`,
+  valores em centímetros) nos itens de `vestuario` — a loja não tem provador, então quem
+  compra precisa conferir o tamanho antes, senão vira troca. A `initProductPage` renderiza
+  um `<details>` **"ver a tabela de medidas"** logo abaixo das variantes (recolhido, pra não
+  empurrar o botão de comprar), com as medidas **da peça** (não do corpo), a nota de
+  modelagem do produto e o recado de que a medida pode variar 1 ou 2 cm. Aparece também no
+  produto **esgotado** (quem espera a volta já quer saber o tamanho). Estilo `.medidas-*` no
+  `styles.css`: a tabela cabe inteira a partir de ~360px e, mais estreito que isso, rola
+  dentro da própria caixa (`.medidas-scroll`) — a coluna do grid leva `min-w-0` pra página
+  nunca ganhar scroll lateral.
 - **Páginas**: `src/loja.html` (grid + filtro por categoria) e
   `src/produto.html` (lê `?slug=`, renderiza detalhe; estado vazio gentil se não achar).
   Ambas registradas no `rollupOptions.input` do `vite.config.js`.
