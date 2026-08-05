@@ -453,6 +453,37 @@ a.txt-link.gold { color: var(--gold) }
   .hero p.sub { font-size: 13px }
   .hero .txt-link { margin-top: 16px }
 }
+/* Celular EM PÉ. Duas coisas mudam de uma vez aqui, e por isso este bloco vem
+   depois dos de altura (ele precisa vencer o max-height: 860px, que um celular
+   de 844px de tela também atende):
+
+   1. O título parava de caber. Pela regra de altura ele nascia com 8vh (uns
+      67px num 390×844) e "Slow coffee." quebrava no meio: as três linhas do
+      hero viravam cinco e o bloco de texto tomava a capa inteira. Aqui ele
+      escala pela LARGURA, que é o que falta no celular, e volta pras três.
+   2. A capa é recortada no vertical, então a foto aparece quase 3x mais perto
+      que no desktop: o que lá é fundo — o letreiro do toldo, na foto da
+      fachada — vira letra do tamanho do título e disputa a leitura com ele.
+      Como o letreiro mora no alto da foto, o texto desce e senta no pé da
+      capa (logo acima dos botões voltar/pular), longe da faixa.
+
+   O scrim acompanha: no desktop ele vem da esquerda, que é de onde o texto
+   entra; aqui vem de baixo, que é onde o texto agora mora — com um respiro
+   claro no meio pra foto não virar um borrão escuro. A demão lateral fica,
+   fraquinha, pra segurar o começo das linhas. */
+@media (max-width: 640px) and (min-height: 560px) {
+  .hero { align-items: flex-end }
+  .hero h1 { font-size: clamp(38px, 12vw, 52px) }
+  .hero .wrap { padding-top: 24px; padding-bottom: 132px }
+  .hero .rule { margin: 18px 0 14px }
+  .hero p.sub { font-size: 14px }
+  .hero .txt-link { margin-top: 22px }
+  .hero .scrim {
+    background:
+      linear-gradient(180deg, rgba(12, 8, 4, .52) 0%, rgba(12, 8, 4, .12) 24%, rgba(12, 8, 4, .58) 56%, rgba(12, 8, 4, .92) 100%),
+      linear-gradient(90deg, rgba(12, 8, 4, .38) 0%, rgba(12, 8, 4, .1) 72%, rgba(12, 8, 4, 0) 100%);
+  }
+}
 
 /* ---------- agenda ---------- */
 .agenda { padding: clamp(56px, 7vw, 88px) 0 }
