@@ -153,6 +153,16 @@ cores da marca, via utilitários no `styles.css`:
 - **Páginas**: `src/loja.html` (grid + filtro por categoria) e
   `src/produto.html` (lê `?slug=`, renderiza detalhe; estado vazio gentil se não achar).
   Ambas registradas no `rollupOptions.input` do `vite.config.js`.
+- **Navegação da loja** (só front, sem migration): a página de produto abre com uma
+  **trilha de migalhas** (`trilhaProdutoHTML`) *Loja / Categoria / Produto*, onde o crumb
+  do meio leva pra `/loja?categoria=<slug>` — a `initCatalogPage` lê esse parâmetro e já
+  abre a vitrine filtrada (valor desconhecido cai em "todos"). No fim da página vem a seção
+  **"quem sabe tu gosta"** (`relacionadosHTML`): até 3 produtos, os da mesma categoria
+  primeiro e o resto da vitrine completando, disponíveis antes dos esgotados. Reusa o
+  `cardProdutoHTML` (por isso o grid é `cols-3`, a largura em que os dois botões do card
+  cabem), então herda selo de esgotado, "me avisa quando voltar" (`initReposicao` pega os
+  `[data-avisar]` de qualquer página) e o coração de "guardar pra depois"
+  (`initLojaDesejos` varre `[data-catalog-grid], [data-relacionados]`).
 - **Carrinho** (`Cart` no `app.js`): estado em **localStorage** (chave `casa_cart`) — o site é
   multi-página, então o carrinho **sobrevive a reloads/navegação**. API:
   `addItem/removeItem/updateQty/getCart/getSubtotalCentavos/getCount/clearCart/onChange`.
@@ -185,8 +195,8 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
 | O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, Mural do Casa (seção escura), localização (mapa + "como chegar"), tour 360 |
 | Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) + tirinha de atalhos entre as seções — informativo, **sem carrinho** |
-| Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria                                    |
-| Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=` (conta como "Loja" na nav)                    |
+| Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria (aceita `?categoria=`)             |
+| Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=`, trilha de migalhas + relacionados (conta como "Loja" na nav) |
 | Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
 | Colab         | `colab.html`        | `/colab`           | Residência Gente do Casa; carrossel de colabs; convite (mailto/WhatsApp) |
 | Cadastro      | `cadastro.html`     | `/cadastro`        | criar conta (nome/telefone/e-mail/senha); estado "confirme seu e-mail" |

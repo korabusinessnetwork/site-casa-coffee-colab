@@ -1009,6 +1009,21 @@ a.txt-link.gold { color: var(--gold) }
 .ld-chip-x svg { width: 14px; height: 14px }
 .ld-chip-x:hover { color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent) }
 
+/* ---------- trilha de migalhas (página de produto) ---------- */
+.crumbs { margin-bottom: 22px }
+.crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; font-family: var(--sans); font-size: 13px; color: var(--muted) }
+.crumbs li { display: inline-flex; align-items: center; gap: 6px; min-width: 0 }
+.crumbs li + li::before { content: "/"; color: color-mix(in srgb, var(--muted) 55%, transparent) }
+.crumbs a { color: var(--muted); text-decoration: none; transition: color .15s var(--e) }
+.crumbs a:hover { color: var(--coral) }
+.crumbs [aria-current="page"] { color: var(--ink); max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+@media (max-width: 560px) { .crumbs [aria-current="page"] { max-width: 22ch } }
+
+/* ---------- relacionados ("quem sabe tu gosta", página de produto) ---------- */
+.prod-rel { margin-top: clamp(46px, 6vw, 74px); padding-top: clamp(28px, 4vw, 40px); border-top: 1px solid var(--line) }
+.prod-rel-head { margin-bottom: 26px }
+.prod-rel-head .title { margin-top: 4px }
+
 /* ---------- "volta pra vitrine" (esgotado + avisa quando voltar) ---------- */
 .prod .ph, [data-product-root] .ph { position: relative }
 /* selo "esgotado" sobre a foto */
