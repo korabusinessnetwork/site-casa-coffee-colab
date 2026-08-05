@@ -916,6 +916,9 @@ a.txt-link.gold { color: var(--gold) }
 .prod-fav:active { transform: scale(.88) }
 /* "guardar pra depois" na página de produto */
 .prod-guardar { display: inline-flex; align-items: center; gap: 7px }
+/* O display da classe vence o [hidden] do navegador: sem isto o botão aparece
+   pra quem está deslogado, antes de a initLojaDesejos liberar. */
+.prod-guardar[hidden] { display: none }
 .prod-guardar svg { width: 17px; height: 17px }
 .prod-guardar.on { color: var(--coral); border-color: color-mix(in srgb, var(--coral) 45%, var(--line)) }
 .prod-guardar.on svg { fill: var(--coral) }
