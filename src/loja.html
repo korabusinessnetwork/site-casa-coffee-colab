@@ -48,15 +48,38 @@
       </section>
 
       <!-- ===================================================================
-           FILTRO + GRID — o grid é preenchido pelo app.js (initCatalogPage)
-           dentro de [data-catalog-grid]; o estado vazio [data-catalog-empty]
-           some assim que há resultados visíveis.
+           BUSCA + ORDENAÇÃO + FILTRO + GRID — tudo é preenchido/ligado pelo
+           app.js (initCatalogPage) dentro de [data-catalog-grid]; o estado
+           vazio [data-catalog-empty] some assim que há resultados visíveis.
            =================================================================== -->
       <section class="section tight">
         <div class="wrap">
+          <div class="loja-toolbar reveal">
+            <div class="field loja-busca">
+              <label for="loja-busca" class="sr-only">Buscar na loja</label>
+              <i data-lucide="search" aria-hidden="true"></i>
+              <input
+                type="search"
+                id="loja-busca"
+                data-catalog-search
+                autocomplete="off"
+                placeholder="procura um café, uma caneca…"
+              />
+            </div>
+            <div class="field loja-ordem">
+              <label for="loja-ordem" class="sr-only">Ordenar por</label>
+              <select id="loja-ordem" data-catalog-sort>
+                <option value="casa">do jeito da casa</option>
+                <option value="preco-asc">preço, do menor pro maior</option>
+                <option value="preco-desc">preço, do maior pro menor</option>
+                <option value="nome">nome, de A a Z</option>
+              </select>
+            </div>
+          </div>
+
           <div
             class="reveal"
-            style="display: flex; flex-wrap: wrap; gap: 10px"
+            style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px"
             role="group"
             aria-label="Filtrar por categoria"
           >
@@ -74,8 +97,10 @@
             </button>
           </div>
 
+          <p class="loja-contagem" data-catalog-count role="status" aria-live="polite"></p>
+
           <!-- Grid preenchido pelo app.js (initCatalogPage) -->
-          <div data-catalog-grid class="card-grid cols-3 reveal" style="margin-top: 34px"></div>
+          <div data-catalog-grid class="card-grid cols-3 reveal" style="margin-top: 18px"></div>
 
           <!-- Estado vazio (some quando há resultados) -->
           <div data-catalog-empty class="empty hidden">

@@ -130,7 +130,21 @@ cores da marca, via utilitários no `styles.css`:
   `id, nome, slug, categoria (vestuario|acessorios|cafe_grao), preco_centavos, descricao,
   imagemPlaceholder (.photo-*), variantes ({ rotulo, opcoes[] } | null)`.
   > **TODO (Fase 2):** substituir o mock pela tabela **`products` do Supabase** (mesma forma).
-- **Páginas**: `src/loja.html` (grid + filtro por categoria) e
+- **Busca + ordenação (`/loja`)**: além do filtro por categoria, a vitrine tem um campo de
+  busca (`[data-catalog-search]`) e um seletor de ordem (`[data-catalog-sort]`), ligados pela
+  `initCatalogPage`. A busca varre **nome + categoria + descrição** já normalizados
+  (`normalizarBusca`, sem acento e em minúscula, então "cafe" acha "Café"); a ordem tem
+  quatro opções no mapa `ORDENACOES` (`casa` = a ordem curada do array, `preco-asc`,
+  `preco-desc`, `nome`). Categoria, busca e ordem vivem num objeto `estado` e são aplicados
+  juntos por uma função só. Ordenar **move os nós** do grid (`appendChild`), nunca
+  re-renderiza: o que for injetado nos cards depois do primeiro render sobrevive ao move, e
+  não sobreviveria a um `innerHTML` novo. Um
+  `[data-catalog-count]` (`aria-live`) mostra "X itens de Y" e o estado vazio troca o texto
+  quando a pessoa está buscando.
+  > `.prod` mora fora de `@layer`, então vence o `.hidden` do Tailwind por ordem de fonte —
+  > por isso existe o `.prod.hidden { display: none }` no `styles.css` (mesmo caso do
+  > `.notice`). Sem ele, o filtro marca o card como escondido e ele fica na tela.
+- **Páginas**: `src/loja.html` (grid + busca + ordenação + filtro por categoria) e
   `src/produto.html` (lê `?slug=`, renderiza detalhe; estado vazio gentil se não achar).
   Ambas registradas no `rollupOptions.input` do `vite.config.js`.
 - **Carrinho** (`Cart` no `app.js`): estado em **localStorage** (chave `casa_cart`) — o site é
