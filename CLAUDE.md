@@ -174,7 +174,7 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 |---------------|---------------------|--------------------|--------------------------------------------------------------------|
 | Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
 | O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, Mural do Casa (seção escura), localização (mapa + "como chegar"), tour 360 |
-| Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) — informativo, **sem carrinho**   |
+| Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) + tirinha de atalhos entre as seções — informativo, **sem carrinho** |
 | Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria                                    |
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=` (conta como "Loja" na nav)                    |
 | Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
@@ -209,6 +209,14 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
 - **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
   "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) chama a
   `create-checkout-session` e leva pro Checkout hospedado do Asaas.
+- **Cardápio, atalhos entre as seções** (`initCardapioNav`): a página é longa e de puro
+  scroll, então uma tirinha de chips (`[data-cardapio-nav]`) gruda no topo da janela
+  (`position: sticky; top: 0` — o header do site **rola junto com a página**, o sticky dele
+  acaba no `#site-header`, então não há altura de header pra descontar), leva direto pra
+  seção e marca onde a pessoa está. Os chips são montados a partir das **próprias seções**
+  do HTML (as que têm `aria-labelledby` + `.menu-list`), então seção nova no cardápio já
+  aparece na tirinha sem tocar no JS. Rola sozinha no mobile pra manter o chip ativo à
+  vista; respeita `prefers-reduced-motion`.
 - **Colab** reutiliza o `setupCarousel` via `data-carousel="cards"` (mesmo contrato da home).
 
 ---

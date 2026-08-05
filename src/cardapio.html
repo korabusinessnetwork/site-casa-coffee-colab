@@ -50,6 +50,17 @@
       </section>
 
       <!-- ===================================================================
+           NAVEGAÇÃO RÁPIDA — tirinha que gruda abaixo do header e leva direto
+           pra seção. Os chips são montados pela initCardapioNav a partir das
+           próprias seções do cardápio, por isso a tirinha nasce hidden.
+           =================================================================== -->
+      <nav class="cardapio-nav" data-cardapio-nav hidden aria-label="Seções do cardápio">
+        <div class="wrap">
+          <div class="cnav-chips" data-cnav-chips></div>
+        </div>
+      </nav>
+
+      <!-- ===================================================================
            TEUS FAVORITOS — preenchido pós-render pra quem está logado
            (initCardapioFavoritos). Fica escondido sem favoritos / deslogado /
            sem a migration 0027.

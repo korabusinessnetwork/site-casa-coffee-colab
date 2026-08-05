@@ -1501,6 +1501,79 @@ async function initAgenda() {
   });
 }
 
+// --- Cardápio: navegação rápida entre seções -----------------------------------
+// O /cardapio é uma página longa de puro scroll (cafés, brunch, doce, take away).
+// Esta tirinha gruda abaixo do header, leva direto pra seção e marca onde a pessoa
+// está. Os chips saem das PRÓPRIAS seções do HTML (as que têm aria-labelledby e uma
+// .menu-list), então seção nova no cardápio já aparece aqui sem tocar no JS.
+function initCardapioNav() {
+  const nav = document.querySelector('[data-cardapio-nav]');
+  const chipsEl = nav?.querySelector('[data-cnav-chips]');
+  if (!nav || !chipsEl) return;
+
+  const secoes = Array.from(document.querySelectorAll('main section[aria-labelledby]'))
+    .filter((sec) => sec.querySelector('.menu-list'))
+    .map((sec) => ({
+      sec,
+      rotulo: document.getElementById(sec.getAttribute('aria-labelledby'))?.textContent.trim() || '',
+    }))
+    .filter((s) => s.rotulo);
+  if (secoes.length < 2) return; // uma seção só não pede atalho
+
+  chipsEl.innerHTML = secoes
+    .map((s, i) => `<button type="button" class="cnav-chip" data-cnav="${i}">${escapeHtml(s.rotulo)}</button>`)
+    .join('');
+  const chips = Array.from(chipsEl.querySelectorAll('.cnav-chip'));
+  nav.hidden = false;
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Só a tirinha fica grudada no topo (o header rola junto com a página), então é
+  // a altura dela que taparia o começo da seção.
+  const tapado = () => nav.getBoundingClientRect().height;
+
+  chips.forEach((chip, i) => {
+    chip.addEventListener('click', () => {
+      const topo = secoes[i].sec.getBoundingClientRect().top + window.scrollY - tapado() - 8;
+      window.scrollTo({ top: Math.max(0, topo), behavior: semMovimento ? 'auto' : 'smooth' });
+    });
+  });
+
+  // Marca a seção em que a pessoa está e mantém o chip ativo à vista na tirinha
+  // rolável do mobile. rAF pra não recalcular a cada tick do scroll.
+  let travado = false;
+  let atual = -1;
+  const marcar = () => {
+    travado = false;
+    const linha = window.scrollY + tapado() + 12;
+    let ativo = -1; // acima da primeira seção nenhum chip fica marcado
+    secoes.forEach((s, i) => {
+      if (s.sec.getBoundingClientRect().top + window.scrollY <= linha) ativo = i;
+    });
+    if (ativo === atual) return;
+    atual = ativo;
+    chips.forEach((c, i) => {
+      const on = i === ativo;
+      c.classList.toggle('on', on);
+      if (on) c.setAttribute('aria-current', 'true');
+      else c.removeAttribute('aria-current');
+    });
+    if (ativo >= 0) {
+      chipsEl.scrollTo({ left: Math.max(0, chips[ativo].offsetLeft - 16), behavior: semMovimento ? 'auto' : 'smooth' });
+    }
+  };
+
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (travado) return;
+      travado = true;
+      window.requestAnimationFrame(marcar);
+    },
+    { passive: true }
+  );
+  marcar();
+}
+
 // --- Cardápio: teus favoritos --------------------------------------------------
 // O /cardapio é HTML curado (não vem do banco), então o item é identificado por
 // um slug estável derivado do NOME (slugify). Favoritar é aberto a qualquer pessoa
@@ -7384,6 +7457,7 @@ export function initSite() {
   initPlanosPage(); // só age se houver [data-assinar]
   initPresentearPage(); // só age se houver [data-presentear]
   initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initCardapioNav(); // tirinha de atalhos entre as seções (só age se houver [data-cardapio-nav])
   initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
   initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)

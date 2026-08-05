@@ -926,6 +926,18 @@ a.txt-link.gold { color: var(--gold) }
 @keyframes mi-flash { 0%, 100% { background: transparent } 25% { background: color-mix(in srgb, var(--coral) 12%, transparent) } }
 @media (prefers-reduced-motion: reduce) { .mi-flash { animation: none } }
 
+/* tirinha de navegação rápida do cardápio (initCardapioNav). Gruda no topo da
+   janela: o header do site rola junto com a página (o sticky dele acaba no
+   #site-header), então aqui não há altura de header pra descontar. z-index
+   menor que o do header pra passar por baixo dele enquanto ele ainda está à vista. */
+.cardapio-nav { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line) }
+.cardapio-nav[hidden] { display: none }
+.cnav-chips { display: flex; gap: 8px; padding: 10px 0; overflow-x: auto; scrollbar-width: none }
+.cnav-chips::-webkit-scrollbar { display: none }
+.cnav-chip { flex: 0 0 auto; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--muted); font-family: var(--sans); font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: color .15s var(--e), background .15s var(--e), border-color .15s var(--e) }
+.cnav-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--coral) 35%, var(--line)) }
+.cnav-chip.on { background: color-mix(in srgb, var(--coral) 10%, var(--card)); border-color: color-mix(in srgb, var(--coral) 45%, var(--line)); color: var(--coral); font-weight: 600 }
+
 /* bloco "teus favoritos" no topo do cardápio */
 .cardapio-favoritos[hidden] { display: none }
 .cf-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px }
