@@ -61,9 +61,9 @@
             </div>
           </div>
 
-          <div class="plans-strip" data-drag-scroll>
+          <div class="plans-strip" id="planos-strip" data-drag-scroll>
             <!-- Bronze -->
-            <article class="plan reveal">
+            <article class="plan reveal" data-dot-rotulo="Bronze">
               <span class="eyebrow">Bronze</span>
               <p class="plan-name">Vizinho de Sempre</p>
               <p class="plan-price">R$29,90<span class="per">/mês</span></p>
@@ -80,7 +80,7 @@
             </article>
 
             <!-- Prata -->
-            <article class="plan reveal">
+            <article class="plan reveal" data-dot-rotulo="Prata">
               <span class="eyebrow">Prata</span>
               <p class="plan-name">Frequentador</p>
               <p class="plan-price">R$49,90<span class="per">/mês</span></p>
@@ -97,7 +97,7 @@
             </article>
 
             <!-- Ouro (favorito) -->
-            <article class="plan featured reveal">
+            <article class="plan featured reveal" data-dot-rotulo="Ouro, o favorito">
               <span class="tag gold plan-badge">favorito</span>
               <span class="eyebrow">Ouro</span>
               <p class="plan-name">Gente do Casa</p>
@@ -116,7 +116,7 @@
             </article>
 
             <!-- Diamante -->
-            <article class="plan reveal">
+            <article class="plan reveal" data-dot-rotulo="Diamante">
               <span class="eyebrow">Diamante</span>
               <p class="plan-name">Alma do Casa</p>
               <p class="plan-price">R$129,90<span class="per">/mês</span></p>
@@ -133,6 +133,10 @@
               <button type="button" data-assinar data-tier="diamante" class="btn solid block">assinar</button>
             </article>
           </div>
+
+          <!-- Bolinhas de posição da tira (só aparecem quando ela rola de verdade;
+               preenchidas pelo setupStripDots do app.js). -->
+          <div class="strip-dots" data-strip-dots="planos-strip" role="group" aria-label="Ir pra um plano"></div>
 
           <!-- Área de aviso/erro do checkout (preenchida pelo app.js quando precisa) -->
           <p class="notice warn hidden" data-assinar-note role="status" aria-live="polite"></p>

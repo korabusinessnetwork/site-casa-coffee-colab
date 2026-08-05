@@ -1153,9 +1153,26 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
   .plans-strip::-webkit-scrollbar { display: none }
   .plans-strip.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none }
   .plans-strip > .plan { flex: 0 0 min(286px, 80vw); scroll-snap-align: start }
+  /* O plano que a casa destaca vem primeiro na fila: rolando ou não, ele é o
+     primeiro que a pessoa vê (na grade de 4 colunas ele segue no lugar dele). */
+  .plans-strip > .plan.featured { order: -1 }
   /* Enquanto arrasta, o card não intercepta o clique nem seleciona texto. */
   .plans-strip.is-dragging > .plan { pointer-events: none }
 }
+
+/* Bolinhas de posição de uma tira horizontal ([data-strip-dots], JS setupStripDots).
+   Nascem escondidas: o JS liga a classe só quando a tira rola de verdade, então
+   na grade de 4 colunas elas nem aparecem. */
+.strip-dots { display: none; justify-content: center; align-items: center; gap: 9px; margin-top: 20px }
+.strip-dots.is-on { display: flex }
+.strip-dot {
+  width: 8px; height: 8px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+  background: color-mix(in srgb, var(--ink) 20%, transparent);
+  transition: width .2s var(--e), background .2s var(--e);
+}
+.strip-dot.is-fav { background: color-mix(in srgb, var(--coral) 45%, transparent) }
+.strip-dot[aria-current="true"] { width: 22px; background: var(--coral) }
+.strip-dot:focus-visible { outline: 2px solid var(--coral); outline-offset: 3px }
 
 .plan { position: relative; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: clamp(22px, 3vw, 32px); gap: 6px }
 .plan.featured { border-color: var(--coral); box-shadow: 0 20px 50px -34px rgba(223, 86, 56, .6) }

@@ -2422,6 +2422,85 @@ function setupDragScroll() {
 }
 
 // =============================================================================
+// BOLINHAS DE POSIÇÃO de uma tira horizontal ([data-strip-dots="id-da-tira"]).
+// Sem elas a tira de planos rola em silêncio: quem não arrasta nunca descobre
+// que tem mais plano ali. Só aparecem quando a tira rola de verdade (na grade de
+// 4 colunas ficam escondidas), seguem a ordem VISUAL dos cards (o favorito vai
+// pra frente por CSS `order`) e levam pro card ao clicar.
+// =============================================================================
+function setupStripDots() {
+  document.querySelectorAll('[data-strip-dots]').forEach((dotsWrap) => {
+    const strip = document.getElementById(dotsWrap.getAttribute('data-strip-dots'));
+    if (!strip) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Ordem visual, não a do DOM: o `order` do CSS muda a fila abaixo de 1080px.
+    const cards = () =>
+      Array.from(strip.children).sort((a, b) => a.offsetLeft - b.offsetLeft);
+
+    let itens = [];
+    const montar = () => {
+      const lista = cards();
+      dotsWrap.innerHTML = lista
+        .map((card, i) => {
+          const rotulo = card.getAttribute('data-dot-rotulo') || `Plano ${i + 1}`;
+          const fav = card.classList.contains('featured') ? ' is-fav' : '';
+          return `<button type="button" class="strip-dot${fav}" aria-label="Ver o ${escapeHtml(rotulo)}"></button>`;
+        })
+        .join('');
+      itens = Array.from(dotsWrap.children);
+      itens.forEach((dot, i) => {
+        dot.addEventListener('click', () => {
+          const lista = cards();
+          const alvo = lista[i];
+          if (!alvo) return;
+          strip.scrollTo({
+            left: alvo.offsetLeft - lista[0].offsetLeft,
+            behavior: reduceMotion ? 'auto' : 'smooth',
+          });
+        });
+      });
+    };
+
+    const sincronizar = () => {
+      const rola = strip.scrollWidth - strip.clientWidth > 4;
+      dotsWrap.classList.toggle('is-on', rola);
+      if (!rola) return;
+      const lista = cards();
+      if (lista.length !== itens.length) montar();
+      const base = lista[0]?.offsetLeft ?? 0;
+      let atual = 0;
+      let menor = Infinity;
+      lista.forEach((card, i) => {
+        const d = Math.abs(card.offsetLeft - base - strip.scrollLeft);
+        if (d < menor) {
+          menor = d;
+          atual = i;
+        }
+      });
+      itens.forEach((dot, i) =>
+        dot.setAttribute('aria-current', i === atual ? 'true' : 'false')
+      );
+    };
+
+    montar();
+
+    let travado = false;
+    const agendar = () => {
+      if (travado) return;
+      travado = true;
+      window.requestAnimationFrame(() => {
+        travado = false;
+        sincronizar();
+      });
+    };
+    strip.addEventListener('scroll', agendar, { passive: true });
+    window.addEventListener('resize', agendar);
+    sincronizar();
+  });
+}
+
+// =============================================================================
 // DRAWER DO CARRINHO, painel lateral reutilizável (qualquer página).
 // Injetado uma vez no <body>. Fecha por X, Esc e clique no backdrop.
 // Anima com transições CSS (zeradas por prefers-reduced-motion no styles.css).
@@ -7261,6 +7340,7 @@ export function initSite() {
   setupHeroCarousel(); // fundo do hero em foto/vídeo (só age se houver [data-hero-carousel])
   setupVoltarAoTopo(); // botão flutuante "voltar ao topo" (todas as páginas)
   setupDragScroll(); // faixas [data-drag-scroll] arrastáveis com o mouse (planos)
+  setupStripDots(); // bolinhas de posição das tiras [data-strip-dots] (planos)
   renderIcons(); // ícones do header/footer + conteúdo estático restante
   initReveal(); // revela .reveal ao rolar (respeita prefers-reduced-motion)
 }
