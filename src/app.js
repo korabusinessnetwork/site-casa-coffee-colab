@@ -61,6 +61,7 @@ import {
   BellOff,
   BellRing,
   Ruler,
+  Search,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -118,6 +119,7 @@ const LUCIDE_ICONS = {
   BellOff,
   BellRing,
   Ruler,
+  Search,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -3115,8 +3117,10 @@ function setupCarousel(trackEl, { dots = false, autoplay = false, interval = 550
 }
 
 // =============================================================================
-// PÁGINA DE CATÁLOGO (loja.html), grid + filtro por categoria.
-// DOM: [data-catalog-grid] pro grid; [data-filter="all|<categoria>"] nos botões.
+// PÁGINA DE CATÁLOGO (loja.html), grid + busca + ordenação + filtro por categoria.
+// DOM: [data-catalog-grid] pro grid; [data-filter="all|<categoria>"] nos botões;
+// [data-catalog-search] pra busca; [data-catalog-sort] pra ordem;
+// [data-catalog-count] pro "mostrando X de Y".
 // =============================================================================
 function cardProdutoHTML(p) {
   // Esgotado / fora da vitrine: em vez de "adicionar", oferece "me avisa quando
@@ -3147,6 +3151,24 @@ function cardProdutoHTML(p) {
     </article>`;
 }
 
+// Texto sem acento e em minúscula, pra "cafe" achar "Café" e "vestuario" achar
+// "Vestuário". Mesma normalização do slugify, sem trocar o resto por hífen.
+function normalizarBusca(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+// `casa` = a ordem em que o catálogo foi escrito (a curadoria da vitrine).
+const ORDENACOES = {
+  casa: null,
+  'preco-asc': (a, b) => a.preco_centavos - b.preco_centavos,
+  'preco-desc': (a, b) => b.preco_centavos - a.preco_centavos,
+  nome: (a, b) => a.nome.localeCompare(b.nome, 'pt-BR'),
+};
+
 function initCatalogPage() {
   const grid = document.querySelector('[data-catalog-grid]');
   if (!grid) return;
@@ -3154,25 +3176,85 @@ function initCatalogPage() {
   grid.innerHTML = PRODUTOS.map(cardProdutoHTML).join('');
 
   const vazio = document.querySelector('[data-catalog-empty]');
+  const contagemEl = document.querySelector('[data-catalog-count]');
+  const buscaEl = document.querySelector('[data-catalog-search]');
+  const ordemEl = document.querySelector('[data-catalog-sort]');
   const botoes = Array.from(document.querySelectorAll('[data-filter]'));
 
-  const aplicarFiltro = (cat) => {
+  // Um item por card, na mesma ordem do PRODUTOS. O `texto` é o que a busca
+  // varre: nome + categoria + descrição, tudo já normalizado.
+  const cards = Array.from(grid.querySelectorAll('[data-produto]'));
+  const itens = PRODUTOS.map((p, i) => ({
+    produto: p,
+    card: cards[i],
+    texto: normalizarBusca(`${p.nome} ${CATEGORIAS[p.categoria] ?? ''} ${p.descricao}`),
+  }));
+
+  const estado = { categoria: 'all', busca: '', ordem: 'casa' };
+
+  const aplicar = () => {
+    const termo = normalizarBusca(estado.busca);
     let visiveis = 0;
-    grid.querySelectorAll('[data-produto]').forEach((card) => {
-      const mostra = cat === 'all' || card.getAttribute('data-categoria') === cat;
-      card.classList.toggle('hidden', !mostra);
+    itens.forEach((item) => {
+      const mostra =
+        (estado.categoria === 'all' || item.produto.categoria === estado.categoria) &&
+        (!termo || item.texto.includes(termo));
+      item.card.classList.toggle('hidden', !mostra);
       if (mostra) visiveis += 1;
     });
-    if (vazio) vazio.classList.toggle('hidden', visiveis > 0);
-    botoes.forEach((b) => {
-      const ativo = b.getAttribute('data-filter') === cat;
-      b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
-    });
+
+    // Reordena MOVENDO os nós, nunca re-renderizando: o que for injetado nos
+    // cards depois do primeiro render sobrevive ao move, e não sobreviveria a
+    // um innerHTML novo.
+    const comparar = ORDENACOES[estado.ordem];
+    const ordenados = comparar ? [...itens].sort((a, b) => comparar(a.produto, b.produto)) : itens;
+    ordenados.forEach((item) => grid.appendChild(item.card));
+
+    botoes.forEach((b) =>
+      b.setAttribute('aria-pressed', b.getAttribute('data-filter') === estado.categoria ? 'true' : 'false')
+    );
+
+    if (vazio) {
+      vazio.classList.toggle('hidden', visiveis > 0);
+      const titulo = vazio.querySelector('.e-title');
+      const corpo = vazio.querySelector('p:not(.e-title)');
+      if (titulo && corpo) {
+        if (termo) {
+          titulo.textContent = 'a gente não achou nada com esse nome';
+          corpo.textContent = 'tenta outra palavra, ou dá uma olhada em tudo que tem na vitrine.';
+        } else {
+          titulo.textContent = 'nada por aqui ainda';
+          corpo.textContent = 'mas fica tranquilo, logo a gente traz novidade pra vitrine.';
+        }
+      }
+    }
+
+    if (contagemEl) {
+      const filtrando = termo || estado.categoria !== 'all';
+      const item = (n) => (n === 1 ? '1 item' : `${n} itens`);
+      contagemEl.textContent =
+        visiveis === 0 ? '' : filtrando ? `${item(visiveis)} de ${itens.length}` : `${item(visiveis)} na vitrine`;
+    }
   };
 
   botoes.forEach((b) =>
-    b.addEventListener('click', () => aplicarFiltro(b.getAttribute('data-filter')))
+    b.addEventListener('click', () => {
+      estado.categoria = b.getAttribute('data-filter');
+      aplicar();
+    })
   );
+
+  if (buscaEl)
+    buscaEl.addEventListener('input', () => {
+      estado.busca = buscaEl.value;
+      aplicar();
+    });
+
+  if (ordemEl)
+    ordemEl.addEventListener('change', () => {
+      estado.ordem = ORDENACOES[ordemEl.value] !== undefined ? ordemEl.value : 'casa';
+      aplicar();
+    });
 
   // "adicionar" direto (produtos sem variante) abre o drawer
   grid.addEventListener('click', (e) => {
@@ -3182,7 +3264,7 @@ function initCatalogPage() {
     openDrawer();
   });
 
-  aplicarFiltro('all');
+  aplicar();
   renderIcons();
 }
 
