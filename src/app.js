@@ -12,6 +12,7 @@ import {
   createIcons,
   Coffee,
   Sunrise,
+  Home,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -66,6 +67,7 @@ import { createClient } from '@supabase/supabase-js';
 const LUCIDE_ICONS = {
   Coffee,
   Sunrise,
+  Home,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -163,12 +165,12 @@ const MARCA = {
 //   semLink — o item vira texto, sem clique. A PÁGINA CONTINUA NO AR: quem
 //             souber a URL entra direto. É só o menu que para de oferecer.
 const NAV = [
-  { rotulo: 'Home', href: '/home' },
-  { rotulo: 'O Casa', href: '/o-casa' },
-  { rotulo: 'Cardápio', href: '/cardapio' },
-  { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true },
-  { rotulo: 'Planos', href: '/planos' },
-  { rotulo: 'Colab', href: '/colab' },
+  { rotulo: 'Home', href: '/home', icone: 'home' },
+  { rotulo: 'O Casa', href: '/o-casa', icone: 'heart' },
+  { rotulo: 'Cardápio', href: '/cardapio', icone: 'utensils' },
+  { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true, icone: 'shopping-bag' },
+  { rotulo: 'Planos', href: '/planos', icone: 'sparkles' },
+  { rotulo: 'Colab', href: '/colab', icone: 'users' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
@@ -544,8 +546,21 @@ function renderHeader() {
     return `<a href="${item.href}"${marca}${item.selo ? ' class="tem-selo"' : ''}${extra}>${item.rotulo}${selo}</a>`;
   };
 
+  // No mobile cada item ganha um ícone (à esquerda do rótulo) pra ficar
+  // escaneável num toque — o desktop segue só texto, então é um render à parte.
+  const navItemMobile = (item) => {
+    const on = item.href === ativo;
+    const ic = `<i data-lucide="${item.icone}" class="menu-ico" aria-hidden="true"></i>`;
+    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
+    const marca = on ? ' aria-current="page"' : '';
+    if (item.semLink) {
+      return `<span class="nav-off${item.selo ? ' tem-selo' : ''}"${marca}>${ic}<span class="menu-txt">${item.rotulo}</span>${selo}</span>`;
+    }
+    return `<a href="${item.href}"${marca}${item.selo ? ' class="tem-selo"' : ''} data-menu-link>${ic}<span class="menu-txt">${item.rotulo}</span>${selo}</a>`;
+  };
+
   const linksDesktop = NAV.map((item) => navItem(item)).join('');
-  const linksMobile = NAV.map((item) => navItem(item, ' data-menu-link')).join('');
+  const linksMobile = NAV.map(navItemMobile).join('');
 
   slot.innerHTML = `
     <header id="topo" class="site-header" data-site-header>
@@ -592,12 +607,19 @@ function renderHeader() {
         </div>
       </div>
 
-      <!-- Menu mobile (dropdown sob o header) -->
+      <!-- Menu mobile (painel paper sob o header, com scrim) -->
       <div id="menu-mobile" class="menu-mobile hidden" data-menu-panel>
+        <div class="menu-scrim" data-menu-scrim aria-hidden="true"></div>
         <nav class="menu-inner" aria-label="Navegação mobile">
+          <p class="menu-rotulo">navegar</p>
           ${linksMobile}
+          <p class="menu-rotulo menu-rotulo-conta">minha conta</p>
           <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
           <div data-auth-slot-mobile></div>
+          <!-- O botão dourado "Visite-nos" some no mobile: aqui ele volta gentil -->
+          <a href="/o-casa" class="menu-cta" data-menu-link>
+            <i data-lucide="map-pin" aria-hidden="true"></i>passa aqui?
+          </a>
         </nav>
       </div>
     </header>
@@ -630,24 +652,28 @@ function initHeaderInteractions() {
 
   // Menu hambúrguer (a animação em X vem do CSS via aria-expanded na .burger)
   if (toggle && panel) {
+    const scrim = panel.querySelector('[data-menu-scrim]');
     const fechar = () => {
       panel.classList.add('hidden');
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-label', 'Abrir menu');
+      document.body.classList.remove('menu-aberto');
     };
     const abrir = () => {
       panel.classList.remove('hidden');
       toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-label', 'Fechar menu');
+      document.body.classList.add('menu-aberto'); // trava o scroll da página atrás
     };
     toggle.addEventListener('click', () => {
       const aberto = toggle.getAttribute('aria-expanded') === 'true';
       aberto ? fechar() : abrir();
     });
-    // Fecha ao clicar num link ou apertar Esc
+    // Fecha ao clicar num link, no escurecido (scrim) ou apertar Esc
     panel.querySelectorAll('[data-menu-link]').forEach((el) =>
       el.addEventListener('click', fechar)
     );
+    scrim?.addEventListener('click', fechar);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') fechar();
     });
@@ -3640,7 +3666,7 @@ function updateAuthUI(session) {
   if (slotM) {
     slotM.innerHTML = session
       ? authMobileLogado(nome)
-      : `<a href="/login" data-menu-link>entrar</a>`;
+      : authMobileDeslogado();
   }
 
   // Liga o "sair" dos botões do header (o painel liga o seu próprio ao renderizar).
@@ -3673,6 +3699,13 @@ function authDesktopLogado(nome, inicial) {
         <p class="text-center text-sm text-muted">só um instante…</p>
       </div>
     </div>`;
+}
+
+// Markup do usuário deslogado no menu mobile: entrar + criar conta, com ícone.
+function authMobileDeslogado() {
+  return `
+    <a href="/login" class="menu-conta-link" data-menu-link><i data-lucide="user" class="h-5 w-5 text-coral"></i>entrar</a>
+    <a href="/cadastro" class="menu-conta-link" data-menu-link><i data-lucide="sparkles" class="h-5 w-5 text-coral"></i>criar conta</a>`;
 }
 
 // Markup do usuário logado no drawer mobile: lista compacta (saldo + links).
