@@ -329,20 +329,20 @@ a.txt-link.gold { color: var(--gold) }
    (overscroll-behavior:contain evita empurrar a página ao chegar na ponta). */
 .menu-mobile { position: fixed; inset: 0; z-index: 45; pointer-events: none }
 .menu-mobile .menu-inner {
-  position: absolute; top: calc(var(--hh) + 8px); right: 12px; left: auto;
+  position: absolute; top: calc(var(--hh) + 2px); right: 12px; left: auto;
   width: min(320px, calc(100vw - 24px));
-  max-height: calc(100dvh - var(--hh) - 24px);
+  max-height: calc(100dvh - var(--hh) - 14px);
   overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   pointer-events: auto;
   background: var(--paper); border: 1px solid var(--line); border-radius: 18px;
   box-shadow: 0 26px 60px -22px rgba(27, 22, 17, .6), 0 8px 20px -14px rgba(27, 22, 17, .4);
-  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  padding: 6px 12px calc(12px + env(safe-area-inset-bottom));
   transform-origin: top right; animation: menuInner .22s var(--e) both;
 }
 @keyframes menuInner { from { opacity: 0; transform: translateY(-8px) scale(.96) } to { opacity: 1; transform: none } }
 
 /* rótulo de seção (navegar / minha conta): guia o olho pelos dois blocos */
-.menu-mobile .menu-rotulo { font-family: var(--sans); text-transform: uppercase; letter-spacing: .16em; font-size: 9.5px; font-weight: 700; color: var(--muted); margin: 8px 8px 2px }
+.menu-mobile .menu-rotulo { font-family: var(--sans); text-transform: uppercase; letter-spacing: .16em; font-size: 9.5px; font-weight: 700; color: var(--muted); margin: 4px 8px 2px }
 .menu-mobile .menu-rotulo-conta { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line) }
 
 /* linha de navegação: ícone + rótulo, alvo de toque confortável mas compacto */
