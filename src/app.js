@@ -3381,19 +3381,74 @@ function initPresentearPage() {
   msgEl?.addEventListener('input', atualizarContador);
   atualizarContador();
 
-  const avisar = (msg) => {
+  const avisar = (msg, { tipo = 'warn', rolar = true } = {}) => {
     if (!nota) return;
     nota.textContent = msg; // textContent (nunca innerHTML) → sem XSS
+    nota.classList.remove('warn', 'ok');
+    nota.classList.add(tipo);
     nota.classList.remove('hidden');
-    nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  };
-
-  const irProLogin = () => {
-    const destino = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.href = `/login?redirect=${destino}`;
+    if (rolar) nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
   const tierEscolhido = () => root.querySelector('input[name="gift-tier"]:checked')?.value || '';
+
+  // Rascunho do presente (plano + bilhete). A pessoa escolhe o tier e escreve o
+  // bilhete, e só no "presentear" descobre que precisa entrar: sem isto, voltava
+  // do login com a página em branco e tinha que refazer tudo. Guarda antes de sair
+  // e repõe na volta, uma vez só.
+  const RASCUNHO_KEY = 'casa_presente_rascunho';
+
+  const guardarRascunho = () => {
+    try {
+      localStorage.setItem(
+        RASCUNHO_KEY,
+        JSON.stringify({ tier: tierEscolhido(), mensagem: msgEl?.value || '' }),
+      );
+    } catch {
+      /* sem localStorage (aba anônima, cota cheia): segue sem guardar */
+    }
+  };
+
+  const reporRascunho = () => {
+    let bruto = null;
+    try {
+      bruto = localStorage.getItem(RASCUNHO_KEY);
+      if (bruto) localStorage.removeItem(RASCUNHO_KEY); // repôs, esqueceu
+    } catch {
+      return;
+    }
+    if (!bruto) return;
+
+    let rascunho;
+    try {
+      rascunho = JSON.parse(bruto);
+    } catch {
+      return;
+    }
+    if (!rascunho || typeof rascunho !== 'object') return;
+
+    // O tier só vale se casar com um dos planos que estão na tela.
+    const radio = [...root.querySelectorAll('input[name="gift-tier"]')].find(
+      (r) => r.value === rascunho.tier,
+    );
+    const bilhete = typeof rascunho.mensagem === 'string' ? rascunho.mensagem.slice(0, 280) : '';
+    const tinhaAlgo = Boolean(bilhete) || Boolean(radio && !radio.checked);
+
+    if (radio) radio.checked = true;
+    if (msgEl && bilhete) {
+      msgEl.value = bilhete;
+      atualizarContador();
+    }
+    if (tinhaAlgo) {
+      avisar('guardamos teu plano e teu bilhete, é só seguir 💛', { tipo: 'ok', rolar: false });
+    }
+  };
+
+  const irProLogin = () => {
+    guardarRascunho(); // pra voltar com o plano e o bilhete no lugar
+    const destino = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login?redirect=${destino}`;
+  };
 
   btn?.addEventListener('click', async () => {
     const tier = tierEscolhido();
@@ -3423,6 +3478,8 @@ function initPresentearPage() {
       btn.textContent = original;
     }
   });
+
+  reporRascunho(); // volta do login com o que a pessoa já tinha escolhido
 }
 
 // Mural do Casa (/o-casa): recados de assinante como post-its na parede. Leitura
