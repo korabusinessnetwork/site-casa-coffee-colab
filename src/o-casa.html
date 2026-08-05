@@ -62,9 +62,93 @@
       </section>
 
       <!-- ===================================================================
-           DNA — o que o Casa é (4 valores)
+           HUB — quatro portas logo abaixo da dobra: a página é o ponto de
+           partida pro resto do site, então a primeira coisa depois do hero é
+           pra onde ir. O primeiro cartão é escuro (cardápio = destino
+           principal); os outros três são âncoras internas.
            =================================================================== -->
-      <section class="section">
+      <section class="section hub-sec">
+        <div class="wrap">
+          <div class="hub-head reveal">
+            <h2 class="title md">Por onde tu quer começar?</h2>
+            <span class="hub-nota">quatro portas da mesma casa</span>
+          </div>
+
+          <div class="hub-grid">
+            <a href="/cardapio" class="hub-card is-dark reveal">
+              <span class="icon-badge gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 10h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+                  <path d="M17 11h2.2a2.3 2.3 0 0 1 0 4.6H17" />
+                  <path d="M8 3.5c-.6.8-.6 1.7 0 2.5M12 3.5c-.6.8-.6 1.7 0 2.5" />
+                </svg>
+              </span>
+              <div>
+                <h3 class="title sm">Cardápio</h3>
+                <p>Grão moído na hora, pão na chapa, bolo que sai do forno.</p>
+                <span class="hub-link">ver o cardápio
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+                </span>
+              </div>
+            </a>
+
+            <a href="#mural" class="hub-card reveal">
+              <span class="icon-badge coral">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9l6-6V5a2 2 0 0 0-2-2z" />
+                  <path d="M14 21v-5a1 1 0 0 1 1-1h5" />
+                </svg>
+              </span>
+              <div>
+                <h3 class="title sm">Mural do Casa</h3>
+                <p>Recados de quem faz parte, colados na parede da casa.</p>
+                <span class="hub-link">ler a parede
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+                </span>
+              </div>
+            </a>
+
+            <a href="#passa-aqui" class="hub-card reveal">
+              <span class="icon-badge coral">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 10c0 5.5-8 12-8 12s-8-6.5-8-12a8 8 0 0 1 16 0z" />
+                  <circle cx="12" cy="10" r="2.6" />
+                </svg>
+              </span>
+              <div>
+                <h3 class="title sm">Passa aqui</h3>
+                <p>Endereço, horário e a rota até a Hamburgo Velho.</p>
+                <span class="hub-link">como chegar
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+                </span>
+              </div>
+            </a>
+
+            <a href="#tour" class="hub-card reveal">
+              <span class="icon-badge coral">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18" />
+                </svg>
+              </span>
+              <div>
+                <h3 class="title sm">Tour 360°</h3>
+                <p>Entra, dá uma volta pelo salão antes de vir.</p>
+                <span class="hub-link">dar uma volta
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
+                </span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           DNA — o que o Casa é (4 valores). Ganhou id pra âncora; os badges
+           de ícone usam coral/gold/green/coral (o azul saiu, era o mais fora
+           da paleta da marca).
+           =================================================================== -->
+      <section class="section" id="o-casa">
         <div class="wrap">
           <div class="section-head reveal">
             <div>
@@ -118,7 +202,7 @@
             </article>
 
             <article class="card reveal">
-              <span class="icon-badge blue">
+              <span class="icon-badge coral">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M4 10h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
                   <path d="M17 11h2.2a2.3 2.3 0 0 1 0 4.6H17" />
@@ -136,33 +220,10 @@
       </section>
 
       <!-- ===================================================================
-           SELO — Feito no Casa (seção escura)
+           LOCALIZAÇÃO — endereço, horário e mapa. Ganhou id="passa-aqui" pra
+           âncora do hub; sobe pra antes do tour e do mural.
            =================================================================== -->
-      <section class="section ink">
-        <div class="wrap">
-          <div class="reveal" style="max-width: 620px; margin: 0 auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 18px">
-            <span class="icon-badge lg gold">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M4 10h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
-                <path d="M17 11h2.2a2.3 2.3 0 0 1 0 4.6H17" />
-                <path d="M8 3.5c-.6.8-.6 1.7 0 2.5M12 3.5c-.6.8-.6 1.7 0 2.5" />
-              </svg>
-            </span>
-            <span class="eyebrow gold">Nosso selo</span>
-            <h2 class="title lg">Feito no Casa</h2>
-            <p class="lede" style="max-width: 52ch">
-              É o carimbo que a gente dá pro que sai daqui com a nossa cara: o café, a
-              comida, o produto da loja, a colab da vez. Se leva o selo, foi feito com
-              tempo, com mão e com carinho.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- ===================================================================
-           LOCALIZAÇÃO — endereço, horário e mapa
-           =================================================================== -->
-      <section class="section">
+      <section class="section" id="passa-aqui">
         <div class="wrap">
           <div class="duo-info reveal">
             <div>
@@ -206,28 +267,34 @@
               <a href="/cardapio" class="btn solid" style="margin-top: 28px">Ver o cardápio</a>
             </div>
 
-            <!-- Mapa do Google. O gradiente do .map-wrap segura o quadro enquanto o
+            <!-- Coluna direita: mapa + como chegar (os botões ficam logo ABAIXO
+                 do mapa). O gradiente do .map-wrap segura o quadro enquanto o
                  iframe carrega (e se a pessoa bloquear scripts de terceiros). -->
-            <div class="map-wrap">
-              <iframe
-                src="https://www.google.com/maps?q=Casa%20Coffee%20Colab%2C%20R.%20Victor%20Hugo%20Kunz%2C%20411%2C%20Hamburgo%20Velho%2C%20Novo%20Hamburgo%20-%20RS&z=17&hl=pt-BR&output=embed"
-                title="O Casa no mapa, na R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS"
-                loading="lazy"
-                referrerpolicy="no-referrer-when-downgrade"
-                allowfullscreen
-              ></iframe>
+            <div class="map-col">
+              <div class="map-wrap">
+                <iframe
+                  src="https://www.google.com/maps?q=Casa%20Coffee%20Colab%2C%20R.%20Victor%20Hugo%20Kunz%2C%20411%2C%20Hamburgo%20Velho%2C%20Novo%20Hamburgo%20-%20RS&z=17&hl=pt-BR&output=embed"
+                  title="O Casa no mapa, na R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS"
+                  loading="lazy"
+                  referrerpolicy="no-referrer-when-downgrade"
+                  allowfullscreen
+                ></iframe>
+              </div>
+              <!-- Como chegar: botões de rota (Google Maps + Waze) + copiar
+                   endereço. Preenchido por initComoChegar a partir do MARCA — o
+                   mapa acima só MOSTRA onde fica; aqui entra a ação de chegar. -->
+              <div class="como-chegar reveal" data-como-chegar aria-label="Como chegar"></div>
             </div>
           </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           TOUR 360 — a foto esférica que a gente tem no Google Maps. Vem logo
-           depois do mapa: primeiro a pessoa vê ONDE fica, aí entra e dá a volta.
-           Mesmo esquema do mapa: o gradiente do .tour-wrap segura o quadro
-           enquanto o iframe carrega.
+           TOUR 360 — a foto esférica que a gente tem no Google Maps. Ganhou
+           id="tour" pra âncora do hub; continua logo depois do mapa: primeiro
+           a pessoa vê ONDE fica, aí entra e dá a volta.
            =================================================================== -->
-      <section class="section">
+      <section class="section" id="tour">
         <div class="wrap">
           <div class="section-head reveal">
             <div>
@@ -248,13 +315,105 @@
           <p class="tour-dica reveal">Arrasta pra girar o salão e olha de onde tu quiser 💛</p>
         </div>
       </section>
+
+      <!-- ===================================================================
+           MURAL DO CASA — desceu pro fim da página (era o 2º bloco, logo
+           depois do DNA) e perdeu a classe .ink: agora é uma parede offwhite,
+           não a parede de noite. Todo o markup interno é o mesmo, o app.js
+           (initMuralPage) continua preenchendo do mesmo jeito, só o CSS mudou.
+           =================================================================== -->
+      <section class="section mural-sec" id="mural" aria-label="Mural do Casa">
+        <div class="wrap">
+          <div class="mural-head reveal">
+            <span class="icon-badge lg coral">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9l6-6V5a2 2 0 0 0-2-2z" />
+                <path d="M14 21v-5a1 1 0 0 1 1-1h5" />
+              </svg>
+            </span>
+            <span class="eyebrow coral">Recados na parede</span>
+            <h2 class="title lg">O Mural do Casa</h2>
+            <p class="lede">
+              um cantinho de quem faz parte. Deixa um recado, uma dica, um obrigado,
+              e cola um pouquinho de ti na parede da casa.
+            </p>
+          </div>
+
+          <div data-mural class="mural-wall">
+            <!-- Compose (assinante). O app.js mostra/esconde conforme o estado. -->
+            <div class="mural-compose reveal" data-mural-compose hidden>
+              <textarea
+                data-mural-texto
+                class="mural-input"
+                rows="3"
+                maxlength="240"
+                placeholder="escreve teu recado pra parede…"
+              ></textarea>
+              <div class="mural-compose-row">
+                <span class="mural-count" data-mural-count>0/240</span>
+                <button type="button" class="btn solid sm" data-mural-btn>colar no mural</button>
+              </div>
+              <p class="hidden text-sm" data-mural-msg role="status" aria-live="polite"></p>
+            </div>
+
+            <!-- Estado alternativo (deslogado / logado sem plano). Preenchido pelo app.js. -->
+            <p class="mural-cta reveal" data-mural-cta hidden></p>
+
+            <!-- A parede -->
+            <div class="mural-grid" data-mural-lista aria-live="polite"></div>
+            <p class="mural-vazio reveal" data-mural-vazio hidden>a parede tá esperando o primeiro recado. 💛</p>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer injetado pelo app.js -->
     <div id="site-footer"></div>
 
-    <!-- Estilos pontuais desta página (layout do bloco de localização) -->
+    <!-- Estilos pontuais desta página -->
     <style>
+      /* ── HUB: quatro portas ────────────────────────────────────────────
+         Grid de 4 que nunca quebra 3+1: a base mínima é pequena o bastante
+         pra caber quatro colunas na largura do .wrap, e cai pra 2 e 1 sozinha. */
+      .hub-sec { padding-bottom: 0 }
+      .hub-head {
+        display: flex; align-items: baseline; justify-content: space-between;
+        gap: 24px; flex-wrap: wrap; margin-bottom: 30px;
+      }
+      .hub-head .title { margin: 0 }
+      .hub-nota { color: var(--ink-2); font-size: 13px }
+      .hub-grid {
+        display: grid; gap: 18px;
+        grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+      }
+      .hub-card {
+        display: flex; flex-direction: column; justify-content: space-between;
+        gap: 40px; min-height: 232px; padding: 24px;
+        border-radius: 16px; background: var(--cream, #f7f2e9);
+        border: 1px solid var(--line, #e2d8c4); color: var(--ink);
+        text-decoration: none;
+        transition: transform 0.2s var(--e), box-shadow 0.2s var(--e);
+      }
+      .hub-card:hover { transform: translateY(-4px); box-shadow: 0 22px 40px -26px rgba(36, 28, 19, 0.45) }
+      /* o cartão do cardápio é o destino principal: vai escuro pra puxar o olho */
+      .hub-card.is-dark { background: var(--ink); border-color: var(--ink); color: var(--cream-soft, #f7f2e9) }
+      .hub-card.is-dark:hover { box-shadow: 0 22px 40px -26px rgba(36, 28, 19, 0.8) }
+      .hub-card.is-dark .title { color: var(--cream-soft, #f7f2e9) }
+      .hub-card .title { margin: 0 }
+      .hub-card p { margin: 8px 0 0; font-size: 14px; line-height: 1.6; color: var(--ink-2) }
+      .hub-card.is-dark p { color: #c9bca6 }
+      .hub-link {
+        display: inline-flex; align-items: center; gap: 7px; margin-top: 16px;
+        font-size: 13px; font-weight: 600; color: var(--coral);
+      }
+      .hub-card.is-dark .hub-link { color: var(--gold-2) }
+      .hub-link svg { width: 14px; height: 14px }
+      .hub-card:hover .hub-link svg { transform: translateX(2px); transition: transform 0.18s var(--e) }
+      @media (prefers-reduced-motion: reduce) {
+        .hub-card, .hub-card:hover { transform: none; transition: none }
+      }
+
+      /* ── Localização + tour (inalterado) ─────────────────────────────── */
       .duo-info { display: grid; gap: clamp(28px, 4vw, 52px); align-items: center }
       @media (min-width: 900px) { .duo-info { grid-template-columns: 1fr 1fr } }
       .map-wrap { position: relative; border-radius: 14px; overflow: hidden; min-height: 300px; background: linear-gradient(155deg, #e7ddc9, #c6b898) }
@@ -270,6 +429,96 @@
       /* .row nasce como linha de extrato (rótulo numa ponta, valor na outra). Aqui é
          ícone + texto: o texto encosta no ícone e as duas linhas dividem a mesma margem. */
       .duo-info .row { justify-content: flex-start }
+
+      /* ── Mural do Casa: parede offwhite ──────────────────────────────────
+         O mural saiu da seção .ink e virou uma parede clara no fim da página.
+         Como o fundo agora é claro, TODO o que era repaginado pro escuro
+         voltou: texto de interface em --ink-2, links em coral, e as sombras
+         dos post-its ficaram leves (sombra pesada em fundo claro vira sujeira).
+         O papel dos recados continua o mesmo — é papel dos dois jeitos. */
+      .mural-sec { position: relative; overflow: hidden; background: #fbf8f1; border-top: 1px solid #e9e1d2 }
+      /* um respiro de luz descendo do topo, agora em claro sobre claro */
+      .mural-sec::before {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(115% 62% at 50% 0%, rgba(255, 255, 255, 0.7), transparent 66%);
+      }
+      .mural-sec > .wrap { position: relative }
+      .mural-head {
+        max-width: 620px; margin: 0 auto; text-align: center;
+        display: flex; flex-direction: column; align-items: center; gap: 16px;
+      }
+      .mural-head .lede { color: var(--ink-2); max-width: 52ch; margin: 0 }
+      .mural-wall { margin-top: clamp(32px, 4.5vw, 52px) }
+
+      .mural-compose {
+        max-width: 640px; margin: 0 auto 40px; padding: 18px;
+        border-radius: 16px; background: #fff;
+        border: 1.5px solid #e9e1d2;
+      }
+      /* o campo é o papel antes de virar post-it: claro, manuscrito, com a
+         mesma sombra de coisa apoiada na parede. */
+      .mural-input {
+        width: 100%; padding: 13px 15px; border-radius: 10px; resize: vertical;
+        min-height: 78px; background: #fffdf6; color: #2a2118;
+        border: 1px solid var(--line, #e2d8c4);
+        font-family: 'Caveat', 'Segoe Script', cursive; font-size: 20px; line-height: 1.35;
+        box-shadow: inset 0 1px 3px rgba(36, 28, 19, 0.05);
+      }
+      .mural-input::placeholder { color: #9b8f7b }
+      .mural-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--coral) }
+      .mural-compose-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px }
+      .mural-count { color: var(--ink-2); font-size: 12px }
+      .mural-cta {
+        max-width: 560px; margin: 0 auto 32px; text-align: center;
+        color: var(--ink-2); font-size: 15px; line-height: 1.6;
+      }
+      .mural-cta a { color: var(--coral); font-weight: 600; text-decoration: underline; text-underline-offset: 3px }
+      .mural-cta a:hover { color: var(--coral-2) }
+
+      .mural-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: clamp(20px, 2.6vw, 28px); align-items: start;
+      }
+      .mural-note {
+        position: relative; padding: 22px 18px 16px; border-radius: 3px;
+        min-height: 134px; display: flex; flex-direction: column; gap: 10px;
+        box-shadow: 0 14px 26px -16px rgba(36, 28, 19, 0.42);
+        transition: transform 0.18s var(--e), box-shadow 0.18s var(--e);
+      }
+      .mural-note:nth-child(4n+1) { background: #fdefb4; transform: rotate(-1.6deg) }
+      .mural-note:nth-child(4n+2) { background: #fbd2c5; transform: rotate(1.4deg) }
+      .mural-note:nth-child(4n+3) { background: #d3e8c8; transform: rotate(-0.8deg) }
+      .mural-note:nth-child(4n+4) { background: #d0e1f2; transform: rotate(1.8deg) }
+      .mural-note:hover {
+        transform: rotate(0) scale(1.03); z-index: 2;
+        box-shadow: 0 20px 34px -16px rgba(36, 28, 19, 0.5);
+      }
+      /* a fitinha crepe que segura o papel na parede */
+      .mural-note::before {
+        content: ''; position: absolute; top: -8px; left: 50%; transform: translateX(-50%) rotate(-1.5deg);
+        width: 52px; height: 16px; border-radius: 2px;
+        background: rgba(255, 253, 246, 0.9);
+        box-shadow: 0 2px 5px rgba(36, 28, 19, 0.18);
+      }
+      .mural-note p {
+        margin: 0; font-family: 'Caveat', 'Segoe Script', cursive;
+        font-size: 21px; line-height: 1.3; color: #2a2118; white-space: pre-wrap;
+        word-break: break-word; flex: 1;
+      }
+      .mural-note .mural-autor { font-family: var(--sans); font-size: 12px; color: #6b5c48; font-weight: 600 }
+      .mural-note .mural-apagar {
+        position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border: 0;
+        border-radius: 50%; background: rgba(0, 0, 0, 0.08); color: #4a3d2e; cursor: pointer;
+        font-size: 15px; line-height: 1; display: none; place-items: center;
+      }
+      .mural-note:hover .mural-apagar, .mural-note:focus-within .mural-apagar { display: grid }
+      .mural-vazio { margin-top: 26px; text-align: center; color: var(--ink-2); font-size: 15px }
+      @media (max-width: 420px) {
+        .mural-grid { grid-template-columns: 1fr }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mural-note, .mural-note:hover { transform: none; transition: none }
+      }
     </style>
 
     <script type="module" src="/app.js"></script>

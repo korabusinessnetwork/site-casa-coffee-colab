@@ -115,7 +115,10 @@ const sql = migFiles.map((f) => readFileSync(join(migDir, f), 'utf8')).join('\n'
 
 // tabelas criadas em public
 const criadas = new Set();
-for (const m of sql.matchAll(/create table if not exists\s+public\.(\w+)/gi)) criadas.add(m[1]);
+// `if not exists` é OPCIONAL: uma tabela nova criada sem essa cláusula (SQL válido)
+// também precisa ser detectada — senão ela escapa do gate de RLS e um `enable row
+// level security` esquecido passaria batido.
+for (const m of sql.matchAll(/create table\s+(?:if not exists\s+)?public\.(\w+)/gi)) criadas.add(m[1]);
 // tabelas com RLS habilitada
 const comRls = new Set();
 for (const m of sql.matchAll(/alter table\s+public\.(\w+)\s+enable row level security/gi)) comRls.add(m[1]);

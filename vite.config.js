@@ -10,16 +10,38 @@ const root = resolve(__dirname, 'src');
 // O dev server do Vite não faz isso sozinho, então este middleware anexa o .html
 // quando o arquivo existe — assim /o-casa funciona igual em dev e em prod, e os
 // links do site podem ser escritos limpos num lugar só.
+// Só navegação de página deve cair na 404 — pedidos internos do dev server
+// (módulos, HMR, imagens) pedem outra coisa no Accept e seguem o caminho normal.
+function aceitaHtml(req) {
+  return (req.headers.accept || '').includes('text/html');
+}
+
 function urlsLimpasNoDev() {
   return {
     name: 'casa-urls-limpas',
     configureServer(server) {
-      server.middlewares.use((req, _res, next) => {
+      server.middlewares.use((req, res, next) => {
         const [caminho, query] = (req.url || '/').split('?');
+        // Rota dinâmica: /gente/{handle} → gente.html (o JS lê o handle do path).
+        // Espelha o rewrite do vercel.json pra o dev funcionar igual à prod.
+        if (/^\/gente\/[^/]+\/?$/.test(caminho)) {
+          req.url = '/gente.html' + (query ? '?' + query : '');
+          return next();
+        }
         if (caminho !== '/' && !extname(caminho)) {
           const arquivo = resolve(root, '.' + caminho + '.html');
           if (existsSync(arquivo)) {
             req.url = caminho + '.html' + (query ? '?' + query : '');
+          } else if (aceitaHtml(req) && !caminho.startsWith('/@')) {
+            // Endereço que não existe. Sem isto o fallback de SPA do Vite serviria
+            // o index.html, que redireciona pra /home — o link quebrado sumiria em
+            // silêncio. Em produção quem faz este papel é a Vercel, que serve o
+            // 404.html da raiz do dist automaticamente (com status 404).
+            // O `send` do Vite escreve 200 na resposta antes de mandar o HTML, então
+            // travar o statusCode é o que faz o dev devolver 404 de verdade (igual à
+            // Vercel), e não uma página de erro com cara de página que existe.
+            Object.defineProperty(res, 'statusCode', { get: () => 404, set: () => {}, configurable: true });
+            req.url = '/404.html';
           }
         }
         next();
@@ -49,12 +71,16 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: resolve(root, 'index.html'),
+        // A Vercel serve este arquivo em qualquer URL que não existe (status 404).
+        naoEncontrado: resolve(root, '404.html'),
         home: resolve(root, 'home.html'),
         oCasa: resolve(root, 'o-casa.html'),
         cardapio: resolve(root, 'cardapio.html'),
         loja: resolve(root, 'loja.html'),
         produto: resolve(root, 'produto.html'),
         planos: resolve(root, 'planos.html'),
+        presentear: resolve(root, 'presentear.html'),
+        gente: resolve(root, 'gente.html'),
         colab: resolve(root, 'colab.html'),
         cadastro: resolve(root, 'cadastro.html'),
         login: resolve(root, 'login.html'),

@@ -71,6 +71,12 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - Palavras: *gourmet, luxo, premium, exclusivo, hype, trend*.
 - Imperativos agressivos: *"aproveita já!"*, *"corre!"*.
 - Qualquer gamificação com cara de cassino (roleta, "gire pra ganhar", contadores de urgência falsos).
+- **Travessão (`—`) em texto que o usuário vê.** No copy visível (HTML e strings do
+  `app.js`/`admin.js` que renderizam na tela), **nunca** usar `—` como pontuação de frase —
+  usar **vírgula** no lugar. Vale pra qualquer texto novo. **Exceção:** o `—` sozinho como
+  glifo de "vazio/sem valor" (célula de tabela vazia, saldo carregando: `valor || '—'`) pode
+  ficar — ali a vírgula quebraria a tela. Em comentário de código, documentação e migrations
+  o `—` segue liberado (o usuário não vê).
 
 ---
 
@@ -116,9 +122,13 @@ cores da marca, via utilitários no `styles.css`:
 
 ## Carrossel
 
-- Função única `setupCarousel(trackEl, { dots, autoplay, interval })` no `app.js` — serve os 3 tracks.
+- Função `setupCarousel(trackEl, { dots, autoplay, interval })` no `app.js` — serve os tracks
+  `[data-carousel="cards"]` (hoje só a **colab**), via `initCarousels`.
 - Base em **scroll-snap** horizontal (`.carousel-track`), navegável por swipe/scroll, teclado (setas) e dots.
-- **Autoplay** (só no hero) respeita `prefers-reduced-motion` e pausa em hover/foco/toque.
+- A função **suporta** dots e autoplay (com `prefers-reduced-motion` e pausa em hover/foco/toque),
+  mas nenhuma página os liga hoje (a colab chama com `dots:false, autoplay:false`).
+- **O hero da home NÃO usa `setupCarousel`** — é o `setupHeroCarousel` (fundo full-bleed em
+  foto/vídeo por tempo, contrato `[data-hero-carousel]`), chamado no bootstrap.
 - Contrato de DOM: `[data-carousel]` › `[data-carousel-track]` (+ opcionais `[data-dots]`,
   `[data-carousel-prev]`, `[data-carousel-next]`).
 
@@ -144,6 +154,16 @@ cores da marca, via utilitários no `styles.css`:
   > `.prod` mora fora de `@layer`, então vence o `.hidden` do Tailwind por ordem de fonte —
   > por isso existe o `.prod.hidden { display: none }` no `styles.css` (mesmo caso do
   > `.notice`). Sem ele, o filtro marca o card como escondido e ele fica na tela.
+- **Tabela de medidas (roupa)**: campo opcional `medidas` (`{ colunas[], linhas[][], nota }`,
+  valores em centímetros) nos itens de `vestuario` — a loja não tem provador, então quem
+  compra precisa conferir o tamanho antes, senão vira troca. A `initProductPage` renderiza
+  um `<details>` **"ver a tabela de medidas"** logo abaixo das variantes (recolhido, pra não
+  empurrar o botão de comprar), com as medidas **da peça** (não do corpo), a nota de
+  modelagem do produto e o recado de que a medida pode variar 1 ou 2 cm. Aparece também no
+  produto **esgotado** (quem espera a volta já quer saber o tamanho). Estilo `.medidas-*` no
+  `styles.css`: a tabela cabe inteira a partir de ~360px e, mais estreito que isso, rola
+  dentro da própria caixa (`.medidas-scroll`) — a coluna do grid leva `min-w-0` pra página
+  nunca ganhar scroll lateral.
 - **Páginas**: `src/loja.html` (grid + busca + ordenação + filtro por categoria) e
   `src/produto.html` (lê `?slug=`, renderiza detalhe; estado vazio gentil se não achar).
   Ambas registradas no `rollupOptions.input` do `vite.config.js`.
@@ -177,8 +197,8 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Página        | Arquivo             | URL                | Conteúdo                                                            |
 |---------------|---------------------|--------------------|--------------------------------------------------------------------|
 | Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
-| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, selo "Feito no Casa", localização (mapa TODO) |
-| Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) — informativo, **sem carrinho**   |
+| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, Mural do Casa (seção escura), localização (mapa + "como chegar"), tour 360 |
+| Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) + tirinha de atalhos entre as seções — informativo, **sem carrinho** |
 | Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria                                    |
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=` (conta como "Loja" na nav)                    |
 | Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
@@ -189,6 +209,15 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Perfil        | `conta/perfil.html` | `/conta/perfil`    | área logada (protegida): dados, pontos, plano; editar nome/telefone |
 
 A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
+
+**URL que não existe cai no `src/404.html`** (`/asdf`, link velho, letra trocada), com o
+mesmo estado vazio gentil do `/produto` e do `/gente`: header/footer normais, o caminho
+tentado mostrado (`init404Page`, escapado) e saídas pra home/cardápio/o-casa. Quem serve
+essa página **com status 404** é a **Vercel** (todo arquivo `404.html` na raiz do `dist` vira
+a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
+`vite.config.js` em desenvolvimento — sem ele, o fallback de SPA do Vite serviria o
+`index.html`, que redireciona pra `/home` e faz o link quebrado **sumir em silêncio**. O
+`404.html` está no `rollupOptions.input` e leva `robots: noindex`.
 
 - **NAV** (array no `app.js`): Home, O Casa, Cardápio, Loja, Planos, Colab — todas
   apontam pras páginas reais, com href limpo (`/o-casa`). `activeNavHref()` detecta a
@@ -204,6 +233,14 @@ A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
 - **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
   "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) chama a
   `create-checkout-session` e leva pro Checkout hospedado do Asaas.
+- **Cardápio, atalhos entre as seções** (`initCardapioNav`): a página é longa e de puro
+  scroll, então uma tirinha de chips (`[data-cardapio-nav]`) gruda no topo da janela
+  (`position: sticky; top: 0` — o header do site **rola junto com a página**, o sticky dele
+  acaba no `#site-header`, então não há altura de header pra descontar), leva direto pra
+  seção e marca onde a pessoa está. Os chips são montados a partir das **próprias seções**
+  do HTML (as que têm `aria-labelledby` + `.menu-list`), então seção nova no cardápio já
+  aparece na tirinha sem tocar no JS. Rola sozinha no mobile pra manter o chip ativo à
+  vista; respeita `prefers-reduced-motion`.
 - **Colab** reutiliza o `setupCarousel` via `data-carousel="cards"` (mesmo contrato da home).
 
 ---
@@ -361,6 +398,24 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   (`{ acao:'cancelar' }`): limpa a coluna e restaura o `value` cheio. Os dois passos
   (Asaas ↔ banco) se revertem mutuamente em caso de falha, pra nunca sobrar `value` baixo
   sem downgrade agendado. Quem troca o tier de fato é o webhook, na renovação.
+- **Presentear um plano** (`create-checkout-session` modo presente + `resgatar-presente`):
+  o comprador paga **um mês cheio** de um tier **de presente** (cobrança avulsa `DETACHED`,
+  Pix ou cartão — **não** vira assinatura dele). Fluxo: `{ gift_tier, mensagem }` →
+  pré-cria `gift_subscriptions` (`pendente`) → checkout `externalReference = gift:<id>`,
+  `successUrl` → `checkout-sucesso.html?presente=<id>`. No `CHECKOUT_PAID` o webhook marca
+  `pago` e gera o **código** `CASA-XXXXXX` (RPC `marcar_presente_pago`, idempotente);
+  `CHECKOUT_EXPIRED/CANCELED` cancela o presente `pendente`. Quem ganha resgata o código
+  no `/conta/perfil` ("tem um presente?") → `resgatar-presente` → RPC atômica
+  `resgatar_presente` (lock, anti-duplo-resgate): cria uma `subscriptions` **`pausada` +
+  `current_period_end = agora+30d`** marcada com `presente_id` (SEM `asaas_*` — não recorre)
+  e espelha o tier. **Por quê `pausada`+período e não `ativa`:** `getEffectiveSubscription`
+  concede benefício pra `pausada` só enquanto o período está no futuro → o presente
+  **expira sozinho em 30 dias**, sem cron e sem o risco do "`ativa` concede pra sempre"
+  (não há assinatura no Asaas pra gerar `PAYMENT_OVERDUE`). O resgate é **bloqueado** se a
+  pessoa já tem plano vigente (o presente fica guardado — não empilha). O perfil trata
+  `presente_id` à parte (selo "presente · ativo até {data}", **sem** pausar/retomar/upgrade);
+  o `resume-subscription` já barra `pausada` sem `asaas_subscription_id`. Página de compra:
+  **`/presentear`** (`initPresentearPage`), linkada nos `/planos`.
 - **`asaas-webhook`** (deploy com `--no-verify-jwt`): auth = **token compartilhado** no
   header `asaas-access-token` (comparado com `ASAAS_WEBHOOK_TOKEN`; NÃO é HMAC).
   Idempotência via `asaas_events` (PK = `id` do evento, `evt_…`). Em erro → 500 sem gravar
@@ -476,9 +531,421 @@ só LÊ (RLS: cada um lê o próprio ledger).
   `checkout-sucesso` sonda o ledger pelo `?ref=` (id da order) e mostra "+X pontos 💛" —
   na assinatura não sonda, porque o `ref_id` é o `payment.id`, que o client não conhece.
   Tom acolhedor, ZERO cara de cassino.
+- **"Quase lá" (o carimbo digital):** um cartão de foco no topo da `/conta/pontos`, logo abaixo
+  do saldo, no espírito do cartão de carimbo de cafeteria. Aponta o **próximo mimo fora de
+  alcance** (a recompensa mais barata que o saldo ainda não cobre, do `rewards_catalog` já
+  carregado, ordenado asc; estoque zerado não conta) com uma **barrinha de progresso**
+  (`saldo/custo`, mínimo 3% pra sempre aparecer): *"faltam X pontos pro teu {mimo}"*. Se o saldo
+  já cobre tudo o que está na vitrine, vira o recado *"tu já pode pegar teu mimo"*. **Puro
+  visual e só-leitura** (sem migration/secret/função nova): reusa `saldo` + `rewards` que a
+  `initPontosPage` já busca. Markup em classes Tailwind (`.card`, `bg-coral`/`bg-line`), honesto,
+  sem contador de urgência.
 - **Go-live:** garantir que o webhook do Asaas (sandbox e live) escuta **`PAYMENT_CONFIRMED`
   e `PAYMENT_RECEIVED`** além dos eventos de checkout — sem eles a assinatura nunca pontua —
   e fazer deploy do `redeem-reward`. Nenhuma regra de pontos muda entre sandbox e live.
+
+---
+
+## Indica um amigo (Fase 3 — crescimento)
+
+Cada usuário ganha um **código de indicação**; quem é trazido cria conta pelo link
+`/cadastro?indica=CÓDIGO`, assina, e quando o **primeiro pagamento confirma** os **dois
+ganham pontos**. A recompensa cai no PAGAMENTO (não no cadastro) de propósito: só
+compensa quando entra gente de verdade pagando, matando conta-fantasma.
+
+- **Migration `0021_indicacoes` (PENDENTE — aplicar no SQL Editor):** coluna
+  `profiles.referral_code` (unique), tabela `referrals` (`referrer_id` ON DELETE SET
+  NULL, `referred_id` UNIQUE → cada conta é indicada no máx. 1 vez, `status`
+  pendente|premiado|invalido) com RLS (cada um lê só o que fez/recebeu; **sem escrita
+  pelo client**), e 3 RPCs SECURITY DEFINER: `meu_codigo_indicacao()` (gera/retorna o
+  código do próprio `auth.uid()`, granted a `authenticated`), `registrar_indicacao(codigo)`
+  (usa `auth.uid()` como INDICADO — o client nunca diz quem é; barra auto-indicação, quem
+  já foi indicado e quem já tem assinatura; granted a `authenticated`) e
+  `premiar_indicacao(referred_id, pts_indicador, pts_indicado)` (idempotente
+  pendente→premiado, credita os dois no `points_ledger`; granted **só a `service_role`**).
+- **Valores dos pontos = FICTÍCIOS**, provisórios: constantes `REFERRAL_PTS_INDICADOR`
+  (150) / `REFERRAL_PTS_INDICADO` (100) no topo do `asaas-webhook` — **uma fonte de
+  verdade**, passadas pra `premiar_indicacao`. A copy do `/conta/perfil` restata os
+  números (procurar "VALOR FICTÍCIO"). Ajustar depois.
+- **Pontos de indicação NÃO passam pelo multiplicador de tier** (é bônus fixo, não compra):
+  entram direto no ledger com `ref_type='indicacao'` (indicador) e `'indicacao_bonus'`
+  (indicado), ambos `ref_id = referral.id` — ref_type distinto deixa os dois coexistir no
+  UNIQUE `(ref_type, ref_id)`.
+- **`asaas-webhook` (já deployado em 03/ago/2026):** no `PAYMENT_CONFIRMED`/`RECEIVED` da
+  assinatura, depois de creditar os pontos da assinatura, chama `premiar_indicacao` com o
+  id do pagante. Sem indicação pendente → `rewarded:false` sem erro; erro de DB estoura
+  (o Asaas reenvia, tudo idempotente).
+- **Front:** `initIndicacao()` (boot, toda página) capta o `?indica=` pro localStorage e,
+  quando logado, registra o vínculo uma vez via `registrar_indicacao` (limpa o rastro só
+  na resposta definitiva do banco). `/cadastro` mostra um oi gentil se veio por convite.
+  `/conta/perfil` tem a seção "traz quem tu gosta" (`[data-indica]`): pega o código via
+  `meu_codigo_indicacao`, monta o link, botão "copiar" (com fallback de seleção), e conta
+  quantos amigos já entraram (`referrals` premiados). Tudo **tolerante**: se a 0021 ainda
+  não foi aplicada, a seção fica escondida e o registro só é adiado — nada quebra.
+- **Falta:** aplicar a `0021` no SQL Editor + subir o front. Nenhum secret novo; nenhum
+  evento novo no webhook.
+
+---
+
+## Recado da casa (aviso no topo do site)
+
+Uma tarja fina no topo (antes do `<header>`) que o Casa acende com um recado curto e
+datado: *"hoje tem fornada de brioche a partir das 15h 🥐"*, *"a gente fecha 17h nesse
+sábado"*. Some sozinha quando a janela expira; a pessoa pode fechar e ela não volta
+(o front lembra pelo id). Editável **só pelo owner** no console do adm.
+
+- **Migration `0022_avisos` (PENDENTE — aplicar no SQL Editor):** tabela `avisos_casa`
+  (`texto` ≤160, `emoji`, `link_url`/`link_label`, janela `inicio_em`/`fim_em`,
+  `prioridade`, `ativo`) com RLS: **leitura pública SÓ do vigente** (a policy filtra
+  `ativo` + janela com `now()` — anon nunca vê rascunho/agendado/expirado; owner vê tudo).
+  **Escrita** só via 3 RPCs SECURITY DEFINER gated por `is_owner()`:
+  `admin_avisos_listar()`, `admin_aviso_salvar(...)` (cria/edita), `admin_aviso_remover(id)`
+  — deny-by-default pro client, sem INSERT/UPDATE/DELETE de RLS.
+- **Owner-only de propósito:** o whitelist de permissões do console é fechado por CHECK
+  (0017), então "avisos" **não** entra em `PERMISSOES` como grantável; a aba `recados`
+  usa `perm: 'avisos'`, que só quem tem `tudo` (adm do Casa) enxerga. Delegar pra outro
+  papel pediria uma migration alterando aquele CHECK.
+- **Front:** `renderAvisoBar()` (boot, toda página) lê o vigente (RLS), injeta a tarja
+  antes do header, escapa texto/link (link só interno `/x` ou `http(s)`), fecha com ×
+  (colapso via `grid-template-rows`, sem cortar texto) e lembra o id fechado no
+  localStorage (`casa_avisos_lidos`). Tolerante: sem a 0022, a tarja só não aparece.
+- **Console:** aba **recados** (`viewRecados` em `admin.js`) — form pra escrever/agendar/
+  ligar-desligar + lista com editar/remover.
+- **Falta:** aplicar a `0022` no SQL Editor + subir o front. Nenhum secret novo.
+
+---
+
+## A trilha do Casa (playlists do Spotify)
+
+A seção "a trilha do Casa" na home: playlists reais do Spotify (embed), curadas por
+clima ("pra focar", "manhã lenta"), com uma marcada como **tocando agora** (selo
+pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
+
+- **Migration `0023_trilha` (PENDENTE — aplicar no SQL Editor):** tabela `playlists_casa`
+  (`nome`, `clima`, `spotify_url`, `ordem`, `ativo`, `tocando`) com RLS (**leitura pública
+  só das ativas**; owner vê tudo) + índice único parcial garantindo **uma `tocando` por
+  vez**. Escrita só via 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
+  `admin_trilha_salvar`/`admin_trilha_remover`) — `salvar` zera o `tocando` das outras.
+- **Owner-only:** aba `trilha` no console usa `perm: 'trilha'` (não grantável, igual a
+  `avisos` — o whitelist de permissões é fechado por CHECK).
+- **Front:** `initTrilha()` (boot, home) lê as ativas e monta os cards; a `tocando` vem
+  primeiro com selo. **`spotifyEmbed()` é a trava de segurança:** converte o link no src
+  de embed e **só devolve `open.spotify.com/embed/...`** (URL normal, `/embed`, `/intl-xx`
+  ou URI `spotify:`) — qualquer outra coisa vira `null` e NÃO vira `<iframe>` (bloqueia
+  host falso, subdomínio-armadilha `open.spotify.com.evil.com`, `javascript:`). Tolerante:
+  sem a 0023, a seção fica escondida.
+- **Console:** `viewTrilha` (`admin.js`) — form (nome/clima/link/ordem/na-home/tocando) +
+  lista com editar/remover. Bloqueia no submit link que não é do Spotify.
+- **Falta:** aplicar a `0023` + subir o front. Nenhum secret novo.
+
+### O som de agora (faixa ao vivo do Spotify, na home)
+
+Uma seção **minimalista e centralizada** entre as *features* e o rodapé da home, na paleta
+da casa (terracota/paper), **sem card pesado**, dois estados:
+
+- **AO VIVO** (`[data-som-live]`): capa do álbum, selo "tocando agora" (pontinho pulsando),
+  nome da faixa (serifado), artista e uma **barrinha de progresso** que anda sozinha. Vem da
+  faixa que realmente toca na conta Spotify do Casa.
+- **GENTIL** (`[data-som-idle]`): equalizador miúdo, "o som do Casa", título "o que embala a
+  casa" e o **link "ouvir no Spotify"** — quando nada está tocando (ou a integração está off).
+
+**Como o ao vivo funciona (built, DESLIGADO por enquanto):**
+- **Edge Function `spotify-now-playing`** (deploy com `--no-verify-jwt`, leitura pública):
+  troca o `SPOTIFY_REFRESH_TOKEN` por um access token (cacheado 1h na instância), chama
+  `GET /me/player/currently-playing` e devolve `{ tocando, nome, artista, album, capa, url,
+  progresso_ms, duracao_ms }` ou `{ tocando:false }`. **Não** importa o `_shared/lib.ts` (que
+  exige `ASAAS_API_KEY` no topo) — é auto-contida. Cache curto de 10s protege de rate limit.
+  Secrets **só na function**: `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`.
+- **Front `initSomDoCasa()`**: com a flag `SOM_AO_VIVO` (hoje `false`) sonda a function a cada
+  15s e alterna live↔idle; a barra avança client-side entre os polls; pausa em aba escondida;
+  para de sondar se a function some (erro) ou volta `configurado:false`. Capa só de `i.scdn.co`,
+  link só de `open.spotify.com` (trava anti-URL-forjada). Link do idle vem do `MARCA.redes`
+  (fonte única do rodapé); placeholder `'#'` não abre aba em branco.
+- **Pra LIGAR** (a Spotify Web API é **grátis**, não exige Premium pra LER): `npm run
+  spotify-token` (OAuth uma vez, pega o refresh token), `npx supabase secrets set` os três
+  `SPOTIFY_*`, `npx supabase functions deploy spotify-now-playing --no-verify-jwt`, e virar
+  `SOM_AO_VIVO = true` no `app.js`. **Condição prática:** o som do Casa precisa tocar por essa
+  conta Spotify (é o que a API enxerga). Passo a passo no cabeçalho de `scripts/spotify-token.mjs`.
+
+---
+
+## Meu cantinho (perfil público do assinante)
+
+Um cartãozinho público e **opt-in** do assinante em **`/gente/{handle}`** — dá rosto à
+comunidade sem expor nada sensível. Mostra: apelido (ou 1º nome), foto, plano, "na casa
+desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mural.
+**Ficam SEMPRE de fora:** e-mail, telefone, pontos, endereço, nome real completo.
+
+- **Migration `0024_perfil_publico` (PENDENTE — aplicar no SQL Editor):** colunas
+  `profiles.perfil_publico` (bool, opt-in) e `profiles.handle` (slug único da URL) + 2 RPCs
+  SECURITY DEFINER:
+  - `definir_perfil_publico(ativar)` — o dono (`auth.uid()`) liga/desliga; ao ligar gera um
+    handle único e estável (slug do apelido/nome, tira acento). **Exige assinante**
+    (`tier_slug` não nulo), como o Mural. Granted a `authenticated`.
+  - `perfil_publico(handle)` — leitura **pública** (granted a `anon`), devolve um jsonb com
+    EXATAMENTE os campos seguros (hand-picked) + os recados do dono; `null` se não existe ou
+    não é público. **A exposição NÃO é RLS na `profiles`** (abriria a linha toda) — é este
+    payload curado.
+- **Rota `/gente/{handle}`:** `gente.html` (registrada no `rollupOptions.input`). URL
+  dinâmica servida por **rewrite**: `vercel.json` (`rewrites: /gente/:handle → /gente.html`)
+  em prod e o middleware `urlsLimpasNoDev` (regex `/gente/{x}` → `gente.html`) no dev.
+- **Front:** `initGentePage()` lê o handle do path, chama `perfil_publico`, monta o cartão
+  (café via `cafeFrase`, "desde" via `membroDesde`), escapa tudo; estado vazio gentil se o
+  handle não existe/fechou. `/conta/perfil` ganhou a seção **"meu cantinho"**
+  (`[data-cantinho]`): toggle liga/desliga (`definir_perfil_publico`), mostra o link + copiar.
+  Tudo tolerante à migration pendente (seção some, página cai no vazio).
+- **Falta:** aplicar a `0024` + subir o front. Nenhum secret novo.
+
+---
+
+## Hoje o Casa é teu — brunch de aniversário (Fase 3)
+
+Cumpre a promessa que a 0014 já deixava no ar (`profiles.nascimento`: "no dia tem café
+por nossa conta"), num tamanho maior: no **mês do aniversário**, o assinante reserva um
+**brunch de aniversário** (pra uma pessoa — o mesmo mimo que a casa já dá hoje). Resgata
+no `/conta/perfil`, recebe um **código** `CASA-XXXXXX`, mostra no balcão; o staff confere
+e dá baixa no console. **Um por ano.**
+
+- **Perk de assinante**, como o Mural/pontos/cantinho: só resgata quem tem `tier_slug`
+  vigente. E só **no mês** do aniversário (janela generosa — dá pra vir num dia de semana).
+  O código vale **30 dias** a partir do resgate.
+- **Migration `0025_brinde_aniversario` (PENDENTE — aplicar no SQL Editor):** tabela
+  `brindes_aniversario` (`user_id`, `ano`, `codigo` unique, `valido_ate`, `status`
+  ativo|usado, UNIQUE `(user_id, ano)`) com RLS (cada um lê o próprio; staff com
+  `resgates` lê todos; **escrita só via RPC**) + 4 RPCs SECURITY DEFINER:
+  - `meu_brinde_aniversario()` (authenticated) — só LÊ: devolve o estado pro card
+    (`tem_data`, `assinante`, `eh_mes`, `eh_dia`, `ja_resgatou`, `codigo`, `valido_ate`,
+    `situacao` ativo|usado|expirado). Fuso `America/Sao_Paulo`.
+  - `resgatar_brinde_aniversario()` (authenticated) — reserva o brunch do ano;
+    **recomputa todas as travas no banco** (mês, assinatura, duplicidade), lock na própria
+    linha + trata `unique_violation` → idempotente por `(user, ano)`.
+  - `admin_brindes_listar(busca, status, limite)` e `admin_brinde_usar(id)` — gated por
+    **`tem_permissao('resgates')`** (não precisou de permissão nova no whitelist do 0017:
+    honrar o brunch no balcão É baixa de recompensa em mãos). `usar` recusa código já usado
+    (idempotente) ou vencido, e grava no `audit_log`.
+- **Front:** o card `[data-aniversario]` no `/conta/perfil` aparece **só** quando faz
+  sentido (é o mês, ou há código vivo): assinante no mês → botão "quero meu brunch"; código
+  reservado → a caixa com o código + validade; usado/expirado → recado gentil; sem plano no
+  mês → CTA pros planos. No console, a aba **"aniversários"** (`viewAniversarios`, ícone
+  `cake`, visível a quem tem `resgates`) lista os brindes com busca (código/nome) + filtros
+  (a validar / usados / vencidos) e o botão "brunch entregue". Tudo tolerante à migration
+  pendente (a RPC falha → card some, sem ruído). Helper `dataDiaMes` formata datas FUTURAS
+  (validade) sem o drift de fuso do `new Date` — o `dataCurta` não serve (devolve "hoje").
+- **Falta:** aplicar a `0025` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
+## A agenda do Casa — encontros (Fase 3)
+
+O Casa se define como *"um café-casa de **encontros**"*, e agora o site tem encontro. A
+tabela `events` já existia na `0004_reconcile` (nome, descrição, data, vagas, ativo) e
+**nunca fora usada** — a `0026` a acorda: o owner cadastra os próximos encontros no
+console, eles aparecem numa seção **"a agenda do Casa"** na home, e o **assinante confirma
+presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já previa).
+
+- **Migration `0026_agenda` (PENDENTE — aplicar no SQL Editor):** duas colunas novas em
+  `events` (`local`, `updated_at`) + tabela `event_rsvps` (`(event_id, user_id)` PK =
+  anti-duplicata, RLS: cada um lê o próprio, owner lê todos; **escrita só via RPC**) + 6
+  RPCs SECURITY DEFINER:
+  - `agenda_proximos()` — leitura **pública** (anon vê a agenda; só não tem "eu vou"),
+    devolve os ativos e futuros (tolera 4h de folga) com `confirmados` (contagem SEM expor
+    quem) e `eu_vou`/`lotado` do próprio caller. Granted a `anon`+`authenticated`.
+  - `confirmar_presenca(id)` / `cancelar_presenca(id)` (authenticated) — RSVP. Confirmar é
+    **perk de assinante** (exige `tier_slug`); recomputa tudo no banco (assinante, evento
+    ativo/futuro, lotação) com **lock na linha do evento** (a vaga não estoura); idempotente.
+  - `admin_eventos_listar()` / `admin_evento_salvar(...)` / `admin_evento_remover(id)` —
+    gated por `is_owner()` (owner-only, `perm:'eventos'` não grantável, igual a avisos/trilha).
+- **Front:** `initAgenda()` (boot, home) lê `agenda_proximos` e monta os cards (data via
+  `dataEvento`, "eu vou" alterna sem recarregar; deslogado → login e volta; sem-plano → a
+  RPC barra com recado gentil). A seção fica escondida sem encontros ou sem a migration. No
+  console, a aba **"agenda"** (`viewAgenda`, ícone `calendar-days`, owner-only) tem form
+  (nome/data/local/vagas/descrição/na-home) + lista com confirmados, editar e remover.
+- **"Quem vai" (`0028_agenda_quem_vai`, PENDENTE):** a `agenda_proximos` ganhou a coluna
+  `vao_publicos` (jsonb) — os **rostinhos** de quem confirmou **E** ligou o perfil público
+  (`perfil_publico`), com `handle`/nome de exibição/`avatar_url` (os mesmos campos já
+  públicos do `/gente`). Quem não optou nunca aparece, só soma em `confirmados`. O card da
+  home mostra até 6 avatares (`avatarBolha`, link pro `/gente/{handle}`, inicial como
+  fallback) + um "+N" pro resto. Reescreve só a função de leitura (DROP+CREATE, muda a
+  assinatura); nenhuma tabela/permissão nova.
+- **"Guarda no teu calendário" (só front, sem migration):** cada card com data marcada
+  ganha o link **"guarda no teu calendário"** (`googleCalUrl`), um **link direto pro Google
+  Agenda** (`calendar.google.com/calendar/render?action=TEMPLATE&…`) — abre numa aba nova
+  com nome/quando/onde/descrição prontos, **sem baixar arquivo** (`.ics`). Monta a URL 100%
+  no client a partir dos dados que a `initAgenda` já tem: `text=nome`, `dates` em UTC
+  compacto (`YYYYMMDDTHHMMSSZ`, sufixo `Z` → cai certo em qualquer fuso), duração assumida
+  de **2h** (os eventos não têm hora de fim), `location = local + endereço do Casa` e
+  `details=descricao`. Encontro **sem data** (`em breve`) não mostra o link (não dá pra
+  agendar o indefinido). Ícone `calendar-plus`.
+- **Falta:** aplicar a `0026` **e** a `0028` + subir o front. Nenhum secret novo; nenhuma
+  Edge Function.
+
+---
+
+## Teus favoritos no cardápio (Fase 3)
+
+O `/cardapio` era uma lista bonita mas estática. Agora quem está logado **favorita**
+um item (um coraçãozinho) e ganha um bloco **"teus favoritos"** no topo, pra reencontrar
+o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama**.
+
+- **Aberto a qualquer pessoa logada** (não é perk de assinante) — quanto mais gente marca,
+  mais sinal pra casa. O cardápio é HTML curado, então o item é identificado por um `slug`
+  **derivado do nome** (`slugify`, no client) — nada de tabela de menu.
+- **Migration `0027_cardapio_favoritos` (PENDENTE — aplicar no SQL Editor):** tabela
+  `cardapio_favoritos` (`(user_id, item_slug)` PK, `item_nome` snapshot pro console,
+  `user_id` default `auth.uid()`). Favorito é dado **benigno** (não entra na lista de
+  sensíveis do security-check): a **escrita é direta pelo client via RLS**, sempre travada
+  em `auth.uid()` (policies select/insert/delete own) — sem Edge Function. O console lê o
+  agregado por `admin_cardapio_favoritos()` (SECURITY DEFINER, gated por
+  `tem_permissao('relatorios')`), que conta por slug e mostra o nome **mais frequente**
+  (resiliente a um snapshot adulterado; o console escapa tudo).
+- **Front:** `initCardapioFavoritos()` (boot) só age logado: deriva o slug de cada
+  `.menu-item` pelo nome, injeta um coração em cada um, lê os favoritos do usuário e monta o
+  bloco de chips (cada chip rola até o item com um flash). Toggle otimista (insert/delete),
+  desfaz se o servidor recusar; `23505` (já favoritado) conta como sucesso. Tolerante: sem
+  sessão ou sem a migration, nenhum coração aparece. No console, a aba **"favoritos"**
+  (`viewFavoritos`, ícone `heart`, quem tem `relatorios`) lista o ranking com barrinha.
+- **Falta:** aplicar a `0027` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
+## Ficou pra depois (lista de desejos da loja) (Fase 3)
+
+O irmão do "teus favoritos" do cardápio, agora na loja: um **coração em cada produto**
+(catálogo e página de produto) que **salva pra depois** sem botar no carrinho. Uma tirinha
+**"ficou pra depois"** no topo da `/loja` e um **espelho no `/conta/perfil`** reúnem o que a
+pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa vê no console
+**o que a casa mais quer** (demanda represada por produto).
+
+- **Aberto a qualquer pessoa logada** (não é perk de assinante). O catálogo é mock no client
+  (`PRODUTOS`), então o produto é identificado pelo **mesmo `slug` da URL `/produto`**; o
+  `produto_nome` é snapshot pro console.
+- **Migration `0029_loja_desejos` (PENDENTE — aplicar no SQL Editor):** tabela `loja_desejos`
+  (`(user_id, produto_slug)` PK, `produto_nome` snapshot, `user_id` default `auth.uid()`).
+  Desejo é dado **benigno** (fora da lista de sensíveis do security-check): **escrita direta
+  pelo client via RLS**, sempre travada em `auth.uid()` (policies select/insert/delete own),
+  sem Edge Function. O console lê o agregado por `admin_loja_desejos()` (SECURITY DEFINER,
+  `tem_permissao('relatorios')`), que conta por slug e mostra o nome **mais frequente**
+  (resiliente a snapshot adulterado; o console escapa tudo).
+- **Front:** `initLojaDesejos()` só age logado, em três superfícies (tolerante sem a 0029,
+  sem sessão → nada aparece): (1) injeta um coração sobre a foto de cada card do catálogo
+  (`.prod-fav`, via `[data-produto][data-slug]`); (2) revela o botão "guardar pra depois" na
+  página de produto (`[data-desejo-produto]`, `hidden` até logar); (3) monta a tirinha de
+  chips (link pro produto + `×` pra tirar) nas seções `[data-loja-desejos]` (topo da `/loja`)
+  e `[data-desejos-perfil]` (perfil). Todos os corações de um mesmo slug andam juntos; toggle
+  **otimista** (insert/delete, `23505` = já guardado = sucesso), desfaz se o servidor recusar.
+  A chamada do boot não pega o perfil (montado pós-guard), então `initPerfilPage` **religa**
+  `initLojaDesejos()` no fim. No console, a aba **"desejos"** (`viewDesejos`, ícone `bookmark`,
+  quem tem `relatorios`) lista o ranking com barrinha, igual aos favoritos.
+- **Falta:** aplicar a `0029` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
+## Volta pra vitrine (avisa quando o produto voltar) (Fase 3)
+
+Puxa o gancho da lista de desejos: produto **esgotado** (`disponivel: false` no mock
+`PRODUTOS`) não fica mudo, ganha um selo **"esgotado"** e o botão **"me avisa quando
+voltar"**. Quando a casa repõe (flip pra disponível), o aviso chega no **sino de
+notificações do header** ("voltou pra vitrine"), visível em qualquer página. Pro Casa, o
+console mostra **quantas pessoas esperam cada produto** — o sinal mais forte pra reposição.
+
+- **Disponibilidade no mock:** `PRODUTOS[].disponivel` (ausente = disponível; só marca-se
+  `false`). Hoje **Torra Vale dos Sinos** e **Caneca de autor** estão esgotados.
+- **Migration `0030_avisos_reposicao` (PENDENTE — aplicar no SQL Editor):** tabela
+  `avisos_reposicao` (mesma forma do `loja_desejos`: PK `(user_id, produto_slug)`,
+  `produto_nome` snapshot, `user_id` default `auth.uid()`). Dado **benigno** (fora da lista
+  de sensíveis): **escrita direta pelo client via RLS** (select/insert/delete own), sem Edge
+  Function. Agregado do console por `admin_avisos_reposicao()` (SECURITY DEFINER,
+  `tem_permissao('relatorios')`, conta por slug com o nome mais frequente).
+- **Front — botões "me avisa":** o esgotado é 100% do mock (client), então `cardProdutoHTML`
+  e `initProductPage` já renderizam o selo + "me avisa" sem depender de sessão/banco (na
+  página de produto, esgotado troca quantidade/carrinho pela nota + botão). `initReposicao()`
+  liga só os botões: deslogado → manda pro login; logado → carrega os avisos, pinta o estado
+  (toggle otimista, `23505` = já pediu = sucesso); migration pendente → botão inerte ("aviso
+  em breve"). **Não há mais tirinha inline** — quem mostra o "voltou" é o sino.
+- **Front — o "voltou" é UMA das fontes do sino de notificações** (`initNotificacoes`,
+  header, toda página — ver **"O Casa te avisa"** abaixo). Filtra os `avisos_reposicao` cujo
+  produto **voltou** (existe e está disponível agora); "já vi" **apaga a linha** do banco
+  (best-effort, RLS-direct).
+- **Console:** aba **"esperando"** (`viewReposicao`, ícone `bell-ring`, quem tem `relatorios`)
+  lista o ranking de quem espera cada produto, com barrinha.
+- **Falta:** aplicar a `0030` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+
+---
+
+## O Casa te avisa (central de notificações no header)
+
+O sino do header deixou de servir só o "voltou pra vitrine" e virou uma **central** que
+junta, num painel só, os avisos que antes viviam espalhados pelo site. **Cinco fontes**,
+todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o registro do
+**próprio** usuário (RLS own-record) — **nenhuma tabela, secret ou Edge Function nova**.
+
+- **As fontes** (`initNotificacoes`, boot, toda página — cada uma é tolerante: erro /
+  migration pendente → `[]`, some sem quebrar):
+  1. **voltou pra vitrine** — `avisos_reposicao` (0030) cujo produto está disponível agora.
+     Ícone `bell-ring`. Dispensa **apagando a linha** (RLS-direct).
+  2. **indicação premiada** — `referrals` (0021) com `referrer_id = eu` e `status='premiado'`.
+     Ícone `users`, leva pro `/conta/perfil`.
+  3. **presente resgatado** — `gift_subscriptions` (0019) com `comprador_id = eu` e
+     `status='resgatado'`. Ícone `gift`, leva pro `/conta/perfil`.
+  4. **brunch de aniversário** — RPC `meu_brinde_aniversario` (0025) quando `assinante &&
+     eh_mes && !ja_resgatou`. Ícone `cake`, leva pro `/conta/perfil`.
+  5. **encontro chegando** — RPC `agenda_proximos` (0026) com `eu_vou` e `data` numa janela
+     de **48h** (tolera 4h já começado). Ícone `calendar-days`, sub via `dataEvento`.
+- **Dispensar ("já vi"):** o **voltou** apaga a linha do banco; as **derivadas** (não há linha
+  pra apagar) guardam o `id` no **localStorage** (`casa_notif_lidas`, helpers `notifLidas()`/
+  `marcarNotifLida()`, mesmo padrão do `renderAvisoBar`). O badge tampa em **"9+"**.
+- **Markup/estilo:** cada item ganhou uma **coluna de ícone** (`.notif-item-ico` redondo +
+  `.notif-item-corpo` com tag/nome/sub). No **mobile** o painel é `position: fixed` com o
+  `top` medido do header ao abrir (respeita a tarja de recado). Mecânica de abrir/fechar
+  (clique-fora/Esc/scale-opacity) reusa o padrão do painel do usuário.
+- **Só-leitura, zero confiança nova:** o sino nunca **credita** nada, só **reflete** estado
+  que os webhooks/RPCs já produziram. Deslogado → escondido.
+- **Falta:** nada além do que cada fonte já pede (0019/0021/0025/0026/0030 + subir o front).
+  Migration pendente de uma fonte só apaga aquela fonte do painel.
+
+---
+
+## O teu de sempre (cartão pessoal na home) — DESATIVADO
+
+> **DESATIVADO em 04/ago/2026** (a pedido): a chamada `initTeuDeSempre()` está comentada
+> no bootstrap, então o cartão **não renderiza**. O visual e a posição vão ser repensados
+> pra não competir com o hero da home. A função e a seção `[data-teu-de-sempre]` (que fica
+> `hidden`) seguem no código, é só descomentar a linha do boot pra religar.
+
+Um cartãozinho no **topo da home**, só pra **quem está logado**, que junta num olhar o
+que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só-leitura**,
+**sem migration, sem secret, sem Edge Function** (reusa tabelas/RPCs que já existem).
+
+- **O que mostra** (`initTeuDeSempre`, boot, só age com `[data-teu-de-sempre]` + logado):
+  uma saudação pela hora local com o 1º nome do `profile` e até três blocos:
+  1. **plano + pontos** — `profile.tier_slug` (nome via `tiers`) + `points_balance`, leva
+     pro `/conta/pontos`. **Sem plano** → um convite gentil "vem fazer parte" pro `/planos`.
+  2. **próximo encontro que confirmou** — `agenda_proximos` (0026) filtrando `eu_vou` e
+     pegando o mais próximo ainda por vir; leva pra `#a-agenda` (a seção da agenda ganhou
+     esse `id` na home). Sub via `dataEvento`.
+  3. **teus favoritos do cardápio** — `cardapio_favoritos` (0027), até 4 chips (link pro
+     `/cardapio`) + "+N".
+- **Tolerante:** cada fonte é isolada (erro/migration pendente → aquela parte some); o
+  cartão só depende do `profiles` (tabela base). Deslogado → seção fica `hidden`. Nada de
+  escrita. Estilo `.tds-*` no `styles.css` (grid `auto-fit`, empilha no mobile).
+- **Falta:** nada de banco, é só front (subir o merge). As partes 2 e 3 ganham conteúdo
+  conforme as migrations 0026/0027 forem aplicadas.
+
+---
+
+## Como chegar (/o-casa)
+
+O bloco de localização do `/o-casa` já tinha o **mapa** (embed do Google, que geocoda o
+negócio pelo nome+endereço). Faltava a **ação de chegar**: `initComoChegar()` preenche
+`[data-como-chegar]` com três botões, a partir do `MARCA.contato.endereco` (fonte única):
+
+- **"traçar rota"** → Google Maps directions (`maps/dir/?api=1&destination=<nome+endereço>`).
+- **"abrir no Waze"** → `waze.com/ul?q=<nome+endereço>&navigate=yes` (Waze é muito usado no RS).
+- **"copiar endereço"** → `navigator.clipboard` com feedback ("copiado"); fallback gentil
+  ("copia na mão") se o clipboard estiver bloqueado.
+
+Front puro, **sem chave/API paga, sem migration**: as URLs de rota levam o endereço por
+texto e o app de mapa geocoda o lugar certo. O endereço vive só no `MARCA` (mesmo do rodapé).
 
 ---
 
@@ -591,6 +1058,105 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   sempre da claim `session_id` do JWT: o client nunca diz de quem é a sessão. É o que alimenta a
   lista de aparelhos conectados no `/conta/perfil` (sem ela a tela cai no fallback "sair de todos
   os aparelhos").
+- **`0019_presentes` — PENDENTE (aplicar no SQL Editor).** "Presentear um plano": tabela
+  `gift_subscriptions` (+ RLS: comprador/quem-resgatou lê o próprio), coluna
+  `subscriptions.presente_id` (marca a assinatura vinda de presente), e as RPCs
+  SECURITY DEFINER `marcar_presente_pago(uuid,text)` (webhook gera o código no pagamento)
+  e `resgatar_presente(uuid,text)` (resgate atômico com lock). **As Edge Functions já foram
+  deployadas em 03/ago/2026** (`create-checkout-session`, `asaas-webhook` com
+  `--no-verify-jwt`, e a nova `resgatar-presente`) — os caminhos de presente só disparam com
+  pedido de presente, que não existe até o front subir. **Falta só:** (1) aplicar esta
+  migration no SQL Editor e (2) subir o front (merge `trabalho`→`main`). Nenhum secret novo;
+  nenhum evento novo no webhook (usa `CHECKOUT_PAID/EXPIRED/CANCELED`).
+- **`0020_mural` — PENDENTE (aplicar no SQL Editor).** "Mural do Casa": tabela
+  `mural_notes` (recado curto ≤240, `autor_nome` snapshot, `status` aprovado|oculto) com
+  RLS — **leitura pública** dos `aprovado` (o `/o-casa` é aberto; autor vê os próprios,
+  staff vê tudo), **escrita só via Edge Function** (deny-by-default pro client), autor
+  apaga o próprio recado, staff modera (ocultar/apagar). Function **nova** `postar-mural`
+  (**já deployada em 03/ago/2026**): exige JWT, valida **assinante vigente** via
+  `getEffectiveSubscription` (perk exclusivo de assinante, igual aos pontos), sanitiza o
+  texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its na
+  **seção escura**, no lugar do antigo selo "Feito no Casa", que saiu da página) +
+  `initMuralPage` (lê a parede público; compose só pra assinante; deslogado/sem-plano vê
+  CTA pros planos; leitura tolerante se a migration ainda não foi aplicada). **Falta:**
+  aplicar esta migration + subir o front.
+- **`0021_indicacoes` — PENDENTE (aplicar no SQL Editor).** "Indica um amigo": coluna
+  `profiles.referral_code` (unique), tabela `referrals` (`referred_id` UNIQUE, `status`
+  pendente|premiado|invalido) com RLS (lê só o que fez/recebeu; sem escrita pelo client), e
+  as RPCs `meu_codigo_indicacao()`/`registrar_indicacao(text)` (granted a `authenticated`,
+  usam `auth.uid()`) + `premiar_indicacao(uuid,int,int)` (granted só a `service_role`,
+  idempotente pendente→premiado, credita os dois no ledger). O `asaas-webhook` (**já
+  deployado em 03/ago/2026**) chama `premiar_indicacao` no primeiro pagamento do indicado;
+  valores dos pontos são FICTÍCIOS nas constantes do webhook. Front tolerante à migration
+  pendente. **Falta:** aplicar esta migration + subir o front. Ver "Indica um amigo" acima.
+- **`0022_avisos` — PENDENTE (aplicar no SQL Editor).** "Recado da casa": tabela
+  `avisos_casa` (RLS: leitura pública só do vigente por `ativo`+janela; owner vê tudo) +
+  3 RPCs SECURITY DEFINER `is_owner()` (`admin_avisos_listar`/`admin_aviso_salvar`/
+  `admin_aviso_remover`) — sem escrita pelo client. Front: `renderAvisoBar` (tarja no topo,
+  toda página) + aba **recados** no console (owner-only). Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "Recado da casa" acima.
+- **`0023_trilha` — PENDENTE (aplicar no SQL Editor).** "A trilha do Casa": tabela
+  `playlists_casa` (RLS leitura pública só das ativas; owner vê tudo; índice único parcial
+  = uma `tocando` por vez) + 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
+  `salvar`/`remover`). Front: `initTrilha` (home) com `spotifyEmbed` trancando o src em
+  `open.spotify.com/embed` + aba **trilha** no console (owner-only). Tolerante à migration
+  pendente. **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "A trilha do Casa" acima.
+- **`0024_perfil_publico` — PENDENTE (aplicar no SQL Editor).** "Meu cantinho": colunas
+  `profiles.perfil_publico`/`handle` + RPCs `definir_perfil_publico(bool)` (dono liga/desliga,
+  exige assinante) e `perfil_publico(text)` (leitura pública anon, payload seguro curado —
+  NÃO é RLS na profiles). Front: página `/gente/{handle}` (rewrite no vercel.json + middleware
+  do dev) + seção "meu cantinho" no `/conta/perfil`. Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Ver "Meu cantinho" acima.
+- **`0025_brinde_aniversario` — PENDENTE (aplicar no SQL Editor).** "Hoje o Casa é teu":
+  tabela `brindes_aniversario` (UNIQUE `(user_id, ano)`, RLS: dono lê o próprio, staff com
+  `resgates` lê todos, escrita só via RPC) + 4 RPCs SECURITY DEFINER
+  (`meu_brinde_aniversario`/`resgatar_brinde_aniversario` a `authenticated`;
+  `admin_brindes_listar`/`admin_brinde_usar` gated por `tem_permissao('resgates')`). Front:
+  card no `/conta/perfil` + aba "aniversários" no console. Tolerante à migration pendente.
+  **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge Function. Ver
+  "Hoje o Casa é teu — brunch de aniversário" acima.
+- **`0026_agenda` — PENDENTE (aplicar no SQL Editor).** "A agenda do Casa": acorda a tabela
+  `events` (0004) com colunas `local`/`updated_at` + tabela `event_rsvps` (PK composta, RLS
+  dono/owner, escrita só via RPC) + 6 RPCs SECURITY DEFINER (`agenda_proximos` pública;
+  `confirmar_presenca`/`cancelar_presenca` a `authenticated`, RSVP perk de assinante com lock
+  anti-estouro de vaga; `admin_evento_listar/salvar/remover` gated por `is_owner()`,
+  owner-only). Front: seção "a agenda do Casa" na home (`initAgenda`) + aba "agenda" no
+  console. Tolerante à migration pendente. **Falta:** aplicar + subir o front. Nenhum secret
+  novo; nenhuma Edge Function. Ver "A agenda do Casa — encontros" acima.
+- **`0027_cardapio_favoritos` — PENDENTE (aplicar no SQL Editor).** "Teus favoritos":
+  tabela `cardapio_favoritos` (PK `(user_id, item_slug)`, `item_nome` snapshot,
+  `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
+  delete own, sempre `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC
+  `admin_cardapio_favoritos()` (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por
+  slug com o nome mais frequente). Front: corações no `/cardapio` + bloco "teus favoritos"
+  (`initCardapioFavoritos`, slug derivado do nome) + aba "favoritos" no console. Tolerante à
+  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
+  Function. Ver "Teus favoritos no cardápio" acima.
+- **`0028_agenda_quem_vai` — PENDENTE (aplicar no SQL Editor).** "Quem vai": reescreve a
+  função `agenda_proximos` (DROP+CREATE, muda a assinatura) pra devolver `vao_publicos`
+  (jsonb) — os presentes que ligaram o perfil público (handle/nome/avatar, curado, só campos
+  já públicos). Sem tabela nova, sem permissão nova. Front: avatares no card da agenda
+  (`avatarBolha`). **Depende da `0026` estar aplicada** (usa `event_rsvps`). Tolerante:
+  sem ela, `agenda_proximos` fica na versão da 0026 e a home só não mostra rostos. **Falta:**
+  aplicar (depois da 0026) + subir o front. Ver "Quem vai" na seção da agenda.
+- **`0029_loja_desejos` — PENDENTE (aplicar no SQL Editor).** "Ficou pra depois": tabela
+  `loja_desejos` (PK `(user_id, produto_slug)`, `produto_nome` snapshot, `user_id` default
+  `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/delete own, sempre
+  `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC `admin_loja_desejos()`
+  (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por slug com o nome mais
+  frequente). Front: corações no catálogo/produto + tirinha "ficou pra depois" na `/loja` e
+  espelho no `/conta/perfil` (`initLojaDesejos`) + aba "desejos" no console. Tolerante à
+  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
+  Function. Ver "Ficou pra depois (lista de desejos da loja)" acima.
+- **`0030_avisos_reposicao` — PENDENTE (aplicar no SQL Editor).** "Volta pra vitrine":
+  tabela `avisos_reposicao` (PK `(user_id, produto_slug)`, `produto_nome` snapshot,
+  `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
+  delete own — dado benigno, fora da lista de sensíveis) + RPC `admin_avisos_reposicao()`
+  (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por slug com o nome mais
+  frequente). Front: selo "esgotado" + "me avisa quando voltar" nos produtos `disponivel:
+  false`, tirinha "voltou pra vitrine" na `/loja` e no `/conta/perfil` (`initReposicao`) +
+  aba "esperando" no console. Tolerante à migration pendente. **Falta:** aplicar + subir o
+  front. Nenhum secret novo; nenhuma Edge Function. Ver "Volta pra vitrine" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

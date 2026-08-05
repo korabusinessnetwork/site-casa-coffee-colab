@@ -61,9 +61,9 @@
             </div>
           </div>
 
-          <div class="card-grid cols-4">
+          <div class="plans-strip" id="planos-strip" data-drag-scroll>
             <!-- Bronze -->
-            <article class="plan reveal">
+            <article class="plan reveal" data-dot-rotulo="Bronze">
               <span class="eyebrow">Bronze</span>
               <p class="plan-name">Vizinho de Sempre</p>
               <p class="plan-price">R$29,90<span class="per">/mês</span></p>
@@ -80,7 +80,7 @@
             </article>
 
             <!-- Prata -->
-            <article class="plan reveal">
+            <article class="plan reveal" data-dot-rotulo="Prata">
               <span class="eyebrow">Prata</span>
               <p class="plan-name">Frequentador</p>
               <p class="plan-price">R$49,90<span class="per">/mês</span></p>
@@ -97,7 +97,7 @@
             </article>
 
             <!-- Ouro (favorito) -->
-            <article class="plan featured reveal">
+            <article class="plan featured reveal" data-dot-rotulo="Ouro, o favorito">
               <span class="tag gold plan-badge">favorito</span>
               <span class="eyebrow">Ouro</span>
               <p class="plan-name">Gente do Casa</p>
@@ -116,7 +116,7 @@
             </article>
 
             <!-- Diamante -->
-            <article class="plan reveal">
+            <article class="plan reveal" data-dot-rotulo="Diamante">
               <span class="eyebrow">Diamante</span>
               <p class="plan-name">Alma do Casa</p>
               <p class="plan-price">R$129,90<span class="per">/mês</span></p>
@@ -134,6 +134,10 @@
             </article>
           </div>
 
+          <!-- Bolinhas de posição da tira (só aparecem quando ela rola de verdade;
+               preenchidas pelo setupStripDots do app.js). -->
+          <div class="strip-dots" data-strip-dots="planos-strip" role="group" aria-label="Ir pra um plano"></div>
+
           <!-- Área de aviso/erro do checkout (preenchida pelo app.js quando precisa) -->
           <p class="notice warn hidden" data-assinar-note role="status" aria-live="polite"></p>
 
@@ -141,6 +145,15 @@
             A assinatura é no cartão e renova sozinha todo mês, cancela quando quiser.
             (Na loja, tu paga com Pix ou cartão.)
           </p>
+
+          <a href="/presentear" class="gift-cta reveal" aria-label="Presentear um plano">
+            <span class="gift-cta-icon" aria-hidden="true"><i data-lucide="gift"></i></span>
+            <span class="gift-cta-text">
+              <strong>Presenteia um mês do Casa</strong>
+              <span>dá um plano pra quem tu gosta, cobrança única, sem virar assinatura tua.</span>
+            </span>
+            <span class="gift-cta-arrow" aria-hidden="true">→</span>
+          </a>
           <p style="margin-top: 10px; color: var(--muted); font-size: 12px">* valores fictícios, a definir.</p>
         </div>
       </section>
@@ -269,6 +282,31 @@
       .card-grid.achv-grid { grid-template-columns: repeat(5, 1fr) }
       @media (max-width: 900px) { .card-grid.achv-grid { grid-template-columns: repeat(3, 1fr) } }
       @media (max-width: 560px) { .card-grid.achv-grid { grid-template-columns: repeat(2, 1fr) } }
+
+      /* CTA de presente em destaque */
+      .gift-cta {
+        display: flex; align-items: center; gap: 16px; margin-top: 26px;
+        padding: 18px 22px; border-radius: 18px; text-decoration: none;
+        background: color-mix(in srgb, var(--coral) 8%, var(--card));
+        border: 1.5px solid color-mix(in srgb, var(--coral) 32%, transparent);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+      }
+      .gift-cta:hover {
+        border-color: var(--coral); transform: translateY(-2px);
+        box-shadow: 0 16px 34px -22px color-mix(in srgb, var(--coral) 80%, #000);
+      }
+      .gift-cta-icon {
+        flex: none; display: grid; place-items: center; width: 46px; height: 46px;
+        border-radius: 13px; color: #fff; background: var(--coral);
+      }
+      .gift-cta-icon i, .gift-cta-icon svg { width: 22px; height: 22px }
+      .gift-cta-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px }
+      .gift-cta-text strong { color: var(--ink); font-size: 16px; font-weight: 600 }
+      .gift-cta-text span { color: var(--ink-2); font-size: 14px; line-height: 1.5 }
+      .gift-cta-arrow { flex: none; color: var(--coral); font-size: 20px; transition: transform 0.18s ease }
+      .gift-cta:hover .gift-cta-arrow { transform: translateX(4px) }
+      @media (max-width: 560px) { .gift-cta { flex-wrap: wrap } .gift-cta-arrow { display: none } }
+      @media (prefers-reduced-motion: reduce) { .gift-cta, .gift-cta-arrow { transition: none } }
     </style>
 
     <script type="module" src="/app.js"></script>

@@ -32,6 +32,13 @@ import {
   EyeOff,
   Lock,
   ArrowLeft,
+  Megaphone,
+  Music,
+  Cake,
+  CalendarDays,
+  Heart,
+  Bookmark,
+  BellRing,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -55,6 +62,13 @@ const LUCIDE_ICONS = {
   EyeOff,
   Lock,
   ArrowLeft,
+  Megaphone,
+  Music,
+  Cake,
+  CalendarDays,
+  Heart,
+  Bookmark,
+  BellRing,
 };
 
 function renderIcons() {
@@ -220,9 +234,30 @@ const NAV = [
   { id: 'painel', rotulo: 'painel', icone: 'layout-dashboard', perm: 'dashboard' },
   { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos' },
   { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates' },
+  // Brunch de aniversário: quem confere/dá baixa no balcão é a mesma gente dos
+  // resgates (é uma recompensa entregue em mãos) — reusa a permissão 'resgates',
+  // sem permissão nova no whitelist do 0017.
+  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'resgates' },
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
+  // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
+  // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
+  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'relatorios' },
+  // "o que a casa mais quer" — a lista de desejos da loja. Também é relatório,
+  // mesma permissão 'relatorios'.
+  { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'relatorios' },
+  // "quem espera reposição" — os avisos de produto esgotado. Relatório que guia a
+  // reposição, mesma permissão 'relatorios'.
+  { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
+  // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
+  // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
+  // 'tudo' (adm do Casa) vê; ninguém mais recebe. Abrir pra delegar pediria migration.
+  { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'avisos' },
+  // Trilha do Casa (playlists): owner-only, mesma lógica do 'avisos' (não grantável).
+  { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha' },
+  // Agenda (encontros): owner-only, mesma lógica (perm 'eventos' não grantável).
+  { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'eventos' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
@@ -374,8 +409,11 @@ async function initConsole() {
   }
 
   // Primeiro acesso do adm master: a senha inicial é combinada, então não vale
-  // deixar entrar em nada antes de trocar.
-  if (estado.perms.senha_trocada === false) {
+  // deixar entrar em nada antes de trocar. SÓ vale pro master: `senha_alterada_em`
+  // nasce null pra todo mundo (o handle_new_user não preenche), então sem o gate de
+  // `master` qualquer funcionário adicionado a partir de conta de cliente já
+  // existente cairia aqui e seria forçado a rotacionar a própria senha real.
+  if (estado.perms.master && estado.perms.senha_trocada === false) {
     telaTrocaObrigatoria(raiz);
     return;
   }
@@ -571,9 +609,16 @@ function abrirDoHash() {
     painel: viewPainel,
     pedidos: viewPedidos,
     resgates: viewResgates,
+    aniversarios: viewAniversarios,
     pessoas: viewPessoas,
     relatorios: viewRelatorios,
+    favoritos: viewFavoritos,
+    desejos: viewDesejos,
+    esperando: viewReposicao,
     equipe: viewEquipe,
+    recados: viewRecados,
+    trilha: viewTrilha,
+    agenda: viewAgenda,
     conta: viewConta,
   };
   (telas[item.id] || viewPainel)(view);
@@ -935,6 +980,145 @@ async function darBaixaResgate(botao, corpo) {
   }
 }
 
+// ===== ANIVERSÁRIOS (brunch) ========================================
+// O brunch de aniversário que a pessoa reservou no /conta/perfil. Aqui o balcão
+// confere o código e dá baixa. Trava por `tem_permissao('resgates')` no banco
+// (0025) — aqui é só a tela. Um brunch por pessoa por ano.
+const filtrosBrindes = { status: 'ativo', busca: '' };
+
+async function viewAniversarios(view) {
+  view.innerHTML =
+    cabecalho(
+      'aniversários do Casa',
+      'os brunchs de aniversário reservados. confere o código de quem chega e dá a baixa.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-brinde" class="sr-only">buscar por código ou nome</label>
+        <input id="busca-brinde" type="search" placeholder="código (CASA-XXXXXX) ou nome" autocomplete="off" spellcheck="false" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div class="ad-filtros" role="group" aria-label="filtrar brindes">
+      <button type="button" class="filtro" data-f-status="ativo">a validar</button>
+      <button type="button" class="filtro" data-f-status="usado">já usados</button>
+      <button type="button" class="filtro" data-f-status="expirado">vencidos</button>
+      <button type="button" class="filtro" data-f-status="">todos</button>
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const form = $('[data-busca]', view);
+  const marcar = () =>
+    $$('[data-f-status]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosBrindes.status)),
+    );
+  $$('[data-f-status]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosBrindes.status = b.dataset.fStatus || '';
+      marcar();
+      carregarBrindes(corpo);
+    }),
+  );
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosBrindes.busca = $('#busca-brinde', form).value.trim();
+    carregarBrindes(corpo);
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarBrindes(corpo));
+  marcar();
+  renderIcons();
+  carregarBrindes(corpo);
+}
+
+async function carregarBrindes(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_brindes_listar', {
+      p_busca: filtrosBrindes.busca || null,
+      p_status: filtrosBrindes.status || null,
+      p_limite: 200,
+    });
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'nenhum brunch por aqui',
+        'quando um aniversariante reservar o brunch dele, o código aparece nesta lista.',
+      );
+      return;
+    }
+    corpo.innerHTML = `<div class="ad-lista">${linhas.map(cardBrinde).join('')}</div>`;
+    renderIcons();
+    $$('[data-brinde-usar]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => darBaixaBrinde(botao, corpo));
+    });
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardBrinde(b) {
+  const ativo = b.situacao === 'ativo';
+  const podeBaixar = ativo && pode('resgates');
+  const tag =
+    b.situacao === 'usado'
+      ? '<span class="tag">usado</span>'
+      : b.situacao === 'expirado'
+        ? '<span class="tag">vencido</span>'
+        : '<span class="tag gold">a validar</span>';
+  return `
+    <article class="card ad-card">
+      <div class="ad-card-topo">
+        <div>
+          <p class="ad-codigo">${escapeHtml(b.codigo)}</p>
+          <p class="ad-card-nome">${escapeHtml(b.cliente_nome || 'sem nome')}${b.cliente_email ? ' · ' + escapeHtml(b.cliente_email) : ''}</p>
+        </div>
+        <div class="ad-card-tags">${tag}</div>
+      </div>
+      <div class="ad-card-rodape">
+        <div class="ad-card-info">
+          ${b.aniversario ? `<p class="ad-card-meta">🎂 faz aniversário em ${escapeHtml(b.aniversario)}</p>` : ''}
+          <p class="ad-card-meta">reservado em ${escapeHtml(formatData(b.criado_em))} · vale até ${escapeHtml(b.valido_ate_label || '—')}</p>
+          ${
+            b.usado_em
+              ? `<p class="ad-card-meta ok"><i data-lucide="check"></i> brunch entregue em ${escapeHtml(formatData(b.usado_em))}${b.usado_por_nome ? ' por ' + escapeHtml(b.usado_por_nome) : ''}</p>`
+              : ''
+          }
+        </div>
+        <div class="ad-card-acao">
+          ${
+            podeBaixar
+              ? `<button type="button" class="btn solid sm" data-brinde-usar="${escapeHtml(b.id)}"><i data-lucide="cake"></i>brunch entregue</button>`
+              : ''
+          }
+        </div>
+      </div>
+    </article>`;
+}
+
+async function darBaixaBrinde(botao, corpo) {
+  const ok = await confirmar({
+    titulo: 'a pessoa aproveitou o brunch?',
+    texto: 'isso marca o brunch de aniversário como usado. não dá pra desfazer por aqui.',
+    ok: 'sim, entregue',
+  });
+  if (!ok) return;
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_brinde_usar', { p_id: botao.dataset.brindeUsar });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra dar baixa nesse brinde', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast(r?.ja_estava ? 'esse brunch já estava dado como usado' : 'pronto, feliz aniversário 💛');
+    carregarBrindes(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
+  }
+}
+
 // ===== PESSOAS ======================================================
 async function viewPessoas(view) {
   view.innerHTML =
@@ -1200,7 +1384,11 @@ async function viewEquipe(view) {
           achados.innerHTML = '';
           $('#busca-equipe', view).value = '';
           const lista = $('.ad-lista', corpo);
-          if (lista && !$(`[data-pessoa="${nova.id}"]`, corpo)) {
+          if (!lista) {
+            // carregarEquipe falhou (corpo só tem o aviso de erro, sem .ad-lista) —
+            // não dá pra inserir o card; avisa em vez de mentir "já está na lista".
+            toast('a lista da equipe não carregou; recarrega a página pra adicionar');
+          } else if (!$(`[data-pessoa="${nova.id}"]`, corpo)) {
             lista.insertAdjacentHTML('afterbegin', cardEquipe(nova));
             ligarCardsEquipe(corpo);
             renderIcons();
@@ -1350,6 +1538,781 @@ function ligarCardsEquipe(corpo) {
       }
     });
   });
+}
+
+// ===== RECADOS DA CASA ==============================================
+// Owner-only. A tarja de aviso que acende no topo do site. As RPCs admin_aviso_*
+// (0022) trancam por is_owner() no banco; aqui é só a tela.
+let recadoEditando = null; // id em edição, ou null (criando um novo)
+
+// ISO ↔ valor de <input type="datetime-local"> (hora local do navegador).
+function isoDeDtLocal(v) {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+function dtLocalDeIso(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function statusDoRecado(a) {
+  if (!a.ativo) return { txt: 'desligado', tom: 'off' };
+  const agora = Date.now();
+  const ini = a.inicio_em ? Date.parse(a.inicio_em) : null;
+  const fim = a.fim_em ? Date.parse(a.fim_em) : null;
+  if (ini && ini > agora) return { txt: `agendado pra ${formatData(a.inicio_em)}`, tom: 'wait' };
+  if (fim && fim < agora) return { txt: `expirou em ${formatData(a.fim_em)}`, tom: 'off' };
+  return { txt: 'no ar agora', tom: 'on' };
+}
+
+async function viewRecados(view) {
+  view.innerHTML =
+    cabecalho(
+      'recados da casa',
+      'a tarjinha que acende no topo do site. escreve curto, dá um prazo, e ela some sozinha quando vence.',
+    ) +
+    `<form class="card ad-form-recado" data-form-recado novalidate>
+       <input type="hidden" data-r-id />
+       <div class="field">
+         <label for="r-texto">o recado</label>
+         <textarea id="r-texto" data-r-texto rows="2" maxlength="160" placeholder="hoje tem fornada de brioche a partir das 15h 🥐" required></textarea>
+         <p class="ad-dica">curtinho, até 160 caracteres. o tom é o de sempre: acolhedor, sem pressa.</p>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field ad-recado-emoji">
+           <label for="r-emoji">emoji (opcional)</label>
+           <input id="r-emoji" data-r-emoji maxlength="8" placeholder="🥐" />
+         </div>
+         <div class="field ad-recado-prio">
+           <label for="r-prio">prioridade</label>
+           <input id="r-prio" data-r-prio type="number" value="0" step="1" />
+           <p class="ad-dica">maior aparece primeiro se houver mais de um.</p>
+         </div>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="r-inicio">começa a aparecer</label>
+           <input id="r-inicio" data-r-inicio type="datetime-local" />
+           <p class="ad-dica">vazio = já vale agora.</p>
+         </div>
+         <div class="field">
+           <label for="r-fim">para de aparecer</label>
+           <input id="r-fim" data-r-fim type="datetime-local" />
+           <p class="ad-dica">vazio = fica até tu desligar.</p>
+         </div>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="r-link">link (opcional)</label>
+           <input id="r-link" data-r-link placeholder="/planos ou https://…" />
+         </div>
+         <div class="field">
+           <label for="r-link-label">texto do link</label>
+           <input id="r-link-label" data-r-link-label maxlength="40" placeholder="ver os planos" />
+         </div>
+       </div>
+       <label class="ad-recado-ativo"><input type="checkbox" data-r-ativo checked /> <span>ligado (aparece no site)</span></label>
+       <div data-r-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-r-salvar>publicar recado</button>
+         <button type="button" class="btn ghost" data-r-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+     <div class="ad-recado-lista" data-recado-lista></div>`;
+
+  renderIcons();
+  const form = $('[data-form-recado]', view);
+  const lista = $('[data-recado-lista]', view);
+  const avisoForm = $('[data-r-aviso]', form);
+
+  const limparForm = () => {
+    recadoEditando = null;
+    form.reset();
+    $('[data-r-id]', form).value = '';
+    $('[data-r-ativo]', form).checked = true;
+    $('[data-r-salvar]', form).textContent = 'publicar recado';
+    $('[data-r-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (a) => {
+    recadoEditando = a.id;
+    $('[data-r-id]', form).value = a.id;
+    $('[data-r-texto]', form).value = a.texto || '';
+    $('[data-r-emoji]', form).value = a.emoji || '';
+    $('[data-r-prio]', form).value = Number(a.prioridade) || 0;
+    $('[data-r-inicio]', form).value = dtLocalDeIso(a.inicio_em);
+    $('[data-r-fim]', form).value = dtLocalDeIso(a.fim_em);
+    $('[data-r-link]', form).value = a.link_url || '';
+    $('[data-r-link-label]', form).value = a.link_label || '';
+    $('[data-r-ativo]', form).checked = Boolean(a.ativo);
+    $('[data-r-salvar]', form).textContent = 'salvar recado';
+    $('[data-r-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-r-texto]', form).focus();
+  };
+
+  async function carregarRecados() {
+    carregando(lista, 'buscando os recados…');
+    try {
+      const dados = await rpc('admin_avisos_listar');
+      const avisos = Array.isArray(dados) ? dados : [];
+      if (!avisos.length) {
+        lista.innerHTML = vazio('nenhum recado ainda', 'escreve o primeiro aí em cima — ele acende no topo do site.');
+        return;
+      }
+      lista.innerHTML = avisos.map(cardRecado).join('');
+      renderIcons();
+      ligarCardsRecado();
+    } catch (e) {
+      erroNaTela(lista, e);
+    }
+  }
+
+  function cardRecado(a) {
+    const st = statusDoRecado(a);
+    const janela = [];
+    if (a.inicio_em) janela.push(`de ${formatData(a.inicio_em)}`);
+    if (a.fim_em) janela.push(`até ${formatData(a.fim_em)}`);
+    const linkTxt = a.link_url ? ` · link: ${escapeHtml(a.link_label || a.link_url)}` : '';
+    return `
+      <article class="card ad-card" data-recado="${escapeHtml(a.id)}">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${a.emoji ? escapeHtml(a.emoji) + ' ' : ''}${escapeHtml(a.texto || '')}</p>
+            <p class="ad-card-meta">${janela.length ? escapeHtml(janela.join(' ')) : 'sem prazo'} · prioridade ${Number(a.prioridade) || 0}${linkTxt}</p>
+          </div>
+          <div class="ad-card-tags"><span class="tag ${st.tom === 'on' ? 'olive' : 'gold'}">${escapeHtml(st.txt)}</span></div>
+        </div>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn ghost sm" data-r-editar="${escapeHtml(a.id)}">editar</button>
+          <button type="button" class="btn ghost sm" data-r-remover="${escapeHtml(a.id)}" data-r-resumo="${escapeHtml((a.texto || '').slice(0, 40))}">remover</button>
+        </div>
+      </article>`;
+  }
+
+  function ligarCardsRecado() {
+    $$('[data-r-editar]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_avisos_listar');
+          const a = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.rEditar);
+          if (a) preencherForm(a);
+        } catch (e) {
+          toast(e.message, 'erro');
+        }
+      });
+    });
+    $$('[data-r-remover]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: 'remover este recado?',
+          texto: `"${b.dataset.rResumo}…" — some do site na hora e não dá pra desfazer.`,
+          ok: 'sim, remover',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_aviso_remover', { p_id: b.dataset.rRemover });
+          toast('recado removido');
+          if (recadoEditando === b.dataset.rRemover) limparForm();
+          carregarRecados();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const texto = $('[data-r-texto]', form).value.trim();
+    if (!texto) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>escreve o recado 💛</p></div>';
+      return;
+    }
+    const inicio = isoDeDtLocal($('[data-r-inicio]', form).value);
+    const fim = isoDeDtLocal($('[data-r-fim]', form).value);
+    if (inicio && fim && Date.parse(fim) <= Date.parse(inicio)) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>o fim tem que ser depois do começo.</p></div>';
+      return;
+    }
+    const botao = $('[data-r-salvar]', form);
+    botao.disabled = true;
+    try {
+      await rpc('admin_aviso_salvar', {
+        p_id: recadoEditando || null,
+        p_texto: texto,
+        p_emoji: $('[data-r-emoji]', form).value.trim() || null,
+        p_link_url: $('[data-r-link]', form).value.trim() || null,
+        p_link_label: $('[data-r-link-label]', form).value.trim() || null,
+        p_inicio: inicio,
+        p_fim: fim,
+        p_prioridade: Number($('[data-r-prio]', form).value) || 0,
+        p_ativo: $('[data-r-ativo]', form).checked,
+      });
+      toast(recadoEditando ? 'recado salvo 💛' : 'recado publicado 💛');
+      limparForm();
+      carregarRecados();
+    } catch (e2) {
+      toast(e2.message, 'erro');
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-r-cancelar]', form).addEventListener('click', limparForm);
+
+  carregarRecados();
+}
+
+// ===== TRILHA DO CASA ===============================================
+// Owner-only. As playlists do Spotify que aparecem na home. RPCs admin_trilha_*
+// (0023) trancam por is_owner() no banco.
+let trilhaEditando = null;
+
+// Cheiro de link do Spotify (bloqueio gentil no submit; a home revalida antes do embed).
+function pareceSpotify(url) {
+  const s = String(url || '').trim();
+  if (/^spotify:(playlist|album|track|artist|show|episode):[A-Za-z0-9]+$/i.test(s)) return true;
+  try {
+    return new URL(s).hostname === 'open.spotify.com';
+  } catch {
+    return false;
+  }
+}
+
+async function viewTrilha(view) {
+  view.innerHTML =
+    cabecalho(
+      'a trilha do Casa',
+      'as playlists do Spotify que tocam na home. cola o link, dá um clima, e marca qual está tocando agora.',
+    ) +
+    `<form class="card ad-form-recado" data-form-trilha novalidate>
+       <input type="hidden" data-t-id />
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="t-nome">nome da playlist</label>
+           <input id="t-nome" data-t-nome maxlength="80" placeholder="tarde de trabalho" required />
+         </div>
+         <div class="field">
+           <label for="t-clima">clima (opcional)</label>
+           <input id="t-clima" data-t-clima maxlength="40" placeholder="pra focar" />
+         </div>
+       </div>
+       <div class="field">
+         <label for="t-url">link do Spotify</label>
+         <input id="t-url" data-t-url placeholder="https://open.spotify.com/playlist/…" required />
+         <p class="ad-dica">abre a playlist no Spotify → compartilhar → copiar link. cola aqui.</p>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field ad-recado-prio">
+           <label for="t-ordem">ordem</label>
+           <input id="t-ordem" data-t-ordem type="number" value="0" step="1" />
+           <p class="ad-dica">menor aparece primeiro.</p>
+         </div>
+         <div class="ad-trilha-flags">
+           <label class="ad-recado-ativo"><input type="checkbox" data-t-ativo checked /> <span>na home</span></label>
+           <label class="ad-recado-ativo"><input type="checkbox" data-t-tocando /> <span>tocando agora 🎧</span></label>
+         </div>
+       </div>
+       <div data-t-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-t-salvar>adicionar playlist</button>
+         <button type="button" class="btn ghost" data-t-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+     <div class="ad-recado-lista" data-trilha-lista></div>`;
+
+  renderIcons();
+  const form = $('[data-form-trilha]', view);
+  const lista = $('[data-trilha-lista]', view);
+  const avisoForm = $('[data-t-aviso]', form);
+
+  const limparForm = () => {
+    trilhaEditando = null;
+    form.reset();
+    $('[data-t-id]', form).value = '';
+    $('[data-t-ativo]', form).checked = true;
+    $('[data-t-tocando]', form).checked = false;
+    $('[data-t-salvar]', form).textContent = 'adicionar playlist';
+    $('[data-t-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (p) => {
+    trilhaEditando = p.id;
+    $('[data-t-id]', form).value = p.id;
+    $('[data-t-nome]', form).value = p.nome || '';
+    $('[data-t-clima]', form).value = p.clima || '';
+    $('[data-t-url]', form).value = p.spotify_url || '';
+    $('[data-t-ordem]', form).value = Number(p.ordem) || 0;
+    $('[data-t-ativo]', form).checked = Boolean(p.ativo);
+    $('[data-t-tocando]', form).checked = Boolean(p.tocando);
+    $('[data-t-salvar]', form).textContent = 'salvar playlist';
+    $('[data-t-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-t-nome]', form).focus();
+  };
+
+  async function carregarTrilha() {
+    carregando(lista, 'buscando as playlists…');
+    try {
+      const dados = await rpc('admin_trilha_listar');
+      const pls = Array.isArray(dados) ? dados : [];
+      if (!pls.length) {
+        lista.innerHTML = vazio('nenhuma playlist ainda', 'cola a primeira aí em cima — ela aparece na home.');
+        return;
+      }
+      lista.innerHTML = pls.map(cardTrilha).join('');
+      renderIcons();
+      ligarCardsTrilha();
+    } catch (e) {
+      erroNaTela(lista, e);
+    }
+  }
+
+  function cardTrilha(p) {
+    const tags = [];
+    if (p.tocando) tags.push('<span class="tag olive">tocando agora</span>');
+    if (!p.ativo) tags.push('<span class="tag gold">fora da home</span>');
+    return `
+      <article class="card ad-card" data-trilha-item="${escapeHtml(p.id)}">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${p.clima ? escapeHtml(p.clima) + ' · ' : ''}${escapeHtml(p.nome || '')}</p>
+            <p class="ad-card-meta">ordem ${Number(p.ordem) || 0} · ${escapeHtml(p.spotify_url || '')}</p>
+          </div>
+          <div class="ad-card-tags">${tags.join('')}</div>
+        </div>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn ghost sm" data-t-editar="${escapeHtml(p.id)}">editar</button>
+          <button type="button" class="btn ghost sm" data-t-remover="${escapeHtml(p.id)}" data-t-nome="${escapeHtml(p.nome || 'essa playlist')}">remover</button>
+        </div>
+      </article>`;
+  }
+
+  function ligarCardsTrilha() {
+    $$('[data-t-editar]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_trilha_listar');
+          const p = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.tEditar);
+          if (p) preencherForm(p);
+        } catch (e) {
+          toast(e.message, 'erro');
+        }
+      });
+    });
+    $$('[data-t-remover]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: `remover "${b.dataset.tNome}"?`,
+          texto: 'some da home na hora e não dá pra desfazer.',
+          ok: 'sim, remover',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_trilha_remover', { p_id: b.dataset.tRemover });
+          toast('playlist removida');
+          if (trilhaEditando === b.dataset.tRemover) limparForm();
+          carregarTrilha();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const nome = $('[data-t-nome]', form).value.trim();
+    const url = $('[data-t-url]', form).value.trim();
+    if (!nome) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>dá um nome pra playlist 💛</p></div>';
+      return;
+    }
+    if (!pareceSpotify(url)) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>cola um link do Spotify (open.spotify.com/…).</p></div>';
+      return;
+    }
+    const botao = $('[data-t-salvar]', form);
+    botao.disabled = true;
+    try {
+      await rpc('admin_trilha_salvar', {
+        p_id: trilhaEditando || null,
+        p_nome: nome,
+        p_clima: $('[data-t-clima]', form).value.trim() || null,
+        p_url: url,
+        p_ordem: Number($('[data-t-ordem]', form).value) || 0,
+        p_ativo: $('[data-t-ativo]', form).checked,
+        p_tocando: $('[data-t-tocando]', form).checked,
+      });
+      toast(trilhaEditando ? 'playlist salva 💛' : 'playlist adicionada 💛');
+      limparForm();
+      carregarTrilha();
+    } catch (e2) {
+      toast(e2.message, 'erro');
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-t-cancelar]', form).addEventListener('click', limparForm);
+
+  carregarTrilha();
+}
+
+// ===== AGENDA (encontros) ===========================================
+// Os próximos encontros que aparecem na home. Trancam por is_owner() no banco
+// (0026); aqui é só a tela. O RSVP (confirmar presença) é do lado do assinante,
+// na home — aqui a gente só vê quantos confirmaram.
+let agendaEditando = null;
+
+async function viewAgenda(view) {
+  view.innerHTML =
+    cabecalho(
+      'a agenda do Casa',
+      'os próximos encontros que aparecem na home. marca a data, o lugar e quantas vagas.',
+    ) +
+    `<form class="card ad-form-recado" data-form-agenda novalidate>
+       <input type="hidden" data-a-id />
+       <div class="field">
+         <label for="a-nome">nome do encontro</label>
+         <input id="a-nome" data-a-nome maxlength="120" placeholder="sarau de quarta" required />
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field">
+           <label for="a-data">quando</label>
+           <input id="a-data" data-a-data type="datetime-local" />
+           <p class="ad-dica">deixa em branco pra "em breve".</p>
+         </div>
+         <div class="field">
+           <label for="a-local">onde (opcional)</label>
+           <input id="a-local" data-a-local maxlength="120" placeholder="no salão de cima" />
+         </div>
+       </div>
+       <div class="field">
+         <label for="a-desc">descrição (opcional)</label>
+         <textarea id="a-desc" data-a-desc rows="2" maxlength="400" placeholder="uma linha sobre o encontro"></textarea>
+       </div>
+       <div class="ad-recado-linha">
+         <div class="field ad-recado-prio">
+           <label for="a-vagas">vagas</label>
+           <input id="a-vagas" data-a-vagas type="number" min="0" step="1" placeholder="sem limite" />
+           <p class="ad-dica">em branco = sem limite.</p>
+         </div>
+         <div class="ad-trilha-flags">
+           <label class="ad-recado-ativo"><input type="checkbox" data-a-ativo checked /> <span>na home</span></label>
+         </div>
+       </div>
+       <div data-a-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-a-salvar>adicionar encontro</button>
+         <button type="button" class="btn ghost" data-a-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+     <div class="ad-recado-lista" data-agenda-lista></div>`;
+
+  renderIcons();
+  const form = $('[data-form-agenda]', view);
+  const lista = $('[data-agenda-lista]', view);
+  const avisoForm = $('[data-a-aviso]', form);
+
+  const limparForm = () => {
+    agendaEditando = null;
+    form.reset();
+    $('[data-a-id]', form).value = '';
+    $('[data-a-ativo]', form).checked = true;
+    $('[data-a-salvar]', form).textContent = 'adicionar encontro';
+    $('[data-a-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (e) => {
+    agendaEditando = e.id;
+    $('[data-a-id]', form).value = e.id;
+    $('[data-a-nome]', form).value = e.nome || '';
+    $('[data-a-data]', form).value = dtLocalDeIso(e.data);
+    $('[data-a-local]', form).value = e.local || '';
+    $('[data-a-desc]', form).value = e.descricao || '';
+    $('[data-a-vagas]', form).value = e.vagas == null ? '' : Number(e.vagas);
+    $('[data-a-ativo]', form).checked = Boolean(e.ativo);
+    $('[data-a-salvar]', form).textContent = 'salvar encontro';
+    $('[data-a-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-a-nome]', form).focus();
+  };
+
+  async function carregarAgenda() {
+    carregando(lista, 'buscando os encontros…');
+    try {
+      const dados = await rpc('admin_eventos_listar');
+      const evs = Array.isArray(dados) ? dados : [];
+      if (!evs.length) {
+        lista.innerHTML = vazio('nenhum encontro ainda', 'marca o primeiro aí em cima — ele aparece na home.');
+        return;
+      }
+      lista.innerHTML = evs.map(cardAgenda).join('');
+      renderIcons();
+      ligarCardsAgenda();
+    } catch (e) {
+      erroNaTela(lista, e);
+    }
+  }
+
+  function cardAgenda(e) {
+    const tags = [];
+    if (!e.ativo) tags.push('<span class="tag gold">fora da home</span>');
+    const passou = e.data && Date.parse(e.data) < Date.now();
+    if (passou) tags.push('<span class="tag">já passou</span>');
+    const vagas =
+      e.vagas == null
+        ? `${formatNumero(e.confirmados)} confirmados`
+        : `${formatNumero(e.confirmados)}/${formatNumero(e.vagas)} confirmados`;
+    return `
+      <article class="card ad-card" data-agenda-item="${escapeHtml(e.id)}">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${escapeHtml(e.nome || '')}</p>
+            <p class="ad-card-meta">${escapeHtml(formatData(e.data))}${e.local ? ' · ' + escapeHtml(e.local) : ''} · ${vagas}</p>
+          </div>
+          <div class="ad-card-tags">${tags.join('')}</div>
+        </div>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn ghost sm" data-a-editar="${escapeHtml(e.id)}">editar</button>
+          <button type="button" class="btn ghost sm" data-a-remover="${escapeHtml(e.id)}" data-a-nome="${escapeHtml(e.nome || 'esse encontro')}">remover</button>
+        </div>
+      </article>`;
+  }
+
+  function ligarCardsAgenda() {
+    $$('[data-a-editar]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_eventos_listar');
+          const e = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.aEditar);
+          if (e) preencherForm(e);
+        } catch (e2) {
+          toast(e2.message, 'erro');
+        }
+      });
+    });
+    $$('[data-a-remover]', lista).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: `remover "${b.dataset.aNome}"?`,
+          texto: 'some da home na hora, junto com as confirmações. não dá pra desfazer.',
+          ok: 'sim, remover',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_evento_remover', { p_id: b.dataset.aRemover });
+          toast('encontro removido');
+          if (agendaEditando === b.dataset.aRemover) limparForm();
+          carregarAgenda();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const nome = $('[data-a-nome]', form).value.trim();
+    if (!nome) {
+      avisoForm.innerHTML = '<div class="notice erro"><p>dá um nome pro encontro 💛</p></div>';
+      return;
+    }
+    const vagasRaw = $('[data-a-vagas]', form).value.trim();
+    const botao = $('[data-a-salvar]', form);
+    botao.disabled = true;
+    try {
+      await rpc('admin_evento_salvar', {
+        p_id: agendaEditando || null,
+        p_nome: nome,
+        p_descricao: $('[data-a-desc]', form).value.trim() || null,
+        p_data: isoDeDtLocal($('[data-a-data]', form).value),
+        p_local: $('[data-a-local]', form).value.trim() || null,
+        p_vagas: vagasRaw === '' ? null : Math.max(0, Number(vagasRaw) || 0),
+        p_ativo: $('[data-a-ativo]', form).checked,
+      });
+      toast(agendaEditando ? 'encontro salvo 💛' : 'encontro adicionado 💛');
+      limparForm();
+      carregarAgenda();
+    } catch (e2) {
+      toast(e2.message, 'erro');
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-a-cancelar]', form).addEventListener('click', limparForm);
+
+  carregarAgenda();
+}
+
+// ===== FAVORITOS (o que a casa mais ama) ============================
+// Os itens do cardápio mais favoritados. Trava por tem_permissao('relatorios')
+// no banco (0027); o agregado usa o nome mais frequente por slug (defesa contra
+// snapshot adulterado). Só leitura — nenhuma baixa.
+async function viewFavoritos(view) {
+  view.innerHTML =
+    cabecalho(
+      'o que a casa mais ama',
+      'os itens do cardápio que mais viraram favorito de quem vem.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarFavoritos(corpo));
+  renderIcons();
+  carregarFavoritos(corpo);
+}
+
+async function carregarFavoritos(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_cardapio_favoritos');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém favoritou ainda',
+        'quando alguém marcar um item no cardápio, ele aparece aqui, do mais amado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.favoritos) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardFav(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardFav(l, i, max) {
+  const n = Number(l.favoritos) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.item_nome || l.item_slug || 'item')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="heart"></i>${formatNumero(n)}</span>
+    </div>`;
+}
+
+// ===== DESEJOS DA LOJA ("o que a casa mais quer") ==================
+async function viewDesejos(view) {
+  view.innerHTML =
+    cabecalho(
+      'o que a casa mais quer',
+      'os produtos da loja que mais viraram "ficou pra depois" de quem vem.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarDesejos(corpo));
+  renderIcons();
+  carregarDesejos(corpo);
+}
+
+async function carregarDesejos(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_loja_desejos');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém guardou nada ainda',
+        'quando alguém guardar um produto pra depois, ele aparece aqui, do mais desejado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.desejos) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardDesejo(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardDesejo(l, i, max) {
+  const n = Number(l.desejos) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.produto_nome || l.produto_slug || 'produto')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="bookmark"></i>${formatNumero(n)}</span>
+    </div>`;
+}
+
+// ===== ESPERANDO REPOSIÇÃO ("quem espera o quê") ===================
+async function viewReposicao(view) {
+  view.innerHTML =
+    cabecalho(
+      'quem espera reposição',
+      'os produtos esgotados que mais gente pediu pra avisar quando voltar, o teu norte pra repor.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarReposicao(corpo));
+  renderIcons();
+  carregarReposicao(corpo);
+}
+
+async function carregarReposicao(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_avisos_reposicao');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém esperando por enquanto',
+        'quando alguém pedir pra ser avisado de um produto esgotado, ele aparece aqui, do mais esperado pro menos.',
+      );
+      return;
+    }
+    const max = Math.max(...linhas.map((l) => Number(l.esperando) || 0), 1);
+    corpo.innerHTML = `<div class="ad-fav-lista">${linhas.map((l, i) => cardReposicao(l, i, max)).join('')}</div>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardReposicao(l, i, max) {
+  const n = Number(l.esperando) || 0;
+  const pct = Math.max(6, Math.round((n / max) * 100));
+  return `
+    <div class="ad-fav-row">
+      <span class="ad-fav-pos">${i + 1}</span>
+      <div class="ad-fav-main">
+        <p class="ad-fav-nome">${escapeHtml(l.produto_nome || l.produto_slug || 'produto')}</p>
+        <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <span class="ad-fav-n"><i data-lucide="bell-ring"></i>${formatNumero(n)}</span>
+    </div>`;
 }
 
 // ===== TUA CONTA ====================================================

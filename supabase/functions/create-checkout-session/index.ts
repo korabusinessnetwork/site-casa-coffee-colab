@@ -61,7 +61,14 @@ Deno.serve(async (req) => {
   if (!user) return jsonResponse({ error: 'não autenticado' }, 401);
 
   // 2) Body.
-  let body: { tier_slug?: unknown; items?: unknown; upgrade_to_tier?: unknown; modo?: unknown };
+  let body: {
+    tier_slug?: unknown;
+    items?: unknown;
+    upgrade_to_tier?: unknown;
+    modo?: unknown;
+    gift_tier?: unknown;
+    mensagem?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -144,8 +151,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
         const prevScheduled = subExtra?.scheduled_downgrade_to ?? null;
 
-        // 1) Sobe o value recorrente no Asaas.
+        // 1) Sobe o value recorrente no Asaas e garante ACTIVE. Se a assinatura
+        // vigente for uma 'pausada' em graça (INACTIVE no Asaas), aplicar só o value
+        // deixaria a recorrência inativa — o tier subiria no banco mas nada renovaria
+        // e o benefício cairia. Espelha o applyUpgrade do webhook (status:'ACTIVE' +
+        // value); em assinatura já ativa é idempotente.
         await asaasPut(`/subscriptions/${encodeURIComponent(sub.asaas_subscription_id)}`, {
+          status: 'ACTIVE',
           value: reaisFromCentavos(novo.preco_centavos),
         });
         // 2) Espelha o tier novo no banco: subscriptions PRIMEIRO (é dela que
@@ -218,6 +230,84 @@ Deno.serve(async (req) => {
       });
 
       return jsonResponse({ url: checkout.link, valor_delta_centavos: delta_centavos });
+    }
+
+    // -------------------------------------------------------------------------
+    // MODO PRESENTE (DETACHED) — quando vem `gift_tier`.
+    // O comprador paga UM mês cheio do tier (avulso, Pix ou cartão) de PRESENTE
+    // pra outra pessoa. NÃO cria recorrência: é cobrança única. Pré-cria a linha
+    // em gift_subscriptions ('pendente') e usa `gift:<id>` como externalReference
+    // — o webhook, no CHECKOUT_PAID, marca 'pago' e gera o código do presente.
+    // Preço SEMPRE do BANCO (nunca do client). O bilhete é texto livre curto.
+    // -------------------------------------------------------------------------
+    if (typeof body.gift_tier === 'string' && body.gift_tier) {
+      const giftSlug = body.gift_tier;
+
+      const { data: tier, error: tierErr } = await supabaseAdmin
+        .from('tiers')
+        .select('slug, nome, preco_centavos, ativo')
+        .eq('slug', giftSlug)
+        .maybeSingle();
+      if (tierErr) return jsonResponse({ error: 'erro ao buscar o plano' }, 500);
+      if (!tier || !tier.ativo) return jsonResponse({ error: 'plano indisponível' }, 400);
+      if (!tier.preco_centavos || tier.preco_centavos <= 0) {
+        return jsonResponse({ error: 'plano sem preço configurado' }, 400);
+      }
+
+      // Bilhete: texto livre curto. Corta em 280 e guarda vazio → null. É mostrado
+      // pra quem resgata SEMPRE via textContent (escapado no client) — sem XSS.
+      const mensagem = typeof body.mensagem === 'string' ? body.mensagem.trim().slice(0, 280) : '';
+
+      // Pré-cria o presente 'pendente'. Se o Asaas falhar, desfaz (sem órfão).
+      const { data: gift, error: gErr } = await supabaseAdmin
+        .from('gift_subscriptions')
+        .insert({
+          comprador_id: user.id,
+          tier_slug: tier.slug,
+          valor_centavos: tier.preco_centavos,
+          mensagem: mensagem || null,
+          status: 'pendente',
+        })
+        .select('id')
+        .single();
+      if (gErr || !gift) {
+        console.error('[create-checkout-session] falha ao criar presente', gErr);
+        return jsonResponse({ error: 'não deu pra iniciar o presente agora' }, 500);
+      }
+
+      let checkout: any;
+      try {
+        checkout = await asaasPost('/checkouts', {
+          billingTypes: ['PIX', 'CREDIT_CARD'],
+          chargeTypes: ['DETACHED'],
+          minutesToExpire: CHECKOUT_EXPIRA_MIN,
+          externalReference: `gift:${gift.id}`,
+          callback: {
+            successUrl: `${site}/checkout-sucesso?presente=${gift.id}`,
+            cancelUrl: cancel_url,
+            expiredUrl: cancel_url,
+            autoRedirect: true,
+          },
+          items: [
+            {
+              name: `Presente · Plano ${tier.nome}`,
+              description: 'um mês do Casa, de presente 💛',
+              quantity: 1,
+              value: reaisFromCentavos(tier.preco_centavos),
+            },
+          ],
+        });
+      } catch (err) {
+        await supabaseAdmin.from('gift_subscriptions').delete().eq('id', gift.id);
+        throw err;
+      }
+
+      await supabaseAdmin
+        .from('gift_subscriptions')
+        .update({ asaas_checkout_id: checkout.id })
+        .eq('id', gift.id);
+
+      return jsonResponse({ url: checkout.link });
     }
 
     // -------------------------------------------------------------------------
@@ -397,6 +487,37 @@ Deno.serve(async (req) => {
       );
     }
 
+    // TRAVA ANTI-DUPLICAÇÃO (parte 2): checkout de assinatura RECÉM-ABERTO ainda
+    // 'pendente'. Entre "pagou" e "CHECKOUT_PAID chegou" a linha fica 'pendente' e
+    // getEffectiveSubscription (só ativa/pausada) não a vê — sem esta trava, quem
+    // pagou e volta antes do webhook conseguiria abrir um SEGUNDO checkout e ser
+    // cobrado duas vezes (duas recorrências no cartão). Só barra dentro da janela
+    // do checkout (60 min, o minutesToExpire): passado isso o link já expirou e um
+    // checkout abandonado não prende ninguém. Mesmo padrão da delete-account.
+    const limitePendente = new Date(Date.now() - CHECKOUT_EXPIRA_MIN * 60 * 1000).toISOString();
+    const { data: subPendente, error: pendErr } = await supabaseAdmin
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'pendente')
+      .gte('created_at', limitePendente)
+      .limit(1)
+      .maybeSingle();
+    if (pendErr) {
+      console.error('[create-checkout-session] erro ao checar assinatura pendente', pendErr);
+      return jsonResponse({ error: 'não deu pra abrir o checkout agora' }, 500);
+    }
+    if (subPendente) {
+      return jsonResponse(
+        {
+          error:
+            'tem um pagamento de assinatura sendo confirmado agora. espera uns minutinhos e confere na tua conta antes de tentar de novo 💛',
+          assinatura_processando: true,
+        },
+        409,
+      );
+    }
+
     const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (1ª cobrança hoje)
     // externalReference da assinatura: `sub:<user_id>:<tier_slug>:<nonce>`. O nonce
     // (uuid) torna a resolução no webhook inequívoca — mesmo que o usuário cancele e
@@ -448,8 +569,10 @@ Deno.serve(async (req) => {
     // na loja. Fecha a janela entre "pagou" e "o webhook chegou": nesse intervalo
     // o banco não sabia de assinatura nenhuma, e a delete-account deixava apagar a
     // conta deixando uma recorrência órfã cobrando o cartão. 'pendente' não
-    // concede benefício (getEffectiveSubscription só olha ativa/pausada) nem trava
-    // um checkout novo; o CHECKOUT_PAID promove ESTA linha a 'ativa' pelo mesmo
+    // concede benefício (getEffectiveSubscription só olha ativa/pausada), mas DENTRO
+    // da janela de 60 min TRAVA um checkout novo (a trava anti-duplicação parte 2
+    // acima), pra não cobrar o cartão duas vezes se a pessoa voltar antes do webhook;
+    // o CHECKOUT_PAID promove ESTA linha a 'ativa' pelo mesmo
     // asaas_checkout_id (o upsert do webhook casa por essa coluna). Falha aqui não
     // derruba o checkout: sem a linha, o webhook cria do zero como antes.
     const { error: preErr } = await supabaseAdmin.from('subscriptions').insert({

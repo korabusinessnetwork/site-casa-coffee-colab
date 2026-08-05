@@ -12,6 +12,7 @@ import {
   createIcons,
   Coffee,
   Sunrise,
+  Home,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +29,8 @@ import {
   Award,
   Star,
   Gift,
+  Cake,
+  Ticket,
   Mail,
   MessageCircle,
   User,
@@ -43,6 +46,7 @@ import {
   KeyRound,
   Settings2,
   ArrowUpCircle,
+  ArrowUp,
   PlayCircle,
   Camera,
   Monitor,
@@ -50,6 +54,13 @@ import {
   Tablet,
   Utensils,
   Users,
+  CalendarDays,
+  CalendarPlus,
+  Bookmark,
+  Bell,
+  BellOff,
+  BellRing,
+  Ruler,
   Search,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
@@ -59,6 +70,7 @@ import { createClient } from '@supabase/supabase-js';
 const LUCIDE_ICONS = {
   Coffee,
   Sunrise,
+  Home,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -75,6 +87,8 @@ const LUCIDE_ICONS = {
   Award,
   Star,
   Gift,
+  Cake,
+  Ticket,
   Mail,
   MessageCircle,
   User,
@@ -90,6 +104,7 @@ const LUCIDE_ICONS = {
   KeyRound,
   Settings2,
   ArrowUpCircle,
+  ArrowUp,
   PlayCircle,
   Camera,
   Monitor,
@@ -97,6 +112,13 @@ const LUCIDE_ICONS = {
   Tablet,
   Utensils,
   Users,
+  CalendarDays,
+  CalendarPlus,
+  Bookmark,
+  Bell,
+  BellOff,
+  BellRing,
+  Ruler,
   Search,
 };
 function renderIcons() {
@@ -149,12 +171,12 @@ const MARCA = {
 //   semLink — o item vira texto, sem clique. A PÁGINA CONTINUA NO AR: quem
 //             souber a URL entra direto. É só o menu que para de oferecer.
 const NAV = [
-  { rotulo: 'Home', href: '/home' },
-  { rotulo: 'O Casa', href: '/o-casa' },
-  { rotulo: 'Cardápio', href: '/cardapio' },
-  { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true },
-  { rotulo: 'Planos', href: '/planos' },
-  { rotulo: 'Colab', href: '/colab' },
+  { rotulo: 'Home', href: '/home', icone: 'home' },
+  { rotulo: 'O Casa', href: '/o-casa', icone: 'heart' },
+  { rotulo: 'Cardápio', href: '/cardapio', icone: 'utensils' },
+  { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true, icone: 'shopping-bag' },
+  { rotulo: 'Planos', href: '/planos', icone: 'sparkles' },
+  { rotulo: 'Colab', href: '/colab', icone: 'users' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
@@ -283,7 +305,10 @@ function mensagemDeErroAuth(error) {
 // CATÁLOGO (MOCK, virá do Supabase na Fase 2)
 // TODO: substituir este array pela tabela `products` do Supabase (ver CLAUDE.md).
 // Cada produto: id, nome, slug, categoria, preco_centavos, descricao,
-// imagemPlaceholder (classe .photo-*), variantes (opcional).
+// imagemPlaceholder (classe .photo-*), variantes (opcional), medidas (opcional).
+// `medidas` é a tabela de medidas da roupa (a loja não tem provador, então a
+// pessoa precisa conferir o tamanho antes de comprar): { colunas: [...],
+// linhas: [[...]], nota } — os valores em centímetros, na ordem das colunas.
 // =============================================================================
 const CATEGORIAS = {
   vestuario: 'Vestuário',
@@ -313,6 +338,7 @@ const PRODUTOS = [
       'Micro-lote de um produtor vizinho, com notas de castanha e caramelo. A gente serve por tempo limitado.',
     imagemPlaceholder: 'ph-tote',
     variantes: { rotulo: 'Moagem', opcoes: ['Grão inteiro', 'Moído p/ coado', 'Moído p/ espresso'] },
+    disponivel: false,
   },
   {
     id: 'cafe-afeto',
@@ -335,6 +361,16 @@ const PRODUTOS = [
       'Quentinho pra vestir nos dias de café e chuva. Algodão macio, bordado discreto do Casa no peito.',
     imagemPlaceholder: 'ph-tote',
     variantes: { rotulo: 'Tamanho', opcoes: ['P', 'M', 'G', 'GG'] },
+    medidas: {
+      colunas: ['Tamanho', 'Largura', 'Comprimento', 'Manga'],
+      linhas: [
+        ['P', '53', '68', '60'],
+        ['M', '56', '70', '62'],
+        ['G', '59', '72', '64'],
+        ['GG', '62', '74', '66'],
+      ],
+      nota: 'modelagem unissex, um pouco folgada. o corpo veste o tamanho de sempre; se tu gosta de moletom bem solto, sobe um.',
+    },
   },
   {
     id: 'camiseta-feito',
@@ -346,6 +382,16 @@ const PRODUTOS = [
       'Leve, de algodão, com a nossa frase preferida estampada. Pra levar um pedacinho do Casa por aí.',
     imagemPlaceholder: 'ph-drink',
     variantes: { rotulo: 'Tamanho', opcoes: ['P', 'M', 'G', 'GG'] },
+    medidas: {
+      colunas: ['Tamanho', 'Largura', 'Comprimento', 'Manga'],
+      linhas: [
+        ['P', '48', '68', '19'],
+        ['M', '51', '71', '20'],
+        ['G', '54', '74', '21'],
+        ['GG', '57', '77', '22'],
+      ],
+      nota: 'modelagem unissex, corte reto. veste no teu tamanho de sempre; entre dois, vai no maior que cai melhor.',
+    },
   },
   {
     id: 'avental-casa',
@@ -357,6 +403,11 @@ const PRODUTOS = [
       'O mesmo avental que a gente usa na cozinha. Linho encorpado, bolso na frente, feito pra durar.',
     imagemPlaceholder: 'ph-tan light',
     variantes: { rotulo: 'Tamanho', opcoes: ['Único'] },
+    medidas: {
+      colunas: ['Tamanho', 'Largura', 'Comprimento', 'Alça'],
+      linhas: [['Único', '70', '85', 'regulável, até 130']],
+      nota: 'tamanho único, com alça de pescoço e tira de cintura reguláveis. serve do P ao GG.',
+    },
   },
   {
     id: 'caneca-autor',
@@ -368,6 +419,7 @@ const PRODUTOS = [
       'Cerâmica feita à mão pelo Ateliê Lomba Grande, em residência com a gente. Cada peça é única.',
     imagemPlaceholder: 'ph-drink',
     variantes: null,
+    disponivel: false,
   },
   {
     id: 'bolsa-linho',
@@ -528,8 +580,21 @@ function renderHeader() {
     return `<a href="${item.href}"${marca}${item.selo ? ' class="tem-selo"' : ''}${extra}>${item.rotulo}${selo}</a>`;
   };
 
+  // No mobile cada item ganha um ícone (à esquerda do rótulo) pra ficar
+  // escaneável num toque — o desktop segue só texto, então é um render à parte.
+  const navItemMobile = (item) => {
+    const on = item.href === ativo;
+    const ic = `<i data-lucide="${item.icone}" class="menu-ico" aria-hidden="true"></i>`;
+    const selo = item.selo ? `<span class="nav-selo">${item.selo}</span>` : '';
+    const marca = on ? ' aria-current="page"' : '';
+    if (item.semLink) {
+      return `<span class="nav-off${item.selo ? ' tem-selo' : ''}"${marca}>${ic}<span class="menu-txt">${item.rotulo}</span>${selo}</span>`;
+    }
+    return `<a href="${item.href}"${marca}${item.selo ? ' class="tem-selo"' : ''} data-menu-link>${ic}<span class="menu-txt">${item.rotulo}</span>${selo}</a>`;
+  };
+
   const linksDesktop = NAV.map((item) => navItem(item)).join('');
-  const linksMobile = NAV.map((item) => navItem(item, ' data-menu-link')).join('');
+  const linksMobile = NAV.map(navItemMobile).join('');
 
   slot.innerHTML = `
     <header id="topo" class="site-header" data-site-header>
@@ -545,6 +610,19 @@ function renderHeader() {
         <div class="header-right">
           <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
           <div class="auth-desktop" data-auth-slot></div>
+
+          <!-- Notificações (sino) — escondido até initNotificacoes achar algo -->
+          <div class="relative notif-wrap" data-notif-wrap hidden>
+            <button type="button" class="hdr-icon" aria-label="Notificações" data-notif-trigger aria-haspopup="true" aria-expanded="false">
+              <i data-lucide="bell"></i>
+              <span class="cart-badge hidden" data-notif-count aria-live="polite">0</span>
+            </button>
+            <div data-notif-panel data-aberto="false" role="menu" aria-hidden="true"
+              class="notif-panel invisible absolute right-0 top-full z-50 mt-2 origin-top-right scale-95 card opacity-0 shadow-xl backdrop-blur-md transition duration-200">
+              <p class="notif-head"><i data-lucide="bell-ring" aria-hidden="true"></i>teus avisos</p>
+              <div class="notif-lista" data-notif-lista></div>
+            </div>
+          </div>
 
           <!-- Carrinho -->
           <button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
@@ -563,12 +641,18 @@ function renderHeader() {
         </div>
       </div>
 
-      <!-- Menu mobile (dropdown sob o header) -->
+      <!-- Menu mobile (cartão flutuante não-modal: a página rola atrás) -->
       <div id="menu-mobile" class="menu-mobile hidden" data-menu-panel>
         <nav class="menu-inner" aria-label="Navegação mobile">
+          <p class="menu-rotulo">navegar</p>
           ${linksMobile}
+          <p class="menu-rotulo menu-rotulo-conta">minha conta</p>
           <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
           <div data-auth-slot-mobile></div>
+          <!-- O botão dourado "Visite-nos" some no mobile: aqui ele volta gentil -->
+          <a href="/o-casa" class="menu-cta" data-menu-link>
+            <i data-lucide="map-pin" aria-hidden="true"></i>passa aqui?
+          </a>
         </nav>
       </div>
     </header>
@@ -581,6 +665,14 @@ function initHeaderInteractions() {
   const header = document.querySelector('[data-site-header]');
   const toggle = document.querySelector('[data-menu-toggle]');
   const panel = document.querySelector('[data-menu-panel]');
+
+  // O cartão é position:fixed, mas dentro do header (sticky) o fixed rola junto
+  // com a página. Mudando o painel pra baixo do <body> (como o drawer e a tab
+  // bar), o fixed passa a valer de verdade em relação à viewport e o cartão fica
+  // parado enquanto a página rola atrás.
+  if (panel && panel.parentElement !== document.body) {
+    document.body.appendChild(panel);
+  }
 
   // Estado do header conforme a página:
   // - home (tem [data-hero-transparent]): transparente sobre o hero escuro e vira
@@ -599,7 +691,9 @@ function initHeaderInteractions() {
     }
   }
 
-  // Menu hambúrguer (a animação em X vem do CSS via aria-expanded na .burger)
+  // Menu hambúrguer (a animação em X vem do CSS via aria-expanded na .burger).
+  // É um popover NÃO-modal: não trava o scroll da página — atrás rola normal
+  // (mouse sobre a página) e o cartão rola por dentro (mouse sobre o menu).
   if (toggle && panel) {
     const fechar = () => {
       panel.classList.add('hidden');
@@ -615,14 +709,1503 @@ function initHeaderInteractions() {
       const aberto = toggle.getAttribute('aria-expanded') === 'true';
       aberto ? fechar() : abrir();
     });
-    // Fecha ao clicar num link ou apertar Esc
+    // Fecha ao clicar num link do menu ou apertar Esc
     panel.querySelectorAll('[data-menu-link]').forEach((el) =>
       el.addEventListener('click', fechar)
     );
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') fechar();
     });
+    // Fecha ao clicar/tocar fora do cartão (o botão cuida do próprio toggle).
+    // Como não há scrim bloqueando, o clique também segue pro que estiver atrás.
+    document.addEventListener('click', (e) => {
+      if (toggle.getAttribute('aria-expanded') !== 'true') return;
+      if (panel.contains(e.target) || toggle.contains(e.target)) return;
+      fechar();
+    });
+    // Com o mouse sobre o cartão, a rolagem é do cartão, nunca da página por
+    // baixo. O overscroll-behavior:contain do CSS já segura quando dá pra rolar;
+    // aqui a gente engole o wheel quando o cartão não tem pra onde rolar (cabe
+    // inteiro, ou já está na ponta), senão o scroll vazaria pra página.
+    const inner = panel.querySelector('.menu-inner');
+    inner?.addEventListener(
+      'wheel',
+      (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = inner;
+        const podeRolar = scrollHeight > clientHeight;
+        const noTopo = scrollTop <= 0;
+        const noFim = scrollTop + clientHeight >= scrollHeight - 1;
+        if (!podeRolar || (e.deltaY < 0 && noTopo) || (e.deltaY > 0 && noFim)) {
+          e.preventDefault();
+        }
+      },
+      { passive: false }
+    );
   }
+}
+
+// --- Recado da casa (tarja de aviso no topo) -----------------------------------
+const AVISOS_LIDOS_KEY = 'casa_avisos_lidos';
+
+function avisosLidos() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(AVISOS_LIDOS_KEY) || '[]');
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function marcarAvisoLido(id) {
+  try {
+    const lidos = avisosLidos().filter((x) => x !== id);
+    lidos.push(id);
+    // Mantém só os últimos 50 pra não crescer sem fim.
+    localStorage.setItem(AVISOS_LIDOS_KEY, JSON.stringify(lidos.slice(-50)));
+  } catch {
+    /* sem localStorage: ignora */
+  }
+}
+
+// --- Notificações lidas (sino do header) ---------------------------------------
+// Os avisos DERIVADOS (indicação, presente, aniversário, encontro) não têm uma
+// linha pra apagar como o "voltou"; então a dispensa mora no localStorage, cada
+// um por um id estável. Mesmo padrão do recado, chave própria.
+const NOTIF_LIDAS_KEY = 'casa_notif_lidas';
+function notifLidas() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(NOTIF_LIDAS_KEY) || '[]');
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+function marcarNotifLida(id) {
+  try {
+    const s = notifLidas();
+    s.add(id);
+    localStorage.setItem(NOTIF_LIDAS_KEY, JSON.stringify([...s].slice(-100)));
+  } catch {
+    /* sem localStorage: ignora */
+  }
+}
+
+// Só aceita link interno ("/algo") ou http(s) absoluto — nada de javascript: etc.
+function linkAvisoSeguro(url) {
+  if (typeof url !== 'string' || !url) return null;
+  const u = url.trim();
+  if (/^\/(?![/\\])/.test(u)) return u; // caminho interno
+  if (/^https?:\/\//i.test(u)) return u; // absoluto http(s)
+  return null;
+}
+
+// Acende a tarja do "recado da casa" no topo (se houver um vigente e ainda não
+// fechado). Leitura pública: a RLS só devolve o recado ativo dentro da janela.
+// Injeta ANTES do <header> no #site-header, então rola junto com o topo da página.
+async function renderAvisoBar() {
+  const slot = document.getElementById('site-header');
+  if (!slot || !supabase) return;
+
+  let avisos = [];
+  try {
+    const { data, error } = await supabase
+      .from('avisos_casa')
+      .select('id, texto, emoji, link_url, link_label')
+      .order('prioridade', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(6);
+    if (error) return; // migration 0022 pendente / erro → sem tarja, sem ruído
+    avisos = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+
+  const lidos = avisosLidos();
+  const aviso = avisos.find((a) => !lidos.includes(a.id));
+  if (!aviso) return;
+
+  const barra = document.createElement('div');
+  barra.className = 'aviso-casa';
+  barra.setAttribute('role', 'status');
+
+  const emoji = aviso.emoji ? `<span class="aviso-casa-emoji" aria-hidden="true">${escapeHtml(aviso.emoji)}</span>` : '';
+  const href = linkAvisoSeguro(aviso.link_url);
+  const link = href
+    ? `<a class="aviso-casa-link" href="${escapeHtml(href)}">${escapeHtml(aviso.link_label || 'ver mais')} →</a>`
+    : '';
+
+  barra.innerHTML = `
+    <div class="aviso-casa-in">
+      <p class="aviso-casa-txt">${emoji}<span>${escapeHtml(aviso.texto)}</span>${link}</p>
+      <button type="button" class="aviso-casa-x" data-aviso-fechar aria-label="fechar este recado">
+        <i data-lucide="x"></i>
+      </button>
+    </div>`;
+
+  slot.insertBefore(barra, slot.firstChild);
+  renderIcons();
+
+  barra.querySelector('[data-aviso-fechar]')?.addEventListener('click', () => {
+    marcarAvisoLido(aviso.id);
+    barra.classList.add('saindo');
+    const remover = () => barra.remove();
+    // Some com uma transição curta (respeitada pelo CSS em prefers-reduced-motion).
+    barra.addEventListener('transitionend', remover, { once: true });
+    setTimeout(remover, 400); // fallback caso a transição não dispare
+  });
+}
+
+// --- Meu cantinho (perfil público do assinante em /gente/{handle}) --------------
+const CAFE_METODO_LABEL = { coado: 'coado', prensa: 'na prensa', aeropress: 'aeropress', espresso: 'espresso', moka: 'na moka' };
+const CAFE_TORRA_LABEL = { clara: 'torra clara', media: 'torra média', escura: 'torra escura' };
+const CAFE_LEITE_LABEL = { puro: 'puro', integral: 'com leite', vegetal: 'com leite vegetal', tanto: 'com ou sem leite' };
+const CAFE_HORARIO_LABEL = { manha: 'de manhã', almoco: 'no almoço', tarde: 'à tarde', fim: 'no fim do dia' };
+
+// "coado · torra média · com leite" a partir dos campos do café (o que estiver preenchido).
+function cafeFrase(p) {
+  const partes = [
+    CAFE_METODO_LABEL[p.cafe_metodo],
+    CAFE_TORRA_LABEL[p.cafe_torra],
+    CAFE_LEITE_LABEL[p.cafe_leite],
+    CAFE_HORARIO_LABEL[p.cafe_horario],
+  ].filter(Boolean);
+  return partes.join(' · ');
+}
+
+// "hoje" / "ontem" / "04/08" a partir de um ISO. (Versão de módulo; o mural tem um
+// const local homônimo que a sombreia lá dentro — sem conflito.)
+function dataCurta(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const umDia = 86_400_000;
+  const diff = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(iso).setHours(0, 0, 0, 0)) / umDia);
+  if (diff <= 0) return 'hoje';
+  if (diff === 1) return 'ontem';
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+// "DD/MM" a partir de uma data. Diferente do `dataCurta` (que é pra datas
+// PASSADAS — devolve "hoje"/"ontem"): aqui serve datas FUTURAS (validade do
+// brinde) e parseia 'YYYY-MM-DD' na mão, sem o drift de fuso do `new Date`.
+function dataDiaMes(iso) {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}`;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+// "desde ago/2026" a partir de um ISO.
+function membroDesde(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const mes = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  return `desde ${mes}/${d.getFullYear()}`;
+}
+
+// Página 404: mostra o caminho que a pessoa tentou abrir, pra ela ver onde o link
+// quebrou (link velho, letra trocada). Só o pathname, escapado, sem query nem hash.
+function init404Page() {
+  const el = document.querySelector('[data-404-caminho]');
+  if (!el) return;
+
+  const caminho = window.location.pathname;
+  if (!caminho || caminho === '/') return; // nada útil pra mostrar
+
+  el.innerHTML = `tu tentou abrir <code>${escapeHtml(caminho.slice(0, 120))}</code>`;
+  el.hidden = false;
+}
+
+// Página /gente/{handle}: o cartão público de quem optou. Leitura pública via RPC
+// perfil_publico (só campos seguros). Tolerante: sem a migration 0024, cai no vazio.
+async function initGentePage() {
+  const root = document.querySelector('[data-gente-root]');
+  if (!root) return;
+
+  const partes = window.location.pathname.split('/').filter(Boolean);
+  const handle = decodeURIComponent(partes[1] || '').trim(); // /gente/{handle}
+
+  const vazio = (titulo, texto) => {
+    root.innerHTML = `
+      <div class="gente-vazio">
+        <span class="gente-vazio-ic" aria-hidden="true">☕</span>
+        <h1>${escapeHtml(titulo)}</h1>
+        <p>${escapeHtml(texto)}</p>
+        <a href="/home" class="btn ghost">voltar pro Casa</a>
+      </div>`;
+    renderIcons();
+  };
+
+  if (!handle) return vazio('cadê o cantinho?', 'esse link tá sem nome. confere se copiou ele inteiro?');
+  if (!supabase) return vazio('cantinho fora do ar', 'a gente não conseguiu abrir agora. tenta de novo daqui a pouco? 💛');
+
+  let dados = null;
+  try {
+    const { data, error } = await supabase.rpc('perfil_publico', { p_handle: handle });
+    if (error) return vazio('cantinho fora do ar', 'a gente não conseguiu abrir agora. tenta de novo daqui a pouco? 💛');
+    dados = data;
+  } catch {
+    return vazio('cantinho fora do ar', 'a gente não conseguiu abrir agora. tenta de novo daqui a pouco? 💛');
+  }
+  if (!dados) return vazio('esse cantinho não existe (ou fechou)', 'talvez a pessoa tenha preferido guardar o dela só pra si. tá tudo bem 💛');
+
+  const nome = escapeHtml(dados.nome || 'alguém do Casa');
+  document.title = `${dados.nome || 'Gente'} · Casa Coffee Colab`;
+  const iniciais = escapeHtml(iniciaisDoNome(dados.nome || 'Casa'));
+  const avatar = dados.avatar_url
+    ? `<img class="gente-avatar-img" src="${escapeHtml(dados.avatar_url)}" alt="foto de ${nome}" />`
+    : `<span class="gente-avatar-ini">${iniciais}</span>`;
+  const tier = dados.tier_nome
+    ? `<span class="gente-tier"><i data-lucide="award" class="h-4 w-4"></i>${escapeHtml(dados.tier_nome)}</span>`
+    : '';
+  const desde = membroDesde(dados.membro_desde);
+  const cafe = cafeFrase(dados);
+  const recados = Array.isArray(dados.recados) ? dados.recados : [];
+
+  const recadosHtml = recados.length
+    ? `<div class="gente-recados">
+         <h2 class="gente-sub">recados que deixou na parede</h2>
+         <div class="gente-recados-lista">
+           ${recados
+             .map(
+               (r) => `<article class="gente-recado"><p>${escapeHtml(r.texto || '')}</p><span>${dataCurta(r.created_at)}</span></article>`,
+             )
+             .join('')}
+         </div>
+       </div>`
+    : '';
+
+  root.innerHTML = `
+    <article class="gente-card">
+      <div class="gente-avatar">${avatar}</div>
+      <h1 class="gente-nome">${nome}</h1>
+      <div class="gente-meta">
+        ${tier}
+        ${desde ? `<span class="gente-desde"><i data-lucide="heart" class="h-4 w-4"></i>na casa ${escapeHtml(desde)}</span>` : ''}
+      </div>
+      ${cafe ? `<p class="gente-cafe"><span>o café de sempre</span>${escapeHtml(cafe)}</p>` : ''}
+    </article>
+    ${recadosHtml}`;
+  renderIcons();
+}
+
+// --- A trilha do Casa (playlists do Spotify, curadas no console) ----------------
+// Converte um link do Spotify (URL normal, /embed, /intl-xx, ou URI spotify:...)
+// no src de embed CANÔNICO. Só devolve open.spotify.com/embed/... — qualquer outra
+// coisa vira null e NÃO vira iframe (trava de injeção: o src é sempre nosso domínio).
+function spotifyEmbed(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  const tipos = /^(playlist|album|track|artist|show|episode)$/i;
+  const uri = s.match(/^spotify:(playlist|album|track|artist|show|episode):([A-Za-z0-9]+)$/i);
+  if (uri) return `https://open.spotify.com/embed/${uri[1].toLowerCase()}/${uri[2]}`;
+  try {
+    const u = new URL(s);
+    if (u.hostname !== 'open.spotify.com') return null;
+    const partes = u.pathname.split('/').filter(Boolean).filter((p) => p !== 'embed' && !/^intl-/i.test(p));
+    const [tipo, id] = partes;
+    if (!tipo || !id || !tipos.test(tipo) || !/^[A-Za-z0-9]+$/.test(id)) return null;
+    return `https://open.spotify.com/embed/${tipo.toLowerCase()}/${id}`;
+  } catch {
+    return null;
+  }
+}
+
+// Acende a seção "a trilha do Casa" na home com as playlists ativas (a marcada como
+// "tocando" vem primeiro, com selo pulsante). Leitura pública; tolerante à migration
+// 0023 pendente (sem tabela → seção fica escondida, sem ruído).
+async function initTrilha() {
+  const sec = document.querySelector('[data-trilha]');
+  if (!sec || !supabase) return;
+  const grid = sec.querySelector('[data-trilha-grid]');
+  if (!grid) return;
+
+  let lista = [];
+  try {
+    const { data, error } = await supabase
+      .from('playlists_casa')
+      .select('id, nome, clima, spotify_url, tocando, ordem')
+      .order('ordem', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) return;
+    lista = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+
+  // Converte + valida os embeds; descarta link que não é do Spotify.
+  const cards = lista
+    .map((p) => ({ ...p, embed: spotifyEmbed(p.spotify_url) }))
+    .filter((p) => p.embed);
+  if (!cards.length) return; // nada válido → seção segue escondida
+
+  // A "tocando" primeiro; o resto mantém a ordem.
+  cards.sort((a, b) => (b.tocando ? 1 : 0) - (a.tocando ? 1 : 0));
+
+  grid.innerHTML = cards
+    .map((p) => {
+      const agora = p.tocando
+        ? `<span class="trilha-agora"><span class="trilha-eq" aria-hidden="true"><i></i><i></i><i></i></span>tocando agora</span>`
+        : '';
+      const clima = p.clima ? `<span class="trilha-clima">${escapeHtml(p.clima)}</span>` : '';
+      return `
+        <article class="trilha-card${p.tocando ? ' tocando' : ''}">
+          <div class="trilha-card-topo">
+            <div>${clima}<h3 class="trilha-nome">${escapeHtml(p.nome || 'playlist')}</h3></div>
+            ${agora}
+          </div>
+          <iframe class="trilha-embed" src="${escapeHtml(p.embed)}" width="100%" height="152"
+                  loading="lazy" frameborder="0" allow="encrypted-media; clipboard-write"
+                  title="${escapeHtml(p.nome || 'playlist')} no Spotify"></iframe>
+        </article>`;
+    })
+    .join('');
+
+  sec.hidden = false;
+}
+
+// "sáb, 12 de set · 19h" a partir de um ISO. Sem hora certa (:00) mostra só o dia.
+// Data nula → "em breve" (encontro sem data marcada ainda).
+function dataEvento(iso) {
+  if (!iso) return 'em breve';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'em breve';
+  const dia = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+  const temHora = d.getHours() !== 0 || d.getMinutes() !== 0;
+  if (!temHora) return dia;
+  const hora =
+    d.getMinutes() === 0
+      ? `${d.getHours()}h`
+      : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${dia} · ${hora}`;
+}
+
+// Link DIRETO pro Google Agenda (template de evento já preenchido) — sem baixar
+// arquivo: abre o Google Calendar numa aba nova com nome/quando/onde/descrição
+// prontos, a pessoa só confirma. Encontro sem data marcada → null (não dá pra
+// agendar o indefinido). Duração assumida de 2h (os eventos não têm hora de fim).
+function googleCalUrl(ev) {
+  if (!ev?.data) return null;
+  const inicio = new Date(ev.data);
+  if (Number.isNaN(inicio.getTime())) return null;
+  const fim = new Date(inicio.getTime() + 2 * 60 * 60 * 1000);
+  // Google quer UTC compacto: YYYYMMDDTHHMMSSZ. O sufixo Z faz o horário cair
+  // certo em qualquer fuso de quem clica.
+  const carimbo = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ondeBase = MARCA.contato.endereco;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: ev.nome || 'Encontro no Casa Coffee Colab',
+    dates: `${carimbo(inicio)}/${carimbo(fim)}`,
+    details: ev.descricao || 'Um encontro no Casa Coffee Colab. Passa aqui?',
+    location: ev.local ? `${ev.local}, ${ondeBase}` : `Casa Coffee Colab, ${ondeBase}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// --- "Como chegar" (/o-casa) ---------------------------------------------------
+// Botões de rota (Google Maps + Waze, os dois mais usados aqui) e "copiar
+// endereço" no bloco de localização. O mapa embed já MOSTRA onde fica; isto é a
+// AÇÃO de chegar. Front puro, sem chave: a URL de rota leva o endereço por texto
+// (o app de mapa geocoda o negócio certo). Endereço vem do MARCA (fonte única).
+function initComoChegar() {
+  const host = document.querySelector('[data-como-chegar]');
+  if (!host) return;
+
+  const endereco = MARCA.contato.endereco;
+  const destino = encodeURIComponent(`${MARCA.nome}, ${endereco}`);
+  const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${destino}`;
+  const waze = `https://waze.com/ul?q=${destino}&navigate=yes`;
+
+  host.innerHTML = `
+    <a class="btn solid" href="${gmaps}" target="_blank" rel="noopener noreferrer">
+      <i data-lucide="map-pin" class="h-4 w-4"></i>traçar rota
+    </a>
+    <a class="btn ghost" href="${waze}" target="_blank" rel="noopener noreferrer">abrir no Waze</a>
+    <button type="button" class="btn ghost" data-copiar-endereco>
+      <i data-lucide="copy" class="h-4 w-4"></i>copiar endereço
+    </button>`;
+
+  const btn = host.querySelector('[data-copiar-endereco]');
+  const rotular = (icone, texto) => {
+    btn.innerHTML = `<i data-lucide="${icone}" class="h-4 w-4"></i>${texto}`;
+    renderIcons();
+  };
+  btn?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(endereco);
+      rotular('check', 'copiado');
+    } catch {
+      rotular('copy', 'copia na mão'); // sem clipboard API: recado gentil
+    }
+    setTimeout(() => rotular('copy', 'copiar endereço'), 1800);
+  });
+
+  renderIcons();
+}
+
+// --- "O som de agora" (painel Spotify na home) ---------------------------------
+// Mostra AO VIVO a faixa que toca na conta Spotify do Casa (capa, nome, artista e
+// progresso), consultando a Edge Function spotify-now-playing a cada 15s. Quando
+// não há nada tocando (ou a integração ainda não foi ligada), cai no estado gentil
+// com o link pro Spotify (href da fonte única MARCA.redes, mesma do rodapé).
+function initSomDoCasa() {
+  const sec = document.querySelector('.som');
+  if (!sec) return;
+
+  // Link do estado gentil: fonte única (MARCA.redes › Spotify), igual ao rodapé.
+  const btnIdle = sec.querySelector('[data-som-spotify]');
+  if (btnIdle) {
+    const sp = MARCA.redes.find((r) => /spotify/i.test(r.nome));
+    const href = sp?.href || '#';
+    btnIdle.setAttribute('href', href);
+    if (!/^https?:\/\//i.test(href)) {
+      btnIdle.removeAttribute('target');
+      btnIdle.removeAttribute('rel');
+    }
+  }
+
+  // Integração ao vivo DESLIGADA por enquanto (a conta Spotify do Casa ainda não
+  // foi ligada). Enquanto false, o painel fica no estado gentil e NÃO chama a
+  // function. Pra ligar: rodar `npm run spotify-token`, setar os secrets e
+  // deployar `spotify-now-playing` (ver supabase/functions/README.md), e virar
+  // esta flag pra true.
+  const SOM_AO_VIVO = false;
+  if (!supabase || !SOM_AO_VIVO) return; // sem integração → só o estado gentil
+
+  const live = sec.querySelector('[data-som-live]');
+  const idle = sec.querySelector('[data-som-idle]');
+  const capa = sec.querySelector('[data-som-capa]');
+  const faixaEl = sec.querySelector('[data-som-faixa]');
+  const artistaEl = sec.querySelector('[data-som-artista]');
+  const barra = sec.querySelector('[data-som-progresso]');
+  const abrir = sec.querySelector('[data-som-abrir]');
+  if (!live || !idle) return;
+
+  // Guarda o progresso da última leitura pra animar a barrinha entre os polls.
+  let prog = { base: 0, dur: 0, em: 0, tocando: false };
+
+  const mostrarGentil = () => {
+    if (prog.tocando || !live.hidden) {
+      prog.tocando = false;
+      live.hidden = true;
+      idle.hidden = false;
+    }
+  };
+
+  const pintarLive = (t) => {
+    // Capa: só aceita imagem https do CDN do Spotify.
+    if (capa) {
+      if (/^https:\/\/i\.scdn\.co\//.test(t.capa || '')) {
+        capa.src = t.capa;
+        capa.hidden = false;
+      } else {
+        capa.removeAttribute('src');
+        capa.hidden = true;
+      }
+    }
+    if (faixaEl) faixaEl.textContent = t.nome || '';
+    if (artistaEl) artistaEl.textContent = t.artista || '';
+    // Link "ouvir no Spotify": abre a faixa (só URL do open.spotify.com).
+    if (abrir) {
+      const ok = /^https:\/\/open\.spotify\.com\//.test(t.url || '');
+      abrir.setAttribute('href', ok ? t.url : btnIdle?.getAttribute('href') || '#');
+    }
+    idle.hidden = true;
+    live.hidden = false;
+    prog = {
+      base: Number(t.progresso_ms) || 0,
+      dur: Number(t.duracao_ms) || 0,
+      em: Date.now(),
+      tocando: true,
+    };
+    tickBarra();
+  };
+
+  // Avança a barrinha suave entre os polls (a leitura só vem a cada 15s).
+  const tickBarra = () => {
+    if (!barra || !prog.tocando || !prog.dur) return;
+    const decorrido = prog.base + (Date.now() - prog.em);
+    const pct = Math.max(0, Math.min(100, (decorrido / prog.dur) * 100));
+    barra.style.width = `${pct}%`;
+  };
+
+  let idPoll = 0;
+  let idBarra = 0;
+  const parar = () => {
+    clearInterval(idPoll);
+    clearInterval(idBarra);
+  };
+
+  const atualizar = async () => {
+    if (document.hidden) return; // aba escondida → não gasta chamada
+    try {
+      const { data, error } = await supabase.functions.invoke('spotify-now-playing');
+      // Function ausente (erro) ou deployada sem os secrets (configurado:false) →
+      // estado gentil e para de sondar (não adianta insistir).
+      if (error || data?.configurado === false) {
+        mostrarGentil();
+        parar();
+        return;
+      }
+      if (data?.tocando) pintarLive(data);
+      else mostrarGentil();
+    } catch {
+      mostrarGentil();
+      parar();
+    }
+  };
+
+  atualizar();
+  idPoll = setInterval(atualizar, 15_000);
+  idBarra = setInterval(tickBarra, 1_000);
+}
+
+// --- "O teu de sempre" (cartão pessoal no topo da home) ------------------------
+// Um cartãozinho só pra quem está logado: junta num olhar o que a pessoa já tem
+// espalhado — plano/pontos, favoritos do cardápio e o próximo encontro que
+// confirmou. Tudo SÓ-LEITURA (getProfile + tabelas próprias via RLS) e tolerante:
+// deslogado → some; migration de uma fonte pendente → aquela parte some. Zero escrita.
+async function initTeuDeSempre() {
+  const sec = document.querySelector('[data-teu-de-sempre]');
+  if (!sec || !supabase) return;
+  const card = sec.querySelector('[data-tds-card]');
+  if (!card) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // deslogado → cartão fica escondido
+
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const primeiro = (profile.full_name || '').trim().split(/\s+/)[0] || 'tu';
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? 'bom dia' : h < 18 ? 'boa tarde' : 'boa noite';
+
+  // ---- Fontes (cada uma tolerante; nunca derruba o cartão) --------------------
+  // Plano: nome do tier (o slug/pontos vêm do próprio profile).
+  let planoNome = '';
+  if (profile.tier_slug) {
+    try {
+      const { data } = await supabase.from('tiers').select('nome').eq('slug', profile.tier_slug).maybeSingle();
+      planoNome = data?.nome || '';
+    } catch { /* tolerante */ }
+  }
+  const pontos = Number(profile.points_balance) || 0;
+
+  // Favoritos do cardápio (0027) — aberto a qualquer logado.
+  let favoritos = [];
+  try {
+    const { data, error } = await supabase.from('cardapio_favoritos').select('item_slug, item_nome');
+    if (!error) favoritos = data || [];
+  } catch { /* migration 0027 pendente → sem favoritos */ }
+
+  // Próximo encontro confirmado (0026) — o mais próximo ainda por vir.
+  let encontro = null;
+  try {
+    const { data, error } = await supabase.rpc('agenda_proximos');
+    if (!error && Array.isArray(data)) {
+      encontro = data
+        .filter((e) => e.eu_vou && e.data && new Date(e.data).getTime() > Date.now() - 4 * 60 * 60 * 1000)
+        .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())[0] || null;
+    }
+  } catch { /* migration 0026 pendente → sem encontro */ }
+
+  // ---- Monta os blocos --------------------------------------------------------
+  const blocos = [];
+
+  if (planoNome) {
+    blocos.push(`
+      <a class="tds-bloco" href="/conta/pontos">
+        <span class="tds-ico"><i data-lucide="star" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">teu plano</span>
+          <span class="tds-bloco-nome">${escapeHtml(planoNome)}</span>
+          <span class="tds-bloco-sub">${pontos} ${pontos === 1 ? 'ponto' : 'pontos'} no bolso</span>
+        </span>
+      </a>`);
+  } else {
+    blocos.push(`
+      <a class="tds-bloco" href="/planos">
+        <span class="tds-ico"><i data-lucide="sparkles" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">o Clube Casa</span>
+          <span class="tds-bloco-nome">vem fazer parte</span>
+          <span class="tds-bloco-sub">pontos que viram mimo e mais</span>
+        </span>
+      </a>`);
+  }
+
+  if (encontro) {
+    blocos.push(`
+      <a class="tds-bloco" href="#a-agenda">
+        <span class="tds-ico"><i data-lucide="calendar-days" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">tu vai</span>
+          <span class="tds-bloco-nome">${escapeHtml(encontro.nome)}</span>
+          <span class="tds-bloco-sub">${escapeHtml(dataEvento(encontro.data))}</span>
+        </span>
+      </a>`);
+  }
+
+  if (favoritos.length) {
+    const chips = favoritos
+      .slice(0, 4)
+      .map((f) => `<a class="tds-chip" href="/cardapio">${escapeHtml(f.item_nome || f.item_slug)}</a>`)
+      .join('');
+    const resto = favoritos.length > 4 ? `<span class="tds-chip mais">+${favoritos.length - 4}</span>` : '';
+    blocos.push(`
+      <div class="tds-bloco tds-favs">
+        <span class="tds-ico"><i data-lucide="heart" aria-hidden="true"></i></span>
+        <span class="tds-bloco-corpo">
+          <span class="tds-bloco-tag">teus favoritos</span>
+          <span class="tds-chips">${chips}${resto}</span>
+        </span>
+      </div>`);
+  }
+
+  card.innerHTML = `
+    <div class="tds-topo">
+      <p class="tds-saudacao">${escapeHtml(saudacao)}, <strong>${escapeHtml(primeiro)}</strong> 💛</p>
+      <p class="tds-sub">o teu de sempre, num olhar.</p>
+    </div>
+    <div class="tds-grid">${blocos.join('')}</div>`;
+
+  sec.hidden = false;
+  renderIcons();
+}
+
+// --- Agenda do Casa (próximos encontros, com "eu vou") -------------------------
+// Lê a agenda pública (RPC agenda_proximos) e monta os cards. Confirmar presença
+// é perk de assinante: deslogado/sem-plano vê o convite gentil; assinante alterna
+// "eu vou" ↔ "não vou mais". Tolerante: sem a migration 0026, a seção fica escondida.
+async function initAgenda() {
+  const sec = document.querySelector('[data-agenda]');
+  if (!sec || !supabase) return;
+  const lista = sec.querySelector('[data-agenda-lista]');
+  if (!lista) return;
+
+  let itens = [];
+  try {
+    const { data, error } = await supabase.rpc('agenda_proximos');
+    if (error) return; // migration pendente / erro → seção fica hidden
+    itens = Array.isArray(data) ? data : [];
+  } catch {
+    return;
+  }
+  if (!itens.length) return; // sem encontros → seção segue escondida
+
+  const { data: sessData } = await supabase.auth.getSession();
+  const logado = Boolean(sessData?.session);
+
+  // Um rostinho de quem vai (só de quem ligou o perfil público): avatar ou
+  // inicial, linkando pro /gente/{handle}. Tudo escapado.
+  const avatarBolha = (pessoa) => {
+    const nome = pessoa?.nome || 'alguém do Casa';
+    const ini = (nome.trim().charAt(0) || '?').toUpperCase();
+    const href = '/gente/' + encodeURIComponent(pessoa?.handle || '');
+    const dentro =
+      pessoa?.avatar_url && /^https?:\/\//.test(pessoa.avatar_url)
+        ? `<img src="${escapeHtml(pessoa.avatar_url)}" alt="" loading="lazy" />`
+        : `<span class="ini">${escapeHtml(ini)}</span>`;
+    return `<a class="agenda-av" href="${escapeHtml(href)}" title="${escapeHtml(nome)}">${dentro}</a>`;
+  };
+
+  const cardHtml = (ev) => {
+    const quando = dataEvento(ev.data);
+    const local = ev.local ? `<span class="agenda-local">${escapeHtml(ev.local)}</span>` : '';
+    const desc = ev.descricao ? `<p class="agenda-desc">${escapeHtml(ev.descricao)}</p>` : '';
+    // Lotação: "12 vão" ou "12/20 · faltam 8". Sem vagas definidas → só a contagem.
+    const n = Number(ev.confirmados) || 0;
+    let lot;
+    if (ev.vagas != null) {
+      const faltam = Math.max(0, Number(ev.vagas) - n);
+      lot = ev.lotado ? `${n}/${ev.vagas} · lotado` : `${n}/${ev.vagas} · ${faltam} ${faltam === 1 ? 'vaga' : 'vagas'}`;
+    } else {
+      lot = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
+    }
+    // Quem vai (rostinhos públicos). Mostra até 6; o "+N" cobre o resto (públicos
+    // além do limite + quem confirmou sem perfil público).
+    const vao = Array.isArray(ev.vao_publicos) ? ev.vao_publicos : [];
+    const mostrados = vao.slice(0, 6);
+    const extra = Math.max(0, n - mostrados.length);
+    // Guarda no calendário: link direto pro Google Agenda (só com data marcada).
+    const cal = googleCalUrl(ev);
+    const guardar = cal
+      ? `<a class="agenda-cal" href="${escapeHtml(cal)}" target="_blank" rel="noopener noreferrer">
+           <i data-lucide="calendar-plus" aria-hidden="true"></i><span>guarda no teu calendário</span>
+         </a>`
+      : '';
+    const quemVai = mostrados.length
+      ? `<div class="agenda-vao">
+           <div class="agenda-avatares">
+             ${mostrados.map(avatarBolha).join('')}
+             ${extra > 0 ? `<span class="agenda-av mais">+${extra}</span>` : ''}
+           </div>
+           <span class="agenda-vao-txt">${escapeHtml(mostrados[0].nome || 'gente do Casa')}${mostrados.length > 1 || extra > 0 ? ' e mais gente vão' : ' vai'}</span>
+         </div>`
+      : '';
+    return `
+      <article class="agenda-card${ev.eu_vou ? ' vou' : ''}" data-ev="${escapeHtml(ev.id)}">
+        <div class="agenda-quando"><i data-lucide="calendar-days" aria-hidden="true"></i><span>${escapeHtml(quando)}</span></div>
+        <div class="agenda-corpo">
+          <h3 class="agenda-nome">${escapeHtml(ev.nome || 'encontro')}</h3>
+          ${local}
+          ${desc}
+        </div>
+        ${quemVai}
+        <div class="agenda-rodape">
+          <span class="agenda-lot" data-ev-lot>${escapeHtml(lot)}</span>
+          <button type="button" class="btn ${ev.eu_vou ? 'ghost' : 'solid'} sm agenda-btn" data-ev-btn>
+            ${ev.eu_vou ? 'eu vou 💛' : 'eu vou'}
+          </button>
+        </div>
+        ${guardar}
+        <p class="agenda-msg hidden text-sm" data-ev-msg aria-live="polite"></p>
+      </article>`;
+  };
+
+  lista.innerHTML = itens.map(cardHtml).join('');
+  sec.hidden = false;
+  renderIcons();
+
+  // Estado local por evento (pra alternar sem recarregar a página).
+  const estado = new Map(itens.map((ev) => [String(ev.id), { eu_vou: ev.eu_vou, lotado: ev.lotado }]));
+
+  lista.querySelectorAll('[data-ev]').forEach((card) => {
+    const id = card.dataset.ev;
+    const btn = card.querySelector('[data-ev-btn]');
+    const lotEl = card.querySelector('[data-ev-lot]');
+    const msgEl = card.querySelector('[data-ev-msg]');
+    const vagas = itens.find((e) => String(e.id) === String(id))?.vagas ?? null;
+
+    const dizer = (txt, tom = 'erro') => {
+      if (!msgEl) return;
+      msgEl.textContent = txt;
+      msgEl.className = 'agenda-msg text-sm ' + (tom === 'ok' ? 'text-olive' : 'text-coral');
+      msgEl.hidden = !txt;
+    };
+    const pintarLot = (n) => {
+      if (!lotEl) return;
+      if (vagas != null) {
+        const faltam = Math.max(0, Number(vagas) - n);
+        lotEl.textContent = faltam === 0 ? `${n}/${vagas} · lotado` : `${n}/${vagas} · ${faltam} ${faltam === 1 ? 'vaga' : 'vagas'}`;
+      } else {
+        lotEl.textContent = n > 0 ? `${n} ${n === 1 ? 'confirmado' : 'confirmados'}` : 'seja o primeiro';
+      }
+    };
+    const pintarBtn = (vou) => {
+      card.classList.toggle('vou', vou);
+      btn.classList.toggle('ghost', vou);
+      btn.classList.toggle('solid', !vou);
+      btn.textContent = vou ? 'eu vou 💛' : 'eu vou';
+    };
+
+    btn?.addEventListener('click', async () => {
+      dizer('');
+      // Deslogado → manda pro login e volta pra home.
+      if (!logado) {
+        window.location.href = '/login?redirect=' + encodeURIComponent('/home');
+        return;
+      }
+      const st = estado.get(String(id)) || { eu_vou: false };
+      btn.disabled = true;
+      try {
+        const rpcNome = st.eu_vou ? 'cancelar_presenca' : 'confirmar_presenca';
+        const { data: r, error } = await supabase.rpc(rpcNome, { p_event_id: id });
+        if (error || !r?.ok) {
+          dizer(r?.erro || 'não deu pra confirmar agora. tenta de novo? 💛');
+          if (r?.lotado) pintarLot(Number(r?.confirmados) || (vagas ?? 0));
+          return;
+        }
+        st.eu_vou = Boolean(r.eu_vou);
+        estado.set(String(id), st);
+        pintarBtn(st.eu_vou);
+        pintarLot(Number(r.confirmados) || 0);
+        if (st.eu_vou) dizer('teu lugar tá guardado 💛', 'ok');
+        else dizer('');
+      } catch {
+        dizer('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// --- Cardápio: navegação rápida entre seções -----------------------------------
+// O /cardapio é uma página longa de puro scroll (cafés, brunch, doce, take away).
+// Esta tirinha gruda abaixo do header, leva direto pra seção e marca onde a pessoa
+// está. Os chips saem das PRÓPRIAS seções do HTML (as que têm aria-labelledby e uma
+// .menu-list), então seção nova no cardápio já aparece aqui sem tocar no JS.
+function initCardapioNav() {
+  const nav = document.querySelector('[data-cardapio-nav]');
+  const chipsEl = nav?.querySelector('[data-cnav-chips]');
+  if (!nav || !chipsEl) return;
+
+  const secoes = Array.from(document.querySelectorAll('main section[aria-labelledby]'))
+    .filter((sec) => sec.querySelector('.menu-list'))
+    .map((sec) => ({
+      sec,
+      rotulo: document.getElementById(sec.getAttribute('aria-labelledby'))?.textContent.trim() || '',
+    }))
+    .filter((s) => s.rotulo);
+  if (secoes.length < 2) return; // uma seção só não pede atalho
+
+  chipsEl.innerHTML = secoes
+    .map((s, i) => `<button type="button" class="cnav-chip" data-cnav="${i}">${escapeHtml(s.rotulo)}</button>`)
+    .join('');
+  const chips = Array.from(chipsEl.querySelectorAll('.cnav-chip'));
+  nav.hidden = false;
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Só a tirinha fica grudada no topo (o header rola junto com a página), então é
+  // a altura dela que taparia o começo da seção.
+  const tapado = () => nav.getBoundingClientRect().height;
+
+  chips.forEach((chip, i) => {
+    chip.addEventListener('click', () => {
+      const topo = secoes[i].sec.getBoundingClientRect().top + window.scrollY - tapado() - 8;
+      window.scrollTo({ top: Math.max(0, topo), behavior: semMovimento ? 'auto' : 'smooth' });
+    });
+  });
+
+  // Marca a seção em que a pessoa está e mantém o chip ativo à vista na tirinha
+  // rolável do mobile. rAF pra não recalcular a cada tick do scroll.
+  let travado = false;
+  let atual = -1;
+  const marcar = () => {
+    travado = false;
+    const linha = window.scrollY + tapado() + 12;
+    let ativo = -1; // acima da primeira seção nenhum chip fica marcado
+    secoes.forEach((s, i) => {
+      if (s.sec.getBoundingClientRect().top + window.scrollY <= linha) ativo = i;
+    });
+    if (ativo === atual) return;
+    atual = ativo;
+    chips.forEach((c, i) => {
+      const on = i === ativo;
+      c.classList.toggle('on', on);
+      if (on) c.setAttribute('aria-current', 'true');
+      else c.removeAttribute('aria-current');
+    });
+    if (ativo >= 0) {
+      chipsEl.scrollTo({ left: Math.max(0, chips[ativo].offsetLeft - 16), behavior: semMovimento ? 'auto' : 'smooth' });
+    }
+  };
+
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (travado) return;
+      travado = true;
+      window.requestAnimationFrame(marcar);
+    },
+    { passive: true }
+  );
+  marcar();
+}
+
+// --- Cardápio: teus favoritos --------------------------------------------------
+// O /cardapio é HTML curado (não vem do banco), então o item é identificado por
+// um slug estável derivado do NOME (slugify). Favoritar é aberto a qualquer pessoa
+// logada; a escrita é direta na `cardapio_favoritos` via RLS (dado benigno, sempre
+// travado em auth.uid()). Tolerante: sem sessão ou sem a migration 0027, nada aparece.
+function slugify(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+async function initCardapioFavoritos() {
+  const secBlock = document.querySelector('[data-cardapio-favoritos]');
+  const items = Array.from(document.querySelectorAll('.menu-item'));
+  if (!secBlock || !items.length || !supabase) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // corações só pra quem está logado
+
+  // Mapeia slug → { el, nome } (o slug estável vem do nome curado no HTML).
+  const porSlug = new Map();
+  for (const li of items) {
+    const nome = li.querySelector('.mi-name')?.textContent.trim() || '';
+    const slug = slugify(nome);
+    if (!nome || !slug || porSlug.has(slug)) continue;
+    porSlug.set(slug, { el: li, nome });
+    li.dataset.item = slug;
+  }
+  if (!porSlug.size) return;
+
+  const favs = new Set();
+  try {
+    const { data, error } = await supabase.from('cardapio_favoritos').select('item_slug');
+    if (error) return; // migration pendente → sem corações
+    (data || []).forEach((r) => favs.add(r.item_slug));
+  } catch {
+    return;
+  }
+
+  const chipsEl = secBlock.querySelector('[data-cf-chips]');
+
+  const pintarBloco = () => {
+    const marcados = [...porSlug.entries()].filter(([slug]) => favs.has(slug));
+    if (!marcados.length) {
+      secBlock.hidden = true;
+      return;
+    }
+    chipsEl.innerHTML = marcados
+      .map(([slug, { nome }]) => `<button type="button" class="cf-chip" data-cf-goto="${escapeHtml(slug)}">${escapeHtml(nome)}</button>`)
+      .join('');
+    secBlock.hidden = false;
+    chipsEl.querySelectorAll('[data-cf-goto]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const alvo = porSlug.get(b.dataset.cfGoto)?.el;
+        if (!alvo) return;
+        alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        alvo.classList.add('mi-flash');
+        setTimeout(() => alvo.classList.remove('mi-flash'), 1200);
+      });
+    });
+  };
+
+  const pintarCoracao = (btn, on) => {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-label', on ? 'tirar dos favoritos' : 'adicionar aos favoritos');
+  };
+
+  for (const [slug, { el, nome }] of porSlug) {
+    el.classList.add('has-fav');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mi-fav';
+    btn.dataset.fav = slug;
+    btn.innerHTML = '<i data-lucide="heart"></i>';
+    pintarCoracao(btn, favs.has(slug));
+    el.appendChild(btn);
+
+    btn.addEventListener('click', async () => {
+      const on = favs.has(slug);
+      btn.disabled = true;
+      // Otimista: pinta já e reflete no bloco.
+      if (on) favs.delete(slug);
+      else favs.add(slug);
+      pintarCoracao(btn, !on);
+      pintarBloco();
+      try {
+        if (on) {
+          const { error } = await supabase.from('cardapio_favoritos').delete().eq('item_slug', slug);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('cardapio_favoritos').insert({ item_slug: slug, item_nome: nome });
+          if (error && error.code !== '23505') throw error; // 23505 = já era favorito, ok
+        }
+      } catch {
+        // Desfaz o otimista se o servidor recusou.
+        if (on) favs.add(slug);
+        else favs.delete(slug);
+        pintarCoracao(btn, on);
+        pintarBloco();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  pintarBloco();
+  renderIcons();
+}
+
+// --- Ficou pra depois (lista de desejos da loja) -------------------------------
+// Um coração em cada produto que SALVA pra depois sem botar no carrinho, com uma
+// tirinha "ficou pra depois" no topo da /loja e um espelho no /conta/perfil.
+// Espelha o padrão do cardapio_favoritos (0027): dado benigno, escrita RLS-direct
+// travada em auth.uid(). Só pra quem está logado; tolerante sem a migration 0029.
+async function initLojaDesejos() {
+  if (!supabase) return;
+  const grid = document.querySelector('[data-catalog-grid]');
+  const btnProduto = document.querySelector('[data-desejo-produto]');
+  const tirinhas = Array.from(document.querySelectorAll('[data-loja-desejos], [data-desejos-perfil]'));
+  if (!grid && !btnProduto && !tirinhas.length) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) return; // guardar pra depois só pra quem está logado
+
+  // Set de slugs guardados + nome de cada um (preferindo o mock atual; cai no
+  // snapshot do banco se o produto saiu da vitrine).
+  const desejos = new Set();
+  const nomePorSlug = new Map();
+  try {
+    const { data, error } = await supabase.from('loja_desejos').select('produto_slug, produto_nome');
+    if (error) return; // migration pendente → some tudo, sem ruído
+    (data || []).forEach((r) => {
+      desejos.add(r.produto_slug);
+      nomePorSlug.set(r.produto_slug, r.produto_nome);
+    });
+  } catch {
+    return;
+  }
+
+  const nomeDe = (slug) => getProdutoPorSlug(slug)?.nome || nomePorSlug.get(slug) || slug;
+
+  // Todos os corações de um mesmo slug (card + página de produto) andam juntos.
+  const botoesPorSlug = new Map();
+  const registrar = (slug, btn) => {
+    if (!botoesPorSlug.has(slug)) botoesPorSlug.set(slug, new Set());
+    botoesPorSlug.get(slug).add(btn);
+  };
+
+  const pintarBtn = (btn, on) => {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.classList.toggle('on', on);
+    if (btn.classList.contains('prod-guardar')) {
+      const txt = btn.querySelector('span');
+      if (txt) txt.textContent = on ? 'guardado 💛' : 'guardar pra depois';
+      btn.setAttribute('aria-label', on ? 'tirar da lista de desejos' : 'guardar pra depois');
+    } else {
+      btn.setAttribute('aria-label', on ? 'tirar da lista de desejos' : 'guardar pra depois');
+    }
+  };
+  const repintarSlug = (slug) => {
+    const on = desejos.has(slug);
+    (botoesPorSlug.get(slug) || []).forEach((b) => pintarBtn(b, on));
+  };
+
+  // Tirinha "ficou pra depois" (loja + perfil): chips linkando pro produto, com ×.
+  const pintarTirinhas = () => {
+    if (!tirinhas.length) return;
+    const slugs = [...desejos];
+    for (const sec of tirinhas) {
+      const chipsEl = sec.querySelector('[data-ld-chips]');
+      if (!chipsEl) continue;
+      if (!slugs.length) {
+        sec.hidden = true;
+        chipsEl.innerHTML = '';
+        continue;
+      }
+      chipsEl.innerHTML = slugs
+        .map((slug) => {
+          const nome = nomeDe(slug);
+          return `<span class="ld-chip">
+            <a href="/produto?slug=${encodeURIComponent(slug)}">${escapeHtml(nome)}</a>
+            <button type="button" class="ld-chip-x" data-ld-remove="${escapeHtml(slug)}" aria-label="tirar ${escapeHtml(nome)} da lista">
+              <i data-lucide="x"></i>
+            </button>
+          </span>`;
+        })
+        .join('');
+      sec.hidden = false;
+    }
+    renderIcons();
+  };
+
+  // Toggle otimista, compartilhado por corações e ×: pinta já, reflete em toda
+  // parte, persiste e desfaz se o servidor recusar.
+  const alternar = async (slug) => {
+    const estava = desejos.has(slug);
+    if (estava) desejos.delete(slug);
+    else desejos.add(slug);
+    repintarSlug(slug);
+    pintarTirinhas();
+    try {
+      if (estava) {
+        const { error } = await supabase.from('loja_desejos').delete().eq('produto_slug', slug);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('loja_desejos').insert({ produto_slug: slug, produto_nome: nomeDe(slug) });
+        if (error && error.code !== '23505') throw error; // 23505 = já guardado, ok
+      }
+    } catch {
+      // desfaz o otimista
+      if (estava) desejos.add(slug);
+      else desejos.delete(slug);
+      repintarSlug(slug);
+      pintarTirinhas();
+    }
+  };
+
+  // Corações nos cards do catálogo (injetados por JS, como no cardápio).
+  if (grid) {
+    grid.querySelectorAll('[data-produto][data-slug]').forEach((card) => {
+      const slug = card.dataset.slug;
+      if (!slug) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'prod-fav';
+      btn.dataset.desejo = slug;
+      btn.innerHTML = '<i data-lucide="heart"></i>';
+      pintarBtn(btn, desejos.has(slug));
+      card.appendChild(btn);
+      registrar(slug, btn);
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        await alternar(slug);
+        btn.disabled = false;
+      });
+    });
+  }
+
+  // Botão "guardar pra depois" na página de produto (revela e liga).
+  if (btnProduto) {
+    const slug = btnProduto.dataset.desejoProduto;
+    btnProduto.hidden = false;
+    pintarBtn(btnProduto, desejos.has(slug));
+    registrar(slug, btnProduto);
+    btnProduto.addEventListener('click', async () => {
+      btnProduto.disabled = true;
+      await alternar(slug);
+      btnProduto.disabled = false;
+    });
+  }
+
+  // × das tirinhas (delegação por container, sobrevive ao re-render).
+  for (const sec of tirinhas) {
+    const chipsEl = sec.querySelector('[data-ld-chips]');
+    chipsEl?.addEventListener('click', (e) => {
+      const x = e.target.closest('[data-ld-remove]');
+      if (!x) return;
+      alternar(x.dataset.ldRemove);
+    });
+  }
+
+  pintarTirinhas();
+  renderIcons();
+}
+
+// --- Volta pra vitrine: botões "me avisa quando voltar" ------------------------
+// Nos produtos esgotados (disponivel:false no mock), o botão "me avisa quando
+// voltar" registra interesse. Quando a casa repõe, o "voltou" chega no SINO de
+// notificações do header (initNotificacoes) — não mais numa tirinha inline.
+// Escrita RLS-direct travada em auth.uid() (migration 0030). Deslogado → login.
+async function initReposicao() {
+  if (!supabase) return;
+  const avisarBtns = Array.from(document.querySelectorAll('[data-avisar]'));
+  if (!avisarBtns.length) return;
+
+  const irProLogin = () => {
+    const destino = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login?redirect=${destino}`;
+  };
+
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) {
+    // Deslogado: o botão existe (produto esgotado), mas leva pro login.
+    avisarBtns.forEach((btn) => btn.addEventListener('click', irProLogin));
+    return;
+  }
+
+  const avisos = new Set();
+  const nomePorSlug = new Map();
+  try {
+    const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
+    if (error) {
+      // migration 0030 pendente: sem onde registrar. Deixa o botão gentilmente inerte.
+      avisarBtns.forEach((btn) => {
+        btn.disabled = true;
+        const txt = btn.querySelector('span');
+        if (txt) txt.textContent = 'aviso em breve';
+      });
+      return;
+    }
+    (data || []).forEach((r) => {
+      avisos.add(r.produto_slug);
+      nomePorSlug.set(r.produto_slug, r.produto_nome);
+    });
+  } catch {
+    return;
+  }
+
+  const nomeDe = (slug) => getProdutoPorSlug(slug)?.nome || nomePorSlug.get(slug) || slug;
+
+  // Todos os botões "me avisa" de um mesmo slug (card + página de produto) juntos.
+  const botoesPorSlug = new Map();
+  const pintarBtn = (btn, on) => {
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-pressed', String(on));
+    const txt = btn.querySelector('span');
+    if (txt) txt.textContent = on ? 'a gente te avisa 💛' : 'me avisa quando voltar';
+    btn.setAttribute('aria-label', on ? 'cancelar o aviso de reposição' : 'me avisa quando voltar');
+  };
+  const repintar = (slug) => {
+    const on = avisos.has(slug);
+    (botoesPorSlug.get(slug) || []).forEach((b) => pintarBtn(b, on));
+  };
+
+  // Toggle otimista do "me avisa" (registra/cancela interesse).
+  const alternar = async (slug) => {
+    const estava = avisos.has(slug);
+    if (estava) avisos.delete(slug);
+    else avisos.add(slug);
+    repintar(slug);
+    try {
+      if (estava) {
+        const { error } = await supabase.from('avisos_reposicao').delete().eq('produto_slug', slug);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('avisos_reposicao').insert({ produto_slug: slug, produto_nome: nomeDe(slug) });
+        if (error && error.code !== '23505') throw error; // 23505 = já pediu, ok
+      }
+    } catch {
+      if (estava) avisos.add(slug);
+      else avisos.delete(slug);
+      repintar(slug);
+    }
+  };
+
+  avisarBtns.forEach((btn) => {
+    const slug = btn.dataset.avisar;
+    if (!slug) return;
+    if (!botoesPorSlug.has(slug)) botoesPorSlug.set(slug, new Set());
+    botoesPorSlug.get(slug).add(btn);
+    pintarBtn(btn, avisos.has(slug));
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      await alternar(slug);
+      btn.disabled = false;
+    });
+  });
+
+  renderIcons();
+}
+
+// --- Sino de notificações (header) ---------------------------------------------
+// "O Casa te avisa": uma central que junta os avisos que já existiam espalhados,
+// num sino só no header (toda página). Cinco fontes, todas SÓ-LEITURA de tabelas
+// que já existem, cada uma lendo só o registro do PRÓPRIO usuário (RLS):
+//   1. voltou pra vitrine  — avisos_reposicao (0030) cujo produto voltou.
+//   2. indicação premiada  — referrals (0021) que a pessoa fez e viraram prêmio.
+//   3. presente resgatado  — gift_subscriptions (0019) que a pessoa deu e abriram.
+//   4. brunch de aniversário — meu_brinde_aniversario() diz que é o mês e falta pegar.
+//   5. encontro chegando   — agenda_proximos() onde a pessoa marcou "eu vou" e tá perto.
+// Cada fonte é tolerante (erro/migration pendente → []): some sem quebrar. O
+// "voltou" dispensa apagando a linha (RLS-direct); as derivadas (sem linha pra
+// apagar) dispensam guardando o id no localStorage (casa_notif_lidas).
+async function initNotificacoes() {
+  const wrap = document.querySelector('[data-notif-wrap]');
+  if (!wrap || !supabase) return;
+
+  const { data: sessData } = await supabase.auth.getSession();
+  const uid = sessData?.session?.user?.id;
+  if (!uid) return; // deslogado → sino fica escondido
+
+  const AGORA = Date.now();
+
+  // ---- Fontes (cada uma devolve um array de notificações; nunca lança) --------
+  // Notificação: { id, icone, href, tag, nome, sub, dismiss:'db-voltou'|'local', slug? }
+  const fonteVoltou = async () => {
+    try {
+      const { data, error } = await supabase.from('avisos_reposicao').select('produto_slug, produto_nome');
+      if (error) return [];
+      return (data || [])
+        .filter((a) => {
+          const p = getProdutoPorSlug(a.produto_slug);
+          return p && p.disponivel !== false; // voltou pra vitrine
+        })
+        .map((a) => ({
+          id: `voltou:${a.produto_slug}`,
+          icone: 'bell-ring',
+          href: `/produto?slug=${encodeURIComponent(a.produto_slug)}`,
+          tag: 'voltou 💛',
+          nome: getProdutoPorSlug(a.produto_slug)?.nome || a.produto_nome,
+          sub: 'tá de volta na vitrine, passa lá?',
+          dismiss: 'db-voltou',
+          slug: a.produto_slug,
+        }));
+    } catch { return []; }
+  };
+
+  const fonteIndicacao = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('referrals')
+        .select('id')
+        .eq('referrer_id', uid)
+        .eq('status', 'premiado');
+      if (error) return [];
+      return (data || []).map((r) => ({
+        id: `indicacao:${r.id}`,
+        icone: 'users',
+        href: '/conta/perfil',
+        tag: 'indicação premiada 💛',
+        nome: 'um amigo teu entrou de vez',
+        sub: 'teus pontos de indicação já caíram, dá uma olhada',
+        dismiss: 'local',
+      }));
+    } catch { return []; }
+  };
+
+  const fontePresente = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gift_subscriptions')
+        .select('id')
+        .eq('comprador_id', uid)
+        .eq('status', 'resgatado');
+      if (error) return [];
+      return (data || []).map((g) => ({
+        id: `presente:${g.id}`,
+        icone: 'gift',
+        href: '/conta/perfil',
+        tag: 'presente aberto 💛',
+        nome: 'abriram o plano que tu deu',
+        sub: 'o presente que tu mandou já virou assinatura',
+        dismiss: 'local',
+      }));
+    } catch { return []; }
+  };
+
+  const fonteAniversario = async () => {
+    try {
+      const { data, error } = await supabase.rpc('meu_brinde_aniversario');
+      if (error || !data) return [];
+      if (!data.assinante || !data.eh_mes || data.ja_resgatou) return [];
+      return [{
+        id: `aniversario:${new Date().getFullYear()}`,
+        icone: 'cake',
+        href: '/conta/perfil',
+        tag: 'teu mês 🎂',
+        nome: 'neste mês o Casa é teu',
+        sub: 'vem pegar teu brunch de aniversário, é por nossa conta',
+        dismiss: 'local',
+      }];
+    } catch { return []; }
+  };
+
+  const fonteEncontros = async () => {
+    try {
+      const { data, error } = await supabase.rpc('agenda_proximos');
+      if (error || !Array.isArray(data)) return [];
+      const JANELA = 48 * 60 * 60 * 1000; // avisa quando falta 48h ou menos
+      return data
+        .filter((e) => {
+          if (!e.eu_vou || !e.data) return false;
+          const diff = new Date(e.data).getTime() - AGORA;
+          return diff <= JANELA && diff > -4 * 60 * 60 * 1000; // tolera 4h já começado
+        })
+        .map((e) => ({
+          id: `encontro:${e.id}`,
+          icone: 'calendar-days',
+          href: '/home',
+          tag: 'encontro chegando',
+          nome: e.nome,
+          sub: `tu confirmou presença, ${dataEvento(e.data)}`,
+          dismiss: 'local',
+        }));
+    } catch { return []; }
+  };
+
+  const grupos = await Promise.all([
+    fonteVoltou(),
+    fonteIndicacao(),
+    fontePresente(),
+    fonteAniversario(),
+    fonteEncontros(),
+  ]);
+
+  const lidas = notifLidas();
+  let itens = grupos.flat().filter((n) => !lidas.has(n.id));
+
+  const trigger = wrap.querySelector('[data-notif-trigger]');
+  const panel = wrap.querySelector('[data-notif-panel]');
+  const badge = wrap.querySelector('[data-notif-count]');
+  const lista = wrap.querySelector('[data-notif-lista]');
+
+  const fechar = () => {
+    panel.dataset.aberto = 'false';
+    trigger.setAttribute('aria-expanded', 'false');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.classList.add('scale-95', 'opacity-0');
+    panel.classList.remove('scale-100', 'opacity-100');
+    setTimeout(() => {
+      if (panel.dataset.aberto !== 'true') panel.classList.add('invisible');
+    }, 200);
+  };
+  const abrir = () => {
+    // No mobile o painel é fixo (CSS): ancora o topo logo abaixo do header real
+    // (respeita a tarja de recado, se houver). No desktop volta pro top-full.
+    if (window.matchMedia('(max-width: 520px)').matches) {
+      const hb = document.querySelector('[data-site-header]')?.getBoundingClientRect().bottom || 64;
+      panel.style.top = `${Math.max(8, Math.round(hb) + 6)}px`;
+    } else {
+      panel.style.top = '';
+    }
+    panel.dataset.aberto = 'true';
+    trigger.setAttribute('aria-expanded', 'true');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.classList.remove('invisible', 'scale-95', 'opacity-0');
+    panel.classList.add('scale-100', 'opacity-100');
+  };
+
+  const pintar = () => {
+    if (!itens.length) {
+      wrap.hidden = true;
+      if (panel.dataset.aberto === 'true') fechar();
+      return;
+    }
+    wrap.hidden = false;
+    badge.textContent = itens.length > 9 ? '9+' : String(itens.length);
+    badge.classList.remove('hidden');
+    lista.innerHTML = itens
+      .map(
+        (n) => `
+        <div class="notif-item" data-notif-item="${escapeHtml(n.id)}">
+          <a href="${escapeHtml(n.href)}" class="notif-item-link">
+            <span class="notif-item-ico"><i data-lucide="${escapeHtml(n.icone)}" aria-hidden="true"></i></span>
+            <span class="notif-item-corpo">
+              <span class="notif-item-tag">${escapeHtml(n.tag)}</span>
+              <span class="notif-item-nome">${escapeHtml(n.nome)}</span>
+              <span class="notif-item-sub">${escapeHtml(n.sub)}</span>
+            </span>
+          </a>
+          <button type="button" class="notif-item-x" data-notif-visto="${escapeHtml(n.id)}" aria-label="marcar como visto">
+            <i data-lucide="x"></i>
+          </button>
+        </div>`,
+      )
+      .join('');
+    renderIcons();
+  };
+
+  // "já vi": some da lista já. O "voltou" apaga a linha do banco (best-effort); as
+  // derivadas guardam o id no localStorage pra não voltar. Não recoloca pra não piscar.
+  const dispensar = (id) => {
+    const n = itens.find((x) => x.id === id);
+    itens = itens.filter((x) => x.id !== id);
+    pintar();
+    if (!n) return;
+    if (n.dismiss === 'db-voltou') {
+      supabase.from('avisos_reposicao').delete().eq('produto_slug', n.slug).then(() => {}, () => {});
+    } else {
+      marcarNotifLida(id);
+    }
+  };
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.dataset.aberto === 'true' ? fechar() : abrir();
+  });
+  lista.addEventListener('click', (e) => {
+    const x = e.target.closest('[data-notif-visto]');
+    if (!x) return;
+    e.preventDefault();
+    dispensar(x.dataset.notifVisto);
+  });
+  document.addEventListener('click', (e) => {
+    if (panel.dataset.aberto === 'true' && !wrap.contains(e.target)) fechar();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && panel.dataset.aberto === 'true') {
+      fechar();
+      trigger.focus();
+    }
+  });
+
+  pintar();
 }
 
 // --- Footer --------------------------------------------------------------------
@@ -865,6 +2448,177 @@ function initReveal() {
 }
 
 // =============================================================================
+// VOLTAR AO TOPO, botão flutuante no canto inferior direito (qualquer página).
+// Injetado uma vez no <body>. Aparece depois que a pessoa rola um tanto e some
+// perto do topo. Clicar sobe suave (ou na hora, se prefers-reduced-motion).
+// =============================================================================
+function setupVoltarAoTopo() {
+  if (document.querySelector('[data-voltar-topo]')) return;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'voltar-topo';
+  btn.setAttribute('data-voltar-topo', '');
+  btn.setAttribute('aria-label', 'voltar ao topo');
+  btn.innerHTML = '<i data-lucide="arrow-up"></i>';
+  document.body.appendChild(btn);
+
+  const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  btn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: semMovimento ? 'auto' : 'smooth' });
+  });
+
+  // Mostra depois de rolar ~400px. rAF pra não recalcular a cada tick do scroll.
+  let travado = false;
+  const atualizar = () => {
+    travado = false;
+    btn.classList.toggle('is-on', window.scrollY > 400);
+  };
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (travado) return;
+      travado = true;
+      window.requestAnimationFrame(atualizar);
+    },
+    { passive: true }
+  );
+  atualizar();
+}
+
+// =============================================================================
+// ARRASTAR PRA ROLAR, faixas horizontais navegáveis com o mouse ([data-drag-scroll]).
+// Só no mouse: toque e trackpad já rolam nativo (não sequestramos o gesto deles).
+// Um arraste de verdade não vira clique no que estiver embaixo (ex.: "assinar").
+// =============================================================================
+function setupDragScroll() {
+  document.querySelectorAll('[data-drag-scroll]').forEach((el) => {
+    let ativo = false; // botão pressionado sobre a faixa (mouse)
+    let arrastou = false; // passou do limiar, virou arraste
+    let x0 = 0;
+    let left0 = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return; // toque/trackpad = nativo
+      if (el.scrollWidth <= el.clientWidth) return; // tela grande (grade): nada a arrastar
+      ativo = true;
+      arrastou = false;
+      x0 = e.clientX;
+      left0 = el.scrollLeft;
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!ativo) return;
+      const dx = e.clientX - x0;
+      if (!arrastou && Math.abs(dx) > 5) {
+        arrastou = true;
+        el.classList.add('is-dragging');
+        el.setPointerCapture?.(e.pointerId);
+      }
+      if (arrastou) el.scrollLeft = left0 - dx;
+    });
+    const soltar = () => {
+      if (!ativo) return;
+      ativo = false;
+      el.classList.remove('is-dragging'); // arrastou fica true até barrar o clique
+    };
+    el.addEventListener('pointerup', soltar);
+    el.addEventListener('pointercancel', soltar);
+    // Barra o clique-fantasma que fecha um arraste, pra não disparar o "assinar".
+    el.addEventListener(
+      'click',
+      (e) => {
+        if (arrastou) {
+          e.preventDefault();
+          e.stopPropagation();
+          arrastou = false;
+        }
+      },
+      true
+    );
+  });
+}
+
+// =============================================================================
+// BOLINHAS DE POSIÇÃO de uma tira horizontal ([data-strip-dots="id-da-tira"]).
+// Sem elas a tira de planos rola em silêncio: quem não arrasta nunca descobre
+// que tem mais plano ali. Só aparecem quando a tira rola de verdade (na grade de
+// 4 colunas ficam escondidas), seguem a ordem VISUAL dos cards (o favorito vai
+// pra frente por CSS `order`) e levam pro card ao clicar.
+// =============================================================================
+function setupStripDots() {
+  document.querySelectorAll('[data-strip-dots]').forEach((dotsWrap) => {
+    const strip = document.getElementById(dotsWrap.getAttribute('data-strip-dots'));
+    if (!strip) return;
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Ordem visual, não a do DOM: o `order` do CSS muda a fila abaixo de 1080px.
+    const cards = () =>
+      Array.from(strip.children).sort((a, b) => a.offsetLeft - b.offsetLeft);
+
+    let itens = [];
+    const montar = () => {
+      const lista = cards();
+      dotsWrap.innerHTML = lista
+        .map((card, i) => {
+          const rotulo = card.getAttribute('data-dot-rotulo') || `Plano ${i + 1}`;
+          const fav = card.classList.contains('featured') ? ' is-fav' : '';
+          return `<button type="button" class="strip-dot${fav}" aria-label="Ver o ${escapeHtml(rotulo)}"></button>`;
+        })
+        .join('');
+      itens = Array.from(dotsWrap.children);
+      itens.forEach((dot, i) => {
+        dot.addEventListener('click', () => {
+          const lista = cards();
+          const alvo = lista[i];
+          if (!alvo) return;
+          strip.scrollTo({
+            left: alvo.offsetLeft - lista[0].offsetLeft,
+            behavior: reduceMotion ? 'auto' : 'smooth',
+          });
+        });
+      });
+    };
+
+    const sincronizar = () => {
+      const rola = strip.scrollWidth - strip.clientWidth > 4;
+      dotsWrap.classList.toggle('is-on', rola);
+      if (!rola) return;
+      const lista = cards();
+      if (lista.length !== itens.length) montar();
+      const base = lista[0]?.offsetLeft ?? 0;
+      let atual = 0;
+      let menor = Infinity;
+      lista.forEach((card, i) => {
+        const d = Math.abs(card.offsetLeft - base - strip.scrollLeft);
+        if (d < menor) {
+          menor = d;
+          atual = i;
+        }
+      });
+      itens.forEach((dot, i) =>
+        dot.setAttribute('aria-current', i === atual ? 'true' : 'false')
+      );
+    };
+
+    montar();
+
+    let travado = false;
+    const agendar = () => {
+      if (travado) return;
+      travado = true;
+      window.requestAnimationFrame(() => {
+        travado = false;
+        sincronizar();
+      });
+    };
+    strip.addEventListener('scroll', agendar, { passive: true });
+    window.addEventListener('resize', agendar);
+    sincronizar();
+  });
+}
+
+// =============================================================================
 // DRAWER DO CARRINHO, painel lateral reutilizável (qualquer página).
 // Injetado uma vez no <body>. Fecha por X, Esc e clique no backdrop.
 // Anima com transições CSS (zeradas por prefers-reduced-motion no styles.css).
@@ -929,7 +2683,10 @@ function updateCartUI() {
   if (!wrap || !footer) return;
 
   const items = Cart.getCart();
-  if (items.length === 0) {
+  // Empty-check pela MESMA regra do subtotal/badge/checkout (getCount ignora
+  // produto sumido do catálogo) — senão um carrinho só de itens-fantasma escapa
+  // do estado vazio e mostra rodapé "R$ 0,00" + "finalizar compra" que não faz nada.
+  if (Cart.getCount() === 0) {
     wrap.innerHTML = `
       <div class="empty">
         <p class="e-title">teu carrinho tá vazio</p>
@@ -949,8 +2706,8 @@ function updateCartUI() {
       <div class="flex gap-3 border-b border-line py-4" data-cart-row data-key="${it.key}">
         <div class="ph ${p.imagemPlaceholder} h-16 w-16 shrink-0" style="border-radius:8px"></div>
         <div class="min-w-0 flex-1">
-          <p class="truncate font-medium text-ink">${p.nome}</p>
-          ${it.variante ? `<p class="text-xs text-muted">${it.variante}</p>` : ''}
+          <p class="truncate font-medium text-ink">${escapeHtml(p.nome)}</p>
+          ${it.variante ? `<p class="text-xs text-muted">${escapeHtml(it.variante)}</p>` : ''}
           <div class="mt-2 flex items-center justify-between gap-2">
             <div class="inline-flex items-center rounded-full border border-line">
               <button type="button" data-cart-dec aria-label="Diminuir quantidade" class="grid h-7 w-7 place-items-center text-ink hover:text-coral">
@@ -1019,7 +2776,7 @@ function updateModoUI(footer) {
     nota.textContent = `vamos levar até ${cartEndereco.resumo}.`;
   } else {
     nota.innerHTML =
-      'pra levar até tua casa, falta teu endereço — <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
+      'pra levar até tua casa, falta teu endereço, <a href="/conta/perfil" class="underline">completa lá na tua conta</a>? 💛';
   }
   nota.classList.remove('hidden');
 }
@@ -1193,7 +2950,7 @@ async function loadCartDiscount() {
   cartEndereco = {
     completo,
     resumo: completo
-      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''} — ` +
+      ? `${txt(perfil.end_rua)}, ${txt(perfil.end_numero)}${complemento ? ` · ${complemento}` : ''}, ` +
         `${txt(perfil.end_bairro)}, ${txt(perfil.end_cidade)}/${txt(perfil.end_uf)}`
       : '',
   };
@@ -1366,18 +3123,24 @@ function setupCarousel(trackEl, { dots = false, autoplay = false, interval = 550
 // [data-catalog-count] pro "mostrando X de Y".
 // =============================================================================
 function cardProdutoHTML(p) {
-  const acao = p.variantes
-    ? `<a href="/produto?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
-    : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
+  // Esgotado / fora da vitrine: em vez de "adicionar", oferece "me avisa quando
+  // voltar" (initReposicao liga o botão; deslogado → login). Selo sobre a foto.
+  const esgotado = p.disponivel === false;
+  const acao = esgotado
+    ? `<button type="button" class="btn ghost sm prod-avisar" data-avisar="${escapeHtml(p.slug)}" style="flex:1"><i data-lucide="bell"></i><span>me avisa quando voltar</span></button>`
+    : p.variantes
+      ? `<a href="/produto?slug=${p.slug}" class="btn solid sm" style="flex:1">escolher</a>`
+      : `<button type="button" data-add="${p.id}" class="btn solid sm" style="flex:1">adicionar</button>`;
+  const selo = esgotado ? `<span class="prod-esgotado">esgotado</span>` : '';
   return `
-    <article class="prod" data-produto data-categoria="${p.categoria}">
-      <a href="/produto?slug=${p.slug}" class="block" aria-label="${p.nome}">
-        <div class="ph ${p.imagemPlaceholder}"></div>
+    <article class="prod${esgotado ? ' is-esgotado' : ''}" data-produto data-categoria="${p.categoria}" data-slug="${escapeHtml(p.slug)}">
+      <a href="/produto?slug=${p.slug}" class="block" aria-label="${escapeHtml(p.nome)}">
+        <div class="ph ${p.imagemPlaceholder}">${selo}</div>
       </a>
       <div class="prod-body">
-        <p class="prod-cat">${CATEGORIAS[p.categoria]}</p>
+        <p class="prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
         <h3 class="leading-tight">
-          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${p.nome}</a>
+          <a href="/produto?slug=${p.slug}" class="hover:text-coral">${escapeHtml(p.nome)}</a>
         </h3>
         <p class="price">${formatBRL(p.preco_centavos)}</p>
         <div class="mt-2 flex gap-2">
@@ -1531,37 +3294,77 @@ function initProductPage() {
 
   let variante = p.variantes ? p.variantes.opcoes[0] : null;
   let qtd = 1;
+  const esgotado = p.disponivel === false;
 
   const variantesHTML = p.variantes
     ? `
       <div class="mt-6">
-        <span class="lbl">${p.variantes.rotulo}</span>
+        <span class="lbl">${escapeHtml(p.variantes.rotulo)}</span>
         <div class="mt-2 flex flex-wrap gap-2" data-variantes>
           ${p.variantes.opcoes
             .map(
               (o, i) =>
-                `<button type="button" data-variante="${o}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
+                `<button type="button" data-variante="${escapeHtml(o)}" aria-pressed="${i === 0}" class="rounded-full border px-4 py-2 text-sm transition-colors ${
                   i === 0 ? 'border-coral bg-coral/10 text-coral' : 'border-line text-ink hover:border-coral'
-                }">${o}</button>`
+                }">${escapeHtml(o)}</button>`
             )
             .join('')}
         </div>
       </div>`
     : '';
 
-  rootEl.innerHTML = `
-    <div class="grid gap-8 lg:grid-cols-2">
-      <div class="ph ${p.imagemPlaceholder} aspect-square w-full"></div>
-      <div>
-        <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
-          <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
-        </a>
-        <p class="mt-4 prod-cat">${CATEGORIAS[p.categoria]}</p>
-        <h1 class="title md mt-1">${p.nome}</h1>
-        <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
-        <p class="mt-4 max-w-prose text-ink-2">${p.descricao}</p>
-        ${variantesHTML}
-        <div class="mt-6">
+  // Tabela de medidas (roupa): a loja não tem provador, então a pessoa precisa
+  // conferir o tamanho ANTES de comprar, senão vira troca. Fica recolhida num
+  // <details> pra não empurrar o botão de comprar pra baixo, e aparece mesmo
+  // esgotado (quem espera a volta já quer saber o tamanho).
+  const medidasHTML = p.medidas
+    ? `
+      <details class="medidas mt-5">
+        <summary><i data-lucide="ruler"></i><span>ver a tabela de medidas</span></summary>
+        <div class="medidas-corpo">
+          <div class="medidas-scroll">
+            <table>
+              <caption>medidas da peça (não do corpo), em centímetros</caption>
+              <thead>
+                <tr>${p.medidas.colunas.map((c) => `<th scope="col">${escapeHtml(c)}</th>`).join('')}</tr>
+              </thead>
+              <tbody>
+                ${p.medidas.linhas
+                  .map(
+                    (linha) =>
+                      `<tr>${linha
+                        .map((celula, i) =>
+                          i === 0
+                            ? `<th scope="row">${escapeHtml(celula)}</th>`
+                            : `<td>${escapeHtml(celula)}</td>`
+                        )
+                        .join('')}</tr>`
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          </div>
+          ${p.medidas.nota ? `<p class="medidas-nota">${escapeHtml(p.medidas.nota)}</p>` : ''}
+          <p class="medidas-nota">a gente mede com a peça deitada, então pode variar 1 ou 2 cm de uma pra outra. na dúvida, chama a gente que a gente te ajuda a escolher.</p>
+        </div>
+      </details>`
+    : '';
+
+  // Bloco de compra: disponível → quantidade + adicionar; esgotado → "me avisa
+  // quando voltar" (initReposicao liga; deslogado → login). O "guardar pra depois"
+  // (coração) fica nos dois casos, dá pra guardar mesmo esgotado.
+  const guardarBtn = `<button type="button" class="btn ghost prod-guardar" data-desejo-produto="${escapeHtml(p.slug)}" hidden>
+              <i data-lucide="heart"></i><span>guardar pra depois</span>
+            </button>`;
+  const compraHTML = esgotado
+    ? `<div class="mt-6">
+          <p class="prod-esgotado-nota"><i data-lucide="bell-off"></i>esse saiu da vitrine por enquanto. deixa que a gente te avisa quando voltar.</p>
+          <div class="mt-3 flex flex-wrap items-center gap-4">
+            <button type="button" class="btn solid prod-avisar" data-avisar="${escapeHtml(p.slug)}"><i data-lucide="bell"></i><span>me avisa quando voltar</span></button>
+            ${guardarBtn}
+          </div>
+        </div>`
+    : `<div class="mt-6">
           <span class="lbl">Quantidade</span>
           <div class="mt-2 flex flex-wrap items-center gap-4">
             <div class="inline-flex items-center rounded-full border border-line">
@@ -1574,8 +3377,26 @@ function initProductPage() {
               </button>
             </div>
             <button type="button" data-add-detail class="btn solid">adicionar ao carrinho</button>
+            ${guardarBtn}
           </div>
-        </div>
+        </div>`;
+
+  rootEl.innerHTML = `
+    <div class="grid gap-8 lg:grid-cols-2">
+      <div class="ph ${p.imagemPlaceholder} aspect-square w-full">${esgotado ? '<span class="prod-esgotado">esgotado</span>' : ''}</div>
+      <!-- min-w-0: sem isso a tabela de medidas (células sem quebra) estica a coluna
+           do grid e a página inteira ganha scroll lateral no mobile. -->
+      <div class="min-w-0">
+        <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
+          <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
+        </a>
+        <p class="mt-4 prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
+        <h1 class="title md mt-1">${escapeHtml(p.nome)}</h1>
+        <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
+        <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
+        ${esgotado ? '' : variantesHTML}
+        ${medidasHTML}
+        ${compraHTML}
         <p class="mt-6 text-xs text-muted">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
       </div>
     </div>`;
@@ -1777,6 +3598,304 @@ function initPlanosPage() {
   );
 }
 
+// Página "presentear um plano" (/presentear): escolhe o tier, escreve o bilhete e
+// abre o Checkout hospedado do Asaas em modo PRESENTE (cobrança única — não vira
+// assinatura do comprador). O preço vem do BANCO na Edge Function; o client só
+// manda { gift_tier, mensagem }. Deslogado → login guardando o destino.
+function initPresentearPage() {
+  const root = document.querySelector('[data-presentear]');
+  if (!root) return;
+
+  const btn = root.querySelector('[data-gift-btn]');
+  const nota = root.querySelector('[data-gift-note]');
+  const msgEl = root.querySelector('[data-gift-msg]');
+  const countEl = root.querySelector('[data-gift-count]');
+
+  // Contador do bilhete (feedback vivo, sem passar de 280).
+  const atualizarContador = () => {
+    if (!msgEl || !countEl) return;
+    countEl.textContent = `${msgEl.value.length}/280`;
+  };
+  msgEl?.addEventListener('input', atualizarContador);
+  atualizarContador();
+
+  const avisar = (msg, { tipo = 'warn', rolar = true } = {}) => {
+    if (!nota) return;
+    nota.textContent = msg; // textContent (nunca innerHTML) → sem XSS
+    nota.classList.remove('warn', 'ok');
+    nota.classList.add(tipo);
+    nota.classList.remove('hidden');
+    if (rolar) nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  const tierEscolhido = () => root.querySelector('input[name="gift-tier"]:checked')?.value || '';
+
+  // Rascunho do presente (plano + bilhete). A pessoa escolhe o tier e escreve o
+  // bilhete, e só no "presentear" descobre que precisa entrar: sem isto, voltava
+  // do login com a página em branco e tinha que refazer tudo. Guarda antes de sair
+  // e repõe na volta, uma vez só.
+  const RASCUNHO_KEY = 'casa_presente_rascunho';
+
+  const guardarRascunho = () => {
+    try {
+      localStorage.setItem(
+        RASCUNHO_KEY,
+        JSON.stringify({ tier: tierEscolhido(), mensagem: msgEl?.value || '' }),
+      );
+    } catch {
+      /* sem localStorage (aba anônima, cota cheia): segue sem guardar */
+    }
+  };
+
+  const reporRascunho = () => {
+    let bruto = null;
+    try {
+      bruto = localStorage.getItem(RASCUNHO_KEY);
+      if (bruto) localStorage.removeItem(RASCUNHO_KEY); // repôs, esqueceu
+    } catch {
+      return;
+    }
+    if (!bruto) return;
+
+    let rascunho;
+    try {
+      rascunho = JSON.parse(bruto);
+    } catch {
+      return;
+    }
+    if (!rascunho || typeof rascunho !== 'object') return;
+
+    // O tier só vale se casar com um dos planos que estão na tela.
+    const radio = [...root.querySelectorAll('input[name="gift-tier"]')].find(
+      (r) => r.value === rascunho.tier,
+    );
+    const bilhete = typeof rascunho.mensagem === 'string' ? rascunho.mensagem.slice(0, 280) : '';
+    const tinhaAlgo = Boolean(bilhete) || Boolean(radio && !radio.checked);
+
+    if (radio) radio.checked = true;
+    if (msgEl && bilhete) {
+      msgEl.value = bilhete;
+      atualizarContador();
+    }
+    if (tinhaAlgo) {
+      avisar('guardamos teu plano e teu bilhete, é só seguir 💛', { tipo: 'ok', rolar: false });
+    }
+  };
+
+  const irProLogin = () => {
+    guardarRascunho(); // pra voltar com o plano e o bilhete no lugar
+    const destino = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login?redirect=${destino}`;
+  };
+
+  btn?.addEventListener('click', async () => {
+    const tier = tierEscolhido();
+    if (!tier) return avisar('escolhe um plano pra presentear 💛');
+
+    if (!supabase) return avisar('presentear ainda não tá ligado por aqui (config pendente). 💛');
+
+    const session = await getSession();
+    if (!session) return irProLogin();
+
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'te levando pro pagamento…';
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { gift_tier: tier, mensagem: msgEl?.value?.trim() || '' },
+      });
+      if (error || !data?.url) {
+        avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
+        return;
+      }
+      window.location.href = data.url; // Checkout hospedado do Asaas
+    } catch {
+      avisar('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+
+  reporRascunho(); // volta do login com o que a pessoa já tinha escolhido
+}
+
+// Mural do Casa (/o-casa): recados de assinante como post-its na parede. Leitura
+// pública (qualquer um vê os 'aprovado'); escrita gated por assinatura na Edge
+// Function postar-mural (server-side). Aqui o client só LÊ, mostra o compose pra
+// quem pode, e chama a function pra postar. Todo texto do banco é escapado.
+async function initMuralPage() {
+  const root = document.querySelector('[data-mural]');
+  if (!root) return;
+
+  const lista = root.querySelector('[data-mural-lista]');
+  const vazio = root.querySelector('[data-mural-vazio]');
+  const compose = root.querySelector('[data-mural-compose]');
+  const ctaEl = root.querySelector('[data-mural-cta]');
+  const textoEl = root.querySelector('[data-mural-texto]');
+  const countEl = root.querySelector('[data-mural-count]');
+  const btn = root.querySelector('[data-mural-btn]');
+  const msgEl = root.querySelector('[data-mural-msg]');
+
+  const mostrarCta = (html) => {
+    if (!ctaEl) return;
+    ctaEl.innerHTML = html; // conteúdo controlado (só links internos fixos)
+    ctaEl.hidden = false;
+  };
+
+  if (!supabase) {
+    mostrarCta('o mural chega já já. 💛');
+    return;
+  }
+
+  // Data curta e gentil pro rodapé do post-it.
+  const dataCurta = (iso) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const hoje = new Date();
+    const umDia = 86_400_000;
+    const diff = Math.floor((hoje.setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / umDia);
+    if (diff <= 0) return 'hoje';
+    if (diff === 1) return 'ontem';
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
+  // Sessão + ids dos MEUS recados (pra mostrar o "apagar"). RLS deixa cada um ler
+  // os próprios (inclusive ocultos); no público a lista não traz user_id.
+  const session = await getSession();
+  const meusIds = new Set();
+  if (session) {
+    const { data: meus } = await supabase.from('mural_notes').select('id').eq('user_id', session.user.id);
+    (meus || []).forEach((r) => meusIds.add(r.id));
+  }
+
+  const cardHtml = (n) => {
+    const podeApagar = meusIds.has(n.id);
+    const apagar = podeApagar
+      ? `<button type="button" class="mural-apagar" data-apagar="${escapeHtml(n.id)}" aria-label="apagar teu recado">×</button>`
+      : '';
+    return `
+      <article class="mural-note">
+        ${apagar}
+        <p>${escapeHtml(n.texto || '')}</p>
+        <span class="mural-autor">— ${escapeHtml(n.autor_nome || 'alguém do Casa')} · ${dataCurta(n.created_at)}</span>
+      </article>`;
+  };
+
+  // Carrega a parede (aprovados, mais novos primeiro). Limite generoso.
+  const carregar = async () => {
+    const { data: notas, error } = await supabase
+      .from('mural_notes')
+      .select('id, autor_nome, texto, created_at')
+      .eq('status', 'aprovado')
+      .order('created_at', { ascending: false })
+      .limit(120);
+    if (error) {
+      // Migration 0020 ainda não aplicada? degrada gentil (a parede fica vazia).
+      if (vazio) { vazio.textContent = 'o mural chega já já. 💛'; vazio.hidden = false; }
+      return;
+    }
+    if (lista) lista.innerHTML = (notas || []).map(cardHtml).join('');
+    if (vazio) vazio.hidden = (notas || []).length > 0;
+  };
+  await carregar();
+
+  // Apagar o próprio recado (RLS garante que só o dono/staff apaga).
+  lista?.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-apagar]');
+    if (!b) return;
+    const id = b.getAttribute('data-apagar');
+    if (!id || !window.confirm('tirar teu recado da parede?')) return;
+    b.disabled = true;
+    const { error } = await supabase.from('mural_notes').delete().eq('id', id);
+    if (error) { b.disabled = false; return; }
+    b.closest('.mural-note')?.remove();
+    meusIds.delete(id);
+    if (lista && lista.children.length === 0 && vazio) vazio.hidden = false;
+  });
+
+  // Estado do compose: só assinante vigente escreve. Deslogado/sem plano → CTA.
+  if (!session) {
+    mostrarCta(
+      'o mural é de quem faz parte do Casa. <a href="/planos">assina um plano</a> e deixa teu recado na parede. 💛',
+    );
+    return;
+  }
+
+  // Assinatura vigente do próprio usuário (espelho da trava server-side). 'ativa'
+  // concede sempre; 'pausada' só no período pago. É só UX — o backend é a trava real.
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('status, current_period_end')
+    .eq('user_id', session.user.id)
+    .in('status', ['ativa', 'pausada'])
+    .order('current_period_end', { ascending: false, nullsFirst: false });
+  const agora = Date.now();
+  const vigente = (subs || []).some(
+    (r) =>
+      r.status === 'ativa' ||
+      (r.status === 'pausada' && !!r.current_period_end && Date.parse(r.current_period_end) > agora),
+  );
+
+  if (!vigente) {
+    mostrarCta(
+      'quase lá 💛 o mural é um agrado de quem tem plano. <a href="/planos">vem pro clube</a> e deixa teu recado.',
+    );
+    return;
+  }
+
+  // Assinante: libera o compose.
+  if (compose) compose.hidden = false;
+  const atualizarContador = () => {
+    if (countEl && textoEl) countEl.textContent = `${textoEl.value.length}/240`;
+  };
+  textoEl?.addEventListener('input', atualizarContador);
+  atualizarContador();
+
+  const mostrarMsg = (txt, tom = 'erro') => {
+    if (!msgEl) return;
+    msgEl.textContent = txt; // textContent → sem XSS
+    msgEl.className = 'mt-2 text-sm ' + (tom === 'ok' ? 'text-olive' : 'text-coral');
+    msgEl.classList.remove('hidden');
+  };
+
+  btn?.addEventListener('click', async () => {
+    const texto = (textoEl?.value || '').trim();
+    if (!texto) return mostrarMsg('escreve teu recado 💛');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'colando…';
+    try {
+      const { data, error } = await supabase.functions.invoke('postar-mural', { body: { texto } });
+      if (error || !data?.ok) {
+        let m = data?.error || '';
+        if (!m && typeof error?.context?.json === 'function') {
+          try {
+            const corpo = await error.context.json();
+            if (corpo?.error) m = String(corpo.error);
+          } catch {
+            /* corpo não-JSON */
+          }
+        }
+        mostrarMsg(m || 'não deu pra colar teu recado agora. tenta de novo? 💛');
+        return;
+      }
+      // Sucesso: cola o recado novo no topo da parede.
+      if (msgEl) msgEl.classList.add('hidden');
+      if (textoEl) textoEl.value = '';
+      atualizarContador();
+      meusIds.add(data.note.id);
+      if (lista) lista.insertAdjacentHTML('afterbegin', cardHtml(data.note));
+      if (vazio) vazio.hidden = true;
+    } catch {
+      mostrarMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+}
+
 // Página de sucesso do checkout: compra concluída → esvazia o carrinho local.
 // (A fonte da verdade do pedido é o banco, gravado pelo webhook; o carrinho é só UI.)
 // Também mostra "+X pontos" quando o webhook terminar de creditar (é assíncrono,
@@ -1788,9 +3907,14 @@ function initPlanosPage() {
 async function initCheckoutSucessoPage() {
   const wrap = document.querySelector('[data-checkout-sucesso]');
   if (!wrap) return;
-  Cart.clearCart();
 
   const params = new URLSearchParams(window.location.search);
+  // Só esvazia o carrinho quando houver um sinal REAL de retorno de checkout
+  // (?ref= da loja, ?assinatura=1 ou ?upgrade=1). Abrir/reabrir /checkout-sucesso
+  // avulso (histórico, bookmark) não deve apagar o carrinho montado.
+  const voltaDeCheckout =
+    !!params.get('ref') || params.get('assinatura') === '1' || params.get('upgrade') === '1';
+  if (voltaDeCheckout) Cart.clearCart();
 
   // A copy do HTML é NEUTRA; aqui a gente especializa por fluxo. textContent em
   // tudo → sem risco de XSS. Fonte da verdade continua sendo o banco (webhook).
@@ -1820,6 +3944,39 @@ async function initCheckoutSucessoPage() {
       'tua assinatura tá confirmada. a gente já tá preparando teu cantinho, teu plano aparece na tua conta em instantes, assim que o pagamento termina de conversar com a gente.',
     );
     return; // pontos da assinatura vêm por payment.id (o client não conhece) → não sonda
+  }
+
+  // Presente (?presente=<gift.id>): o comprador pagou um presente. O código é
+  // gerado pelo webhook (assíncrono), então sonda gift_subscriptions (RLS: o
+  // comprador lê o próprio) até o código aparecer e mostra pra ele entregar.
+  const presenteId = params.get('presente');
+  if (presenteId) {
+    setCopy(
+      'presente a caminho 💛',
+      'teu pagamento tá confirmado. assim que ele termina de conversar com a gente, teu código aparece aqui embaixo pra tu entregar.',
+    );
+    const slotG = wrap.querySelector('[data-pontos-credito]');
+    if (!slotG || !supabase) return;
+    const sessionG = await getSession();
+    if (!sessionG) return;
+    for (let tentativa = 0; tentativa < 6; tentativa++) {
+      const { data } = await supabase
+        .from('gift_subscriptions')
+        .select('codigo')
+        .eq('id', presenteId)
+        .maybeSingle();
+      if (data?.codigo) {
+        setCopy(
+          'teu presente tá pronto 💛',
+          'entrega o código abaixo pra quem tu quiser — a pessoa resgata em "tenho um presente", lá na conta dela.',
+        );
+        slotG.textContent = `teu código: ${data.codigo}`; // textContent → sem XSS
+        slotG.classList.remove('hidden');
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return;
   }
 
   // Loja (?ref=<order.id>): copy de PEDIDO, não de plano.
@@ -1915,7 +4072,7 @@ function updateAuthUI(session) {
   if (slotM) {
     slotM.innerHTML = session
       ? authMobileLogado(nome)
-      : `<a href="/login" data-menu-link>entrar</a>`;
+      : authMobileDeslogado();
   }
 
   // Liga o "sair" dos botões do header (o painel liga o seu próprio ao renderizar).
@@ -1948,6 +4105,13 @@ function authDesktopLogado(nome, inicial) {
         <p class="text-center text-sm text-muted">só um instante…</p>
       </div>
     </div>`;
+}
+
+// Markup do usuário deslogado no menu mobile: entrar + criar conta, com ícone.
+function authMobileDeslogado() {
+  return `
+    <a href="/login" class="menu-conta-link" data-menu-link><i data-lucide="user" class="h-5 w-5 text-coral"></i>entrar</a>
+    <a href="/cadastro" class="menu-conta-link" data-menu-link><i data-lucide="sparkles" class="h-5 w-5 text-coral"></i>criar conta</a>`;
 }
 
 // Markup do usuário logado no drawer mobile: lista compacta (saldo + links).
@@ -2209,6 +4373,49 @@ async function initAuth() {
   }
 }
 
+// --- Indica um amigo (captura do link + registro do vínculo) -------------------
+const INDICA_KEY = 'casa_indica';
+
+// Roda em toda página (boot). Duas coisas:
+//  1) Se a URL trouxe ?indica=CODE (link de convite), guarda o código no
+//     localStorage — entre clicar o link e logar (confirmar e-mail) tem navegação,
+//     então o código precisa sobreviver a reloads.
+//  2) Se há código guardado E a pessoa está logada, registra o vínculo UMA vez via
+//     RPC registrar_indicacao (o banco valida quem é o indicado por auth.uid() — o
+//     client nunca diz "sou fulano"). O código só é limpo quando a RPC responde
+//     (registrou, já-indicado, já-é-da-casa, inválido): erro de rede/migration
+//     pendente mantém o rastro pra tentar de novo depois.
+async function initIndicacao() {
+  try {
+    const code = (new URLSearchParams(window.location.search).get('indica') || '').trim().toUpperCase();
+    if (code && /^[A-Z0-9]{4,16}$/.test(code)) localStorage.setItem(INDICA_KEY, code);
+  } catch {
+    /* sem localStorage/URL: ignora */
+  }
+
+  let code = null;
+  try {
+    code = localStorage.getItem(INDICA_KEY);
+  } catch {
+    code = null;
+  }
+  if (!code || !supabase) return;
+
+  const session = await getSession();
+  if (!session) return; // ainda não logou — tenta num próximo load
+
+  const { error } = await supabase.rpc('registrar_indicacao', { p_codigo: code });
+  // Sem erro de transporte = houve resposta definitiva do banco (ok ou recusa
+  // gentil). Aí sim limpa. Erro (RPC ausente / rede) mantém pra retry.
+  if (!error) {
+    try {
+      localStorage.removeItem(INDICA_KEY);
+    } catch {
+      /* ignora */
+    }
+  }
+}
+
 // Guard: exige sessão. Sem sessão → manda pro login guardando o destino.
 // NUNCA confia em role do client, quem precisar de papel lê do profiles (banco).
 async function requireAuth() {
@@ -2253,6 +4460,21 @@ function initCadastroPage() {
   if (!form) return;
 
   setupPasswordToggles(form); // olhinho nas duas senhas
+
+  // Chegou por um convite de indicação (?indica=CODE)? Um oi gentil no topo do form.
+  // O vínculo em si é registrado depois, logado, pela initIndicacao — aqui é só afeto.
+  try {
+    const temConvite = (new URLSearchParams(window.location.search).get('indica') || '').trim();
+    if (temConvite && !form.querySelector('[data-convite-aviso]')) {
+      const aviso = document.createElement('p');
+      aviso.dataset.conviteAviso = '';
+      aviso.className = 'cadastro-convite';
+      aviso.textContent = 'alguém do Casa te convidou 💛 cria tua conta e, quando assinares, vocês dois ganham pontos.';
+      form.prepend(aviso);
+    }
+  } catch {
+    /* sem URL: ignora */
+  }
 
   const erroEl = form.querySelector('[data-form-erro]');
   const btn = form.querySelector('[type="submit"]');
@@ -2643,6 +4865,7 @@ async function initPerfilPage() {
   let periodEndMs = NaN;
   let ativoAte = ''; // DD/MM (current_period_end formatado)
   let agendadoSlug = null; // scheduled_downgrade_to (downgrade agendado pro próximo ciclo)
+  let ehPresente = false; // a linha vigente nasceu de um presente resgatado (sem recorrência)
   let tiers = []; // [{ slug, nome, preco_centavos, ordem, ativo }]
   // Campos do perfil estendido (apelido, café, endereço, avisos — migration 0014).
   // Consulta separada e TOLERANTE de propósito: se a migration ainda não foi
@@ -2651,10 +4874,10 @@ async function initPerfilPage() {
   let extra = null;
 
   if (supabase) {
-    const [subRes, tiersRes, extraRes] = await Promise.all([
+    const [subRes0, tiersRes, extraRes] = await Promise.all([
       supabase
         .from('subscriptions')
-        .select('tier_slug, status, current_period_end, scheduled_downgrade_to')
+        .select('tier_slug, status, current_period_end, scheduled_downgrade_to, presente_id')
         .eq('user_id', session.user.id)
         .in('status', ['ativa', 'pausada', 'cancelada'])
         .order('updated_at', { ascending: false })
@@ -2663,6 +4886,21 @@ async function initPerfilPage() {
       supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo').order('ordem'),
       supabase.from('profiles').select(PERFIL_CAMPOS_EXTRA).eq('id', session.user.id).maybeSingle(),
     ]);
+    // Fallback TOLERANTE: se a migration 0019 (coluna presente_id) ainda não foi
+    // aplicada, o select acima falha inteiro — re-tenta SEM presente_id pra o plano
+    // do assinante não sumir da tela nesse meio-tempo. (Mesmo espírito da consulta
+    // `extra`, tolerante à 0014.) Sem a coluna, ehPresente fica false — ok.
+    let subRes = subRes0;
+    if (subRes0.error) {
+      subRes = await supabase
+        .from('subscriptions')
+        .select('tier_slug, status, current_period_end, scheduled_downgrade_to')
+        .eq('user_id', session.user.id)
+        .in('status', ['ativa', 'pausada', 'cancelada'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    }
     tiers = Array.isArray(tiersRes.data) ? tiersRes.data : [];
     extra = extraRes.data || null;
     const sub = subRes.data;
@@ -2670,6 +4908,7 @@ async function initPerfilPage() {
       subStatus = sub.status;
       planoSlug = sub.tier_slug || planoSlug;
       agendadoSlug = sub.scheduled_downgrade_to || null;
+      ehPresente = Boolean(sub.presente_id);
       if (sub.current_period_end) {
         const d = new Date(sub.current_period_end);
         if (!Number.isNaN(d.getTime())) {
@@ -2691,8 +4930,13 @@ async function initPerfilPage() {
   // Encerrada de vez no Asaas (404): não dá pra "retomar", só re-assinar. Só vale
   // como estado gerenciável se ainda sabemos qual era o tier (pra oferecer a volta).
   const reassinavel = subStatus === 'cancelada' && Boolean(planoSlug);
-  const temGerenciar = ativa || pausada || reassinavel; // tem assinatura pra gerenciar
-  const temPlano = temGerenciar || Boolean(profile?.tier_slug);
+  // Presente resgatado: assinatura 'pausada' de origem-presente, SEM recorrência no
+  // Asaas. Concede o benefício até current_period_end e some sozinha — não há o que
+  // "gerenciar" (nada pra cancelar/retomar/dar upgrade no gateway). Fica fora do
+  // temGerenciar pra não cair nos fluxos de assinatura paga.
+  const presenteVigente = ehPresente && Number.isFinite(periodEndMs) && periodEndMs > agora;
+  const temGerenciar = !ehPresente && (ativa || pausada || reassinavel); // assinatura paga gerenciável
+  const temPlano = temGerenciar || presenteVigente || Boolean(profile?.tier_slug);
   const proximaCobranca = ativoAte;
   const ordemAtual = tiers.find((t) => t.slug === planoSlug)?.ordem ?? 0;
   // Downgrade AGENDADO (vale no próximo ciclo). Só existe em assinatura ATIVA (a
@@ -2764,19 +5008,44 @@ async function initPerfilPage() {
           <p class="pf-n">${pontos}</p>
           <a href="/conta/pontos">ver extrato e resgatar</a>
         </div>
-        <div class="pf-stat">
+        <div class="pf-stat${temPlano ? '' : ' pf-stat-plano'}">
           <p class="lbl">teu plano</p>
           <p class="pf-plano">${plano}</p>
           ${
-            ativa
-              ? `<p class="status"><span class="dot green"></span>ativo</p>`
-              : emGraca
-                ? `<p class="status"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
-                : pausada
-                  ? `<p class="status"><span class="dot muted"></span>pausado</p>`
-                  : reassinavel
-                    ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
-                    : `<a href="/planos">ver os planos</a>`
+            ehPresente
+              ? presenteVigente
+                ? `<p class="status"><span class="dot gold"></span>presente · ativo até ${ativoAte}</p>`
+                : `<p class="status"><span class="dot muted"></span>presente encerrado</p>`
+              : ativa
+                ? `<p class="status"><span class="dot green"></span>ativo</p>`
+                : emGraca
+                  ? `<p class="status"><span class="dot gold"></span>pausado · ativo até ${ativoAte}</p>`
+                  : pausada
+                    ? `<p class="status"><span class="dot muted"></span>pausado</p>`
+                    : reassinavel
+                      ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
+                      : `<a href="/planos">ver os planos</a>`
+          }
+          ${
+            temPlano
+              ? ''
+              : `<div class="pf-presente" data-presente-resgate>
+            <button type="button" class="pf-presente-chip" data-presente-toggle aria-expanded="false" aria-controls="pf-presente-corpo">
+              tem um presente?
+            </button>
+            <div class="pf-presente-pop" id="pf-presente-corpo" data-presente-corpo hidden>
+              <p class="pf-presente-sub">ganhou um mês do Casa de alguém? digita o código e ele é teu.</p>
+              <label class="field" for="pf-presente">
+                <span class="lbl">código do presente</span>
+                <input id="pf-presente" type="text" data-presente-codigo placeholder="CASA-XXXXXX" autocomplete="off" spellcheck="false" />
+                <span class="hint">é do tipo CASA-XXXXXX, quem te deu passou pra ti.</span>
+              </label>
+              <div class="pf-actions">
+                <button type="button" class="btn solid sm" data-presente-btn>resgatar presente</button>
+              </div>
+              <p class="hidden text-sm" data-presente-msg aria-live="polite"></p>
+            </div>
+          </div>`
           }
         </div>
         <div class="pf-stat">
@@ -2788,6 +5057,22 @@ async function initPerfilPage() {
               : `<p class="status"><span class="dot gold"></span>falta confirmar</p>`
           }
         </div>
+      </section>
+
+      <!-- Hoje o Casa é teu 🎂: no mês do aniversário, o assinante reserva um brunch
+           (pra uma pessoa) por nossa conta. Preenchido pós-render (RPC
+           meu_brinde_aniversario). Escondido por padrão; o JS revela só quando faz
+           sentido (é o teu mês, ou tem código vivo). Migration 0025 pendente → some. -->
+      <section class="card pf-aniver" data-aniversario hidden>
+        <div class="pf-aniver-head">
+          <span class="pf-aniver-emoji" aria-hidden="true">🎂</span>
+          <div>
+            <p class="pf-script" data-aniver-script>é o teu mês</p>
+            <h2 class="pf-aniver-titulo" data-aniver-titulo>este mês, o Casa é teu</h2>
+          </div>
+        </div>
+        <p class="pf-aniver-txt" data-aniver-txt></p>
+        <div class="pf-aniver-corpo" data-aniver-corpo></div>
       </section>
 
       <section class="pf-prog" aria-label="perfil completo">
@@ -2881,7 +5166,7 @@ async function initPerfilPage() {
         <div><button type="submit" class="btn solid">salvar teu café</button></div>
       </form>
 
-      <form class="card pf-sec" data-section="entrega" novalidate>
+      <form class="card pf-sec" data-section="entrega" data-endereco-form novalidate>
         <div class="pf-head">
           <h2>onde te entregamos</h2>
           <p>endereço da tua assinatura. dá pra retirar aqui na casa também.</p>
@@ -2889,34 +5174,37 @@ async function initPerfilPage() {
         <div class="pf-grid addr">
           <label class="field" for="pf-cep">
             <span class="lbl">cep</span>
-            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" />
+            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" data-endereco-campo readonly />
           </label>
           <label class="field pf-wide" for="pf-rua">
             <span class="lbl">rua</span>
-            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" />
+            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-numero">
             <span class="lbl">número</span>
-            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" />
+            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-complemento">
             <span class="lbl">complemento</span>
-            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" />
+            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-bairro">
             <span class="lbl">bairro</span>
-            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" />
+            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-cidade">
             <span class="lbl">cidade</span>
-            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" />
+            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-uf">
             <span class="lbl">uf</span>
-            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf />
+            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf data-endereco-campo readonly />
           </label>
         </div>
-        <div><button type="submit" class="btn solid">salvar endereço</button></div>
+        <div class="pf-actions">
+          <button type="button" class="btn ghost" data-endereco-editar>editar</button>
+          <button type="submit" class="btn solid" data-endereco-salvar disabled>salvar endereço</button>
+        </div>
       </form>
 
       <section class="card pf-sec">
@@ -3079,6 +5367,62 @@ async function initPerfilPage() {
         </a>
       </div>
 
+      <!-- Indica um amigo: convite pra trazer gente. Preenchido pós-render (RPC
+           meu_codigo_indicacao). Fica escondido até termos o código — se a migration
+           0021 ainda não foi aplicada, some sem deixar caco na tela. -->
+      <section class="pf-indica" data-indica hidden>
+        <div class="pf-head">
+          <h2>traz quem tu gosta</h2>
+          <p>manda teu convite pra quem ia gostar do Casa. quando teu amigo entra e assina, vocês <strong>dois ganham pontos</strong> 💛</p>
+        </div>
+        <div class="pf-indica-card">
+          <span class="pf-indica-label">teu convite</span>
+          <div class="pf-indica-linkbox">
+            <span class="pf-indica-link" data-indica-link>gerando teu convite…</span>
+            <button type="button" class="pf-indica-copy" data-indica-copy aria-label="copiar o convite">
+              <i data-lucide="copy" class="h-4 w-4"></i><span>copiar</span>
+            </button>
+          </div>
+          <p class="pf-indica-conta" data-indica-conta hidden></p>
+        </div>
+      </section>
+
+      <!-- Meu cantinho: perfil público opt-in em /gente/{handle}. Preenchido
+           pós-render (RPCs do 0024). Escondido até sabermos o estado; se a migration
+           ainda não foi aplicada, some sem deixar caco. -->
+      <section class="pf-indica" data-cantinho hidden>
+        <div class="pf-head">
+          <h2>meu cantinho</h2>
+          <p>um cartãozinho teu, público, pra dar rosto à comunidade — apelido, teu café de sempre, teus recados. <strong>e-mail, telefone e pontos ficam de fora</strong>, sempre.</p>
+        </div>
+        <div class="pf-indica-card">
+          <label class="pf-cantinho-toggle">
+            <input type="checkbox" data-cantinho-check />
+            <span data-cantinho-label>mostrar meu cantinho</span>
+          </label>
+          <div class="pf-cantinho-link" data-cantinho-linkwrap hidden>
+            <div class="pf-indica-linkbox">
+              <a class="pf-indica-link" data-cantinho-link href="#" target="_blank" rel="noopener"></a>
+              <button type="button" class="pf-indica-copy" data-cantinho-copy aria-label="copiar o link">
+                <i data-lucide="copy" class="h-4 w-4"></i><span>copiar</span>
+              </button>
+            </div>
+          </div>
+          <p class="pf-indica-conta" data-cantinho-msg hidden></p>
+        </div>
+      </section>
+
+      <!-- Ficou pra depois: espelho da lista de desejos da loja. Preenchido
+           pós-render por initLojaDesejos (chamada no fim desta função). Escondido
+           sem desejos / sem a migration 0029. -->
+      <section class="loja-desejos" data-desejos-perfil hidden>
+        <div class="pf-head">
+          <h2>ficou pra depois</h2>
+          <p>o que tu guardou na loja pra levar num outro dia. toca pra abrir, ou tira da lista.</p>
+        </div>
+        <div class="ld-chips" data-ld-chips></div>
+      </section>
+
       <section>
         <div class="pf-head">
           <h2>conta e privacidade</h2>
@@ -3093,7 +5437,7 @@ async function initPerfilPage() {
           </button>
           <div class="pf-sessoes" id="pf-sessoes" data-sessoes hidden>
             <p class="pf-sessoes-intro">
-              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele — e,
+              é aqui que tua conta tá aberta agora. não reconheceu algum? encerra ele, e,
               por garantia, troca a senha depois.
             </p>
             <div data-sessoes-lista></div>
@@ -3119,6 +5463,353 @@ async function initPerfilPage() {
     <div class="pf-toast" role="status" aria-live="polite" data-toast hidden></div>`;
 
   renderIcons();
+
+  // ── "gerenciar assinatura" logo abaixo do resumo ──────────────────────────
+  // No template ela nasce no fim da página; a gente sobe pra logo depois da
+  // linha de resumo (teus pontos / teu plano / e-mail), que é onde ela conversa.
+  {
+    const gerenciar = root.querySelector('[data-gerenciar]');
+    const stats = root.querySelector('.pf-stats');
+    if (gerenciar && stats) stats.after(gerenciar);
+  }
+
+  // ── Resgatar presente (código dado por outra pessoa) ──────────────────────
+  // Chama a Edge Function resgatar-presente (que valida na RPC atômica). Sucesso →
+  // recarrega pra o plano do presente já aparecer no perfil.
+  {
+    const presenteInput = root.querySelector('[data-presente-codigo]');
+    const presenteBtn = root.querySelector('[data-presente-btn]');
+    const presenteMsg = root.querySelector('[data-presente-msg]');
+    const presenteToggle = root.querySelector('[data-presente-toggle]');
+    const presenteCorpo = root.querySelector('[data-presente-corpo]');
+    const presenteWrap = root.querySelector('[data-presente-resgate]');
+    // A seção começa fechada: só o "tem um presente?" aparece. Clicar revela o
+    // campo do código (espelha o toggle das sessões — hidden + aria-expanded).
+    // Como o painel flutua, ele fecha ao clicar fora ou apertar Esc.
+    const fecharPresente = () => {
+      if (!presenteCorpo || presenteCorpo.hidden) return;
+      presenteCorpo.hidden = true;
+      presenteToggle?.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('pointerdown', aoClicarFora, true);
+      document.removeEventListener('keydown', aoApertarEsc, true);
+    };
+    const aoClicarFora = (e) => {
+      if (presenteWrap && !presenteWrap.contains(e.target)) fecharPresente();
+    };
+    const aoApertarEsc = (e) => {
+      if (e.key === 'Escape') {
+        fecharPresente();
+        presenteToggle?.focus();
+      }
+    };
+    presenteToggle?.addEventListener('click', () => {
+      const abrindo = presenteCorpo.hidden;
+      presenteCorpo.hidden = !abrindo;
+      presenteToggle.setAttribute('aria-expanded', String(abrindo));
+      if (abrindo) {
+        presenteInput?.focus();
+        document.addEventListener('pointerdown', aoClicarFora, true);
+        document.addEventListener('keydown', aoApertarEsc, true);
+      } else {
+        document.removeEventListener('pointerdown', aoClicarFora, true);
+        document.removeEventListener('keydown', aoApertarEsc, true);
+      }
+    });
+    const mostrarPresenteMsg = (txt, tom = 'neutro') => {
+      if (!presenteMsg) return;
+      presenteMsg.textContent = txt; // textContent → sem XSS
+      presenteMsg.className =
+        'mt-3 text-sm ' + (tom === 'erro' ? 'text-coral' : tom === 'ok' ? 'text-olive' : 'text-ink-2');
+      presenteMsg.classList.remove('hidden');
+    };
+    presenteBtn?.addEventListener('click', async () => {
+      const codigo = (presenteInput?.value || '').trim();
+      if (!codigo) return mostrarPresenteMsg('digita o código do presente 💛', 'erro');
+      if (!supabase) return mostrarPresenteMsg('resgate ainda não tá ligado por aqui (config pendente). 💛', 'erro');
+
+      const original = presenteBtn.textContent;
+      presenteBtn.disabled = true;
+      presenteBtn.textContent = 'resgatando…';
+      try {
+        const { data, error } = await supabase.functions.invoke('resgatar-presente', { body: { codigo } });
+        if (error || !data?.ok) {
+          // Em HTTP não-2xx o functions-js devolve data=null e joga a resposta crua em
+          // error.context — sem ler dali, o recado gentil da função vira genérico.
+          let msg = data?.error || '';
+          if (!msg && typeof error?.context?.json === 'function') {
+            try {
+              const corpo = await error.context.json();
+              if (corpo?.error) msg = String(corpo.error);
+            } catch {
+              /* corpo não-JSON: segue pra mensagem genérica */
+            }
+          }
+          if (!msg) msg = 'não deu pra resgatar agora. confere o código? 💛';
+          mostrarPresenteMsg(msg, 'erro');
+          return;
+        }
+        const nome = data.tier_nome ? ` ${data.tier_nome}` : '';
+        mostrarPresenteMsg(`presente resgatado! teu plano${nome} já vale — recarregando… 💛`, 'ok');
+        setTimeout(() => window.location.reload(), 1400);
+      } catch {
+        mostrarPresenteMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?', 'erro');
+      } finally {
+        presenteBtn.disabled = false;
+        presenteBtn.textContent = original;
+      }
+    });
+  }
+
+  // ── Indica um amigo: convite + convidados que já entraram ─────────────────
+  // Pega o código do PRÓPRIO usuário (RPC meu_codigo_indicacao, gera na 1ª vez),
+  // monta o link de convite e liga o "copiar". Best-effort: se a RPC não existe
+  // (migration 0021 pendente) ou falha, a seção continua escondida — sem ruído.
+  {
+    const indicaSec = root.querySelector('[data-indica]');
+    if (indicaSec && supabase) {
+      (async () => {
+        const { data: codigo, error } = await supabase.rpc('meu_codigo_indicacao');
+        if (error || !codigo) return; // migration pendente / erro → seção fica hidden
+        const link = `${siteBase()}/cadastro?indica=${encodeURIComponent(codigo)}`;
+        const linkEl = indicaSec.querySelector('[data-indica-link]');
+        const copyEl = indicaSec.querySelector('[data-indica-copy]');
+        const contaEl = indicaSec.querySelector('[data-indica-conta]');
+        // O link é URL montada por nós (código validado no regex do banco) — texto puro.
+        if (linkEl) linkEl.textContent = link;
+        indicaSec.hidden = false;
+
+        if (copyEl) {
+          const labelEl = copyEl.querySelector('span');
+          copyEl.addEventListener('click', async () => {
+            let ok = false;
+            try {
+              await navigator.clipboard.writeText(link);
+              ok = true;
+            } catch {
+              // Fallback pra navegador sem clipboard API (ou sem permissão): seleciona o texto.
+              try {
+                const range = document.createRange();
+                range.selectNodeContents(linkEl);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                ok = document.execCommand?.('copy') || false;
+                sel.removeAllRanges();
+              } catch {
+                ok = false;
+              }
+            }
+            if (labelEl) {
+              labelEl.textContent = ok ? 'copiado!' : 'copia o texto aí ☝️';
+              copyEl.classList.toggle('ok', ok);
+              setTimeout(() => {
+                labelEl.textContent = 'copiar';
+                copyEl.classList.remove('ok');
+              }, 2200);
+            }
+          });
+        }
+
+        // Quantos já entraram pelo convite (premiados). Best-effort, silencioso.
+        try {
+          const { count } = await supabase
+            .from('referrals')
+            .select('id', { count: 'exact', head: true })
+            .eq('referrer_id', session.user.id)
+            .eq('status', 'premiado');
+          if (contaEl && Number(count) > 0) {
+            const n = Number(count);
+            contaEl.textContent = n === 1 ? 'já entrou 1 amigo pelo teu convite 💛' : `já entraram ${n} amigos pelo teu convite 💛`;
+            contaEl.hidden = false;
+          }
+        } catch {
+          /* tabela ainda não existe: ignora */
+        }
+      })();
+    }
+  }
+
+  // ── Meu cantinho: perfil público opt-in (/gente/{handle}) ─────────────────
+  // Lê o estado atual (perfil_publico/handle) e liga o toggle → definir_perfil_publico.
+  // Tolerante: sem a migration 0024, a seção fica escondida.
+  {
+    const cantinhoSec = root.querySelector('[data-cantinho]');
+    if (cantinhoSec && supabase) {
+      (async () => {
+        let estado = null;
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('perfil_publico, handle')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (error) return; // colunas ainda não existem → seção fica hidden
+          estado = data || {};
+        } catch {
+          return;
+        }
+
+        const check = cantinhoSec.querySelector('[data-cantinho-check]');
+        const labelEl = cantinhoSec.querySelector('[data-cantinho-label]');
+        const linkWrap = cantinhoSec.querySelector('[data-cantinho-linkwrap]');
+        const linkEl = cantinhoSec.querySelector('[data-cantinho-link]');
+        const copyEl = cantinhoSec.querySelector('[data-cantinho-copy]');
+        const msgEl = cantinhoSec.querySelector('[data-cantinho-msg]');
+
+        const mostrarMsgC = (txt, tom = 'neutro') => {
+          if (!msgEl) return;
+          msgEl.textContent = txt;
+          msgEl.className = 'pf-indica-conta ' + (tom === 'erro' ? 'text-coral' : tom === 'ok' ? 'text-olive' : '');
+          msgEl.hidden = !txt;
+        };
+
+        const pintarLink = (handle) => {
+          if (!handle || !linkEl) {
+            if (linkWrap) linkWrap.hidden = true;
+            return;
+          }
+          const url = `${siteBase()}/gente/${encodeURIComponent(handle)}`;
+          linkEl.textContent = url;
+          linkEl.href = url;
+          if (linkWrap) linkWrap.hidden = false;
+        };
+
+        const aplicarEstado = (ativo, handle) => {
+          if (check) check.checked = Boolean(ativo);
+          if (labelEl) labelEl.textContent = ativo ? 'teu cantinho está no ar' : 'mostrar meu cantinho';
+          if (ativo) pintarLink(handle);
+          else if (linkWrap) linkWrap.hidden = true;
+        };
+
+        aplicarEstado(estado.perfil_publico, estado.handle);
+        cantinhoSec.hidden = false;
+
+        check?.addEventListener('change', async () => {
+          const ativar = check.checked;
+          check.disabled = true;
+          mostrarMsgC('');
+          try {
+            const { data, error } = await supabase.rpc('definir_perfil_publico', { p_ativar: ativar });
+            if (error || !data?.ok) {
+              check.checked = !ativar; // desfaz o toggle
+              mostrarMsgC(data?.erro || 'não deu pra mudar agora. tenta de novo? 💛', 'erro');
+              return;
+            }
+            aplicarEstado(data.ativo, data.handle);
+            mostrarMsgC(
+              data.ativo ? 'pronto, teu cantinho está no ar 💛' : 'teu cantinho voltou a ser só teu.',
+              'ok',
+            );
+          } catch {
+            check.checked = !ativar;
+            mostrarMsgC('a gente não conseguiu falar com o servidor agora. confere tua conexão?', 'erro');
+          } finally {
+            check.disabled = false;
+          }
+        });
+
+        copyEl?.addEventListener('click', async () => {
+          const url = linkEl?.href || '';
+          if (!url) return;
+          const span = copyEl.querySelector('span');
+          let ok = false;
+          try {
+            await navigator.clipboard.writeText(url);
+            ok = true;
+          } catch {
+            ok = false;
+          }
+          if (span) {
+            span.textContent = ok ? 'copiado!' : 'copia daí ☝️';
+            copyEl.classList.toggle('ok', ok);
+            setTimeout(() => {
+              span.textContent = 'copiar';
+              copyEl.classList.remove('ok');
+            }, 2200);
+          }
+        });
+      })();
+    }
+  }
+
+  // ── Hoje o Casa é teu 🎂: brunch de aniversário ───────────────────────────
+  // Lê o estado (RPC meu_brinde_aniversario) e desenha o card só quando importa:
+  // é o mês do aniversário, ou existe um código ainda válido pra mostrar no balcão.
+  // Tolerante: sem a migration 0025, a RPC falha e o card fica escondido.
+  {
+    const aniverSec = root.querySelector('[data-aniversario]');
+    if (aniverSec && supabase) {
+      (async () => {
+        const { data: st, error } = await supabase.rpc('meu_brinde_aniversario');
+        if (error || !st) return; // migration pendente / erro → card fica hidden
+
+        const temCodigo = Boolean(st.codigo);
+        const mostrar = st.eh_mes || (temCodigo && st.situacao === 'ativo');
+        if (!mostrar) return; // fora do mês e sem código vivo → nem aparece
+
+        const scriptEl = aniverSec.querySelector('[data-aniver-script]');
+        const titEl = aniverSec.querySelector('[data-aniver-titulo]');
+        const txtEl = aniverSec.querySelector('[data-aniver-txt]');
+        const corpo = aniverSec.querySelector('[data-aniver-corpo]');
+
+        if (scriptEl) scriptEl.textContent = st.eh_dia ? 'feliz aniversário' : 'é o teu mês';
+        if (titEl) titEl.textContent = st.eh_dia ? 'hoje o Casa é teu' : 'este mês, o Casa é teu';
+
+        // Desenha a caixa do código (reutilizada no resgate feito na hora).
+        const pintarCodigo = (codigo, validoAte) => {
+          txtEl.textContent = 'teu brunch de aniversário tá reservado — pra ti, por nossa conta. mostra esse código no balcão:';
+          corpo.innerHTML =
+            `<div class="pf-aniver-codebox"><span class="pf-aniver-code">${escapeHtml(codigo)}</span></div>` +
+            `<p class="pf-aniver-val">vale até ${escapeHtml(dataDiaMes(validoAte))} · é só pra ti 💛</p>`;
+        };
+
+        if (temCodigo && st.situacao === 'usado') {
+          txtEl.textContent = 'já comemoramos juntos esse ano 💛 até o teu próximo aniversário!';
+          corpo.innerHTML = '';
+        } else if (temCodigo && st.situacao === 'expirado') {
+          txtEl.textContent = 'teu brunch desse ano acabou vencendo — fica pro próximo, e a gente comemora dobrado 💛';
+          corpo.innerHTML = '';
+        } else if (temCodigo && st.situacao === 'ativo') {
+          pintarCodigo(st.codigo, st.valido_ate);
+        } else if (!st.assinante) {
+          txtEl.textContent = 'no teu mês, quem é do Casa (tem plano) ganha um brunch de aniversário por nossa conta. bora fazer parte?';
+          corpo.innerHTML = `<a class="btn solid sm" href="/planos">conhecer os planos</a>`;
+        } else {
+          txtEl.textContent = 'tem um brunch de aniversário te esperando — pra ti, por nossa conta. quando quiser, é teu.';
+          corpo.innerHTML =
+            `<button type="button" class="btn solid sm" data-aniver-btn>quero meu brunch 🎂</button>` +
+            `<p class="hidden text-sm" data-aniver-msg aria-live="polite"></p>`;
+          const btn = corpo.querySelector('[data-aniver-btn]');
+          const msg = corpo.querySelector('[data-aniver-msg]');
+          const erroMsg = (txt) => {
+            if (!msg) return;
+            msg.textContent = txt;
+            msg.className = 'text-sm text-coral';
+            msg.hidden = false;
+          };
+          btn?.addEventListener('click', async () => {
+            btn.disabled = true;
+            if (msg) msg.hidden = true;
+            try {
+              const { data: r, error: e } = await supabase.rpc('resgatar_brinde_aniversario');
+              if (e || !r?.ok) {
+                erroMsg(r?.erro || 'não deu pra reservar agora. tenta de novo? 💛');
+                btn.disabled = false;
+                return;
+              }
+              pintarCodigo(r.codigo, r.valido_ate);
+            } catch {
+              erroMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+              btn.disabled = false;
+            }
+          });
+        }
+
+        aniverSec.hidden = false;
+        renderIcons();
+      })();
+    }
+  }
 
   // ── Gerenciar assinatura: pausar / retomar / upgrade ──────────────────────
   // A NOSSA tela (o Asaas não tem portal hospedado). Toda a lógica sensível (o
@@ -3722,6 +6413,7 @@ async function initPerfilPage() {
         botao.disabled = true;
         botao.textContent = 'salvando…';
       }
+      let sucesso = false;
       try {
         const { error } = await supabase.from('profiles').update(patch).eq('id', session.user.id);
         if (error) {
@@ -3734,6 +6426,7 @@ async function initPerfilPage() {
           }
           return;
         }
+        sucesso = true;
         if (secao === 'dados') {
           // Espelha no metadata do auth — é de lá que o header tira o nome.
           await supabase.auth.updateUser({
@@ -3753,9 +6446,35 @@ async function initPerfilPage() {
           botao.disabled = false;
           botao.textContent = textoBtn;
         }
+        // Endereço: depois de salvar, cadeia de novo — pra reeditar é só clicar
+        // no "editar" outra vez. O "salvar" volta a nascer travado.
+        if (secao === 'entrega' && sucesso) {
+          form.querySelectorAll('[data-endereco-campo]').forEach((i) => {
+            i.readOnly = true;
+          });
+          if (botao) botao.disabled = true;
+          form.querySelector('[data-endereco-editar]')?.removeAttribute('disabled');
+        }
       }
     });
   });
+
+  // ── Endereço cadeado: "editar" libera os campos ───────────────────────────
+  // Os campos nascem readonly (fundo apagado = cadeado). "editar" destrava tudo
+  // e habilita o "salvar endereço"; o "editar" apaga porque a edição já está no ar.
+  {
+    const formEnd = root.querySelector('[data-endereco-form]');
+    const editarBtn = root.querySelector('[data-endereco-editar]');
+    const salvarBtn = root.querySelector('[data-endereco-salvar]');
+    editarBtn?.addEventListener('click', () => {
+      formEnd?.querySelectorAll('[data-endereco-campo]').forEach((i) => {
+        i.readOnly = false;
+      });
+      if (salvarBtn) salvarBtn.disabled = false;
+      editarBtn.disabled = true;
+      formEnd?.querySelector('#pf-cep')?.focus();
+    });
+  }
 
   // ── Avisos (gravam no clique, sem botão) ──────────────────────────────────
   const avisosMsg = root.querySelector('[data-avisos-msg]');
@@ -3958,7 +6677,7 @@ async function initPerfilPage() {
   function avisarAssinaturaAtiva() {
     const nome = tiers.find((t) => t.slug === planoSlug)?.nome;
     dizerConta(
-      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura" — aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
+      `${nome ? `teu ${nome}` : 'tua assinatura'} ainda tá rodando. encerra ele ali em cima, em "gerenciar assinatura", aí a gente apaga tua conta com tudo em ordem, sem cobrança sobrando.`,
       'text-coral',
     );
     root.querySelector('[data-gerenciar]')?.scrollIntoView({
@@ -4047,7 +6766,7 @@ async function initPerfilPage() {
         if (!excluirArmado) {
           excluirArmado = true;
           btn.querySelector('span').textContent = 'tem certeza? clica de novo pra apagar';
-          dizerConta('isso apaga teus dados pra sempre — pontos, histórico e assinatura.', 'text-coral');
+          dizerConta('isso apaga teus dados pra sempre, pontos, histórico e assinatura.', 'text-coral');
           clearTimeout(excluirTimer);
           excluirTimer = setTimeout(() => {
             excluirArmado = false;
@@ -4087,6 +6806,12 @@ async function initPerfilPage() {
   });
 
   root.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
+
+  // Espelho da lista de desejos ("ficou pra depois"): a chamada do boot rodou antes
+  // deste HTML existir (o perfil é montado pós-guard), então religa aqui, já com a
+  // seção [data-desejos-perfil] no DOM. Tolerante à migration. (O "voltou pra
+  // vitrine" agora vive no sino do header, não no perfil.)
+  initLojaDesejos();
 }
 
 // --- Pontos + Recompensas (área logada) ----------------------------------------
@@ -4196,6 +6921,42 @@ async function initPontosPage() {
           .join('')
       : `<li class="py-6 text-center text-sm text-muted">teu extrato começa no teu primeiro café por aqui. 💛</li>`;
 
+    // "quase lá": o carimbo digital do Casa. Foca no PRÓXIMO mimo fora de alcance
+    // (o mais barato que o saldo ainda não cobre), com barrinha de progresso. Se o
+    // saldo já cobre tudo o que está na vitrine, vira um recado de comemoração. Só
+    // leitura: usa o `saldo` e o `rewards` (ordenado asc por custo) que a página já
+    // carregou. Estoque zerado não conta como alvo.
+    const emEstoque = (rewards || []).filter((r) => !(r.estoque !== null && r.estoque <= 0));
+    const proximoMimo = emEstoque.find((r) => Number(r.custo_em_pontos) > saldo);
+    const jaLiberado = emEstoque.find((r) => Number(r.custo_em_pontos) <= saldo);
+
+    let cardQuaseLa = '';
+    if (proximoMimo) {
+      const custo = Number(proximoMimo.custo_em_pontos);
+      const faltam = custo - saldo;
+      const pct = custo > 0 ? Math.max(3, Math.min(100, Math.round((saldo / custo) * 100))) : 0;
+      const nomeProx = escapeHtml(proximoMimo.nome);
+      const extra = jaLiberado
+        ? ` <span class="text-olive">e o ${escapeHtml(jaLiberado.nome)} já tá liberado aqui embaixo.</span>`
+        : '';
+      cardQuaseLa = `
+        <div class="mt-8 card">
+          <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="coffee" class="h-4 w-4"></i> quase lá</p>
+          <p class="mt-2 font-titulo text-xl leading-snug text-ink">faltam <span class="text-coral">${faltam.toLocaleString('pt-BR')}</span> ${faltam === 1 ? 'ponto' : 'pontos'} pro teu <span class="text-coral">${nomeProx}</span></p>
+          <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow="${saldo}" aria-valuemin="0" aria-valuemax="${custo}" aria-label="progresso pro ${nomeProx}">
+            <div class="h-full rounded-full bg-coral" style="width: ${pct}%"></div>
+          </div>
+          <p class="mt-2 text-xs text-muted">${saldo.toLocaleString('pt-BR')} de ${custo.toLocaleString('pt-BR')} pontos${extra}</p>
+        </div>`;
+    } else if (jaLiberado) {
+      cardQuaseLa = `
+        <div class="mt-8 card">
+          <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="sparkles" class="h-4 w-4"></i> tá pertinho</p>
+          <p class="mt-2 font-titulo text-xl leading-snug text-ink">tu já pode pegar teu mimo 💛</p>
+          <p class="mt-1 text-sm text-muted">teu saldo já cobre o que tá na vitrine aqui embaixo, escolhe com calma.</p>
+        </div>`;
+    }
+
     root.innerHTML = `
       <div class="mx-auto max-w-4xl">
         <p class="decor text-2xl sm:text-3xl">teus pontos</p>
@@ -4209,6 +6970,7 @@ async function initPontosPage() {
             }
           </p>
         </div>
+        ${cardQuaseLa}
 
         <!-- Resultado do resgate (preenchido pelo app.js) -->
         <div class="mt-6 hidden" data-resgate-resultado></div>
@@ -4824,9 +7586,10 @@ async function initAuthConfirmadoPage() {
 
 // Configura os carrosséis do tipo "cards" (home e colab) + o hero (home).
 function initCarousels() {
-  const hero = document.querySelector('[data-carousel="hero"] [data-carousel-track]');
-  if (hero) setupCarousel(hero, { dots: true, autoplay: true, interval: 5500 });
-
+  // O hero da home NÃO usa setupCarousel — ele é o setupHeroCarousel (foto/vídeo
+  // full-bleed por tempo), chamado no bootstrap. setupCarousel serve os tracks
+  // scroll-snap com [data-carousel="cards"] (hoje só a colab: swipe/scroll/teclado,
+  // sem dots nem autoplay).
   document
     .querySelectorAll('[data-carousel="cards"] [data-carousel-track]')
     .forEach((track) => setupCarousel(track, { dots: false, autoplay: false }));
@@ -4835,13 +7598,31 @@ function initCarousels() {
 // --- Bootstrap -----------------------------------------------------------------
 export function initSite() {
   renderHeader();
+  renderAvisoBar(); // tarja "recado da casa" no topo (só se houver um vigente)
   renderFooter();
   renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)
+  initIndicacao(); // capta ?indica= e registra o vínculo quando logado (todas as páginas)
   initCart(); // drawer + badge (todas as páginas)
   initCatalogPage(); // só age se houver [data-catalog-grid]
   initProductPage(); // só age se houver [data-product-root]
   initPlanosPage(); // só age se houver [data-assinar]
+  initPresentearPage(); // só age se houver [data-presentear]
+  initMuralPage(); // só age se houver [data-mural] (/o-casa)
+  initCardapioNav(); // tirinha de atalhos entre as seções (só age se houver [data-cardapio-nav])
+  initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
+  initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
+  initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)
+  initNotificacoes(); // sino do header: "voltou pra vitrine" (toda página; migration 0030)
+  // initTeuDeSempre(); // DESATIVADO (a pedido, 04/ago/2026): cartão pessoal no topo
+  // da home. O visual/posição ainda vão ser repensados pra não competir com o hero.
+  // A função e a seção [data-teu-de-sempre] (hidden) seguem no código, prontas pra religar.
+  initComoChegar(); // botões de rota + copiar endereço no /o-casa (só age com [data-como-chegar])
+  initSomDoCasa(); // painel "o som de agora" na home (liga o botão ao Spotify do MARCA)
+  initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
+  initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
+  initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
+  init404Page(); // mostra o caminho quebrado na 404 (só age se houver [data-404-caminho])
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]
@@ -4854,6 +7635,9 @@ export function initSite() {
   initAuthConfirmadoPage(); // só age se houver [data-auth-confirmado-root]
   initCarousels(); // só age se houver [data-carousel]
   setupHeroCarousel(); // fundo do hero em foto/vídeo (só age se houver [data-hero-carousel])
+  setupVoltarAoTopo(); // botão flutuante "voltar ao topo" (todas as páginas)
+  setupDragScroll(); // faixas [data-drag-scroll] arrastáveis com o mouse (planos)
+  setupStripDots(); // bolinhas de posição das tiras [data-strip-dots] (planos)
   renderIcons(); // ícones do header/footer + conteúdo estático restante
   initReveal(); // revela .reveal ao rolar (respeita prefers-reduced-motion)
 }

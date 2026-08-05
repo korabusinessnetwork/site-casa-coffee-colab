@@ -52,6 +52,13 @@ import {
 
 const WEBHOOK_TOKEN = requireEnv('ASAAS_WEBHOOK_TOKEN');
 
+// INDICA UM AMIGO — recompensa em pontos quando o INDICADO paga a 1ª mensalidade.
+// VALORES FICTÍCIOS (provisórios): ajustar aqui depois. Uma fonte de verdade só —
+// a premiar_indicacao (0021) recebe estes números; o front /conta/perfil restata a
+// mesma copy (procurar "VALOR FICTÍCIO" no app.js). Zerar um lado = não credita aquele lado.
+const REFERRAL_PTS_INDICADOR = 150; // quem indicou
+const REFERRAL_PTS_INDICADO = 100; // quem foi indicado (boas-vindas)
+
 // --- helpers -----------------------------------------------------------------
 
 // Compara o token recebido com o secret em TEMPO CONSTANTE (defesa contra timing
@@ -94,6 +101,15 @@ function parseUpgRef(
   const asaasSubId = parts[3];
   if (!userId || !toTier || !asaasSubId) return null;
   return { userId, toTier, asaasSubId };
+}
+
+// externalReference de presente → gift_id. Formato: `gift:<gift_id>`. Null se não
+// for presente.
+function parseGiftRef(ref: unknown): { giftId: string } | null {
+  if (typeof ref !== 'string' || !ref.startsWith('gift:')) return null;
+  const giftId = ref.split(':')[1];
+  if (!giftId) return null;
+  return { giftId };
 }
 
 // Aceita string ('cus_…') ou objeto ({ id }) — o Asaas varia por endpoint.
@@ -411,6 +427,46 @@ async function applyUpgrade(checkout: any): Promise<void> {
   await checkAchievements(userId); // best-effort
 }
 
+// =============================================================================
+// PRESENTE — em CHECKOUT_PAID de um checkout `gift:`: o comprador pagou. Marca o
+// presente como 'pago' e gera o código (via RPC atômica marcar_presente_pago).
+// SEM pontos aqui (o presente pontua pra quem RESGATA, na renovação... não — o
+// presente é avulso e não recorre; a pessoa que resgata ganha o BENEFÍCIO, não
+// pontos pela compra do comprador). Idempotente: a RPC devolve o código
+// existente num reenvio, sem regerar.
+// =============================================================================
+async function handleGiftPaid(checkout: any): Promise<void> {
+  const parsed = parseGiftRef(checkout?.externalReference);
+  if (!parsed) {
+    console.warn('[asaas-webhook] checkout de presente com externalReference inválido');
+    return;
+  }
+  // Presentes usam sempre gift.id (uuid). Não-UUID = checkout externo → descarta (200).
+  if (!isUuid(parsed.giftId)) {
+    console.warn('[asaas-webhook] externalReference de presente não é UUID, ignorando:', parsed.giftId);
+    return;
+  }
+  const paymentId = idOf(checkout?.payment);
+  const { error } = await supabaseAdmin.rpc('marcar_presente_pago', {
+    p_gift_id: parsed.giftId,
+    p_payment_id: paymentId,
+  });
+  if (error) throw error; // → 500 → Asaas reenvia (a RPC é idempotente)
+}
+
+// PRESENTE — CHECKOUT_EXPIRED/CANCELED de um `gift:`: cancela o presente ainda
+// 'pendente' (não pago). Nunca mexe num presente já 'pago'/'resgatado'.
+async function cancelGift(checkout: any): Promise<void> {
+  const parsed = parseGiftRef(checkout?.externalReference);
+  if (!parsed || !isUuid(parsed.giftId)) return;
+  const { error } = await supabaseAdmin
+    .from('gift_subscriptions')
+    .update({ status: 'cancelado', updated_at: new Date().toISOString() })
+    .eq('id', parsed.giftId)
+    .eq('status', 'pendente');
+  if (error) throw error;
+}
+
 // Idade do pagamento (pra bound do throw-to-retry lá embaixo). Se não der pra ler a
 // data, retorna false (prefere reprocessar). Aceita os campos de data mais comuns do
 // payload de pagamento do Asaas.
@@ -502,7 +558,7 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     // primeiro). LANÇA pra o Asaas reenviar — SEGURO: comprovado em log que um 500 NÃO
     // bloqueia a fila (um CHECKOUT_PAID em erro é reenviado sozinho enquanto PAYMENTs
     // seguem em 200). Na retentativa a linha já existe e resolve. Guard de idade: se o
-    // pagamento já é bem antigo (>6h) e ainda não há linha, o checkoutSession não deve
+    // pagamento já é bem antigo (>3 dias) e ainda não há linha, o checkoutSession não deve
     // ser o checkout.id esperado — desiste com graça (evita martelar 500 pra sempre; o
     // diag acima revela o checkoutSession real pra ajuste). Corridas normais resolvem em
     // minutos, muito dentro da janela.
@@ -585,6 +641,17 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     });
     await checkAchievements(userId); // conquistas de tempo de casa best-effort
   }
+
+  // INDICA UM AMIGO: se ESTE pagante entrou por indicação pendente, premia os dois.
+  // Idempotente (a RPC só processa vínculo 'pendente' → 'premiado'); no caso normal
+  // (sem indicação) retorna rewarded:false sem erro. Se der erro de DB, deixa
+  // estourar: o Asaas reenvia e a premiação/pontos são idempotentes.
+  const { error: indErr } = await supabaseAdmin.rpc('premiar_indicacao', {
+    p_referred_id: userId,
+    p_pontos_indicador: REFERRAL_PTS_INDICADOR,
+    p_pontos_indicado: REFERRAL_PTS_INDICADO,
+  });
+  if (indErr) throw indErr;
 }
 
 // =============================================================================
@@ -651,6 +718,42 @@ async function handleSubscriptionPaymentFailure(payment: any): Promise<void> {
   if (userId) await getEffectiveSubscription(userId);
 }
 
+// ESTORNO DE PONTOS — quando um pagamento de assinatura é estornado (refund) ou vira
+// chargeback, os pontos que ele creditou precisam voltar; senão dá pra pagar → ganhar
+// pontos → resgatar recompensa → pedir chargeback e ficar com tudo. Lança um delta
+// NEGATIVO no ledger (o cache do saldo pode ir a negativo — é o correto: a pessoa
+// "deve" pontos, e resgates só voltam a passar quando o saldo cobre de novo). Só
+// estorna o que foi DE FATO creditado (busca o crédito original pelo payment.id);
+// nada creditado (não-assinante, valor 0, evento fora de assinatura) → no-op. Loja
+// credita por order.id, não por payment.id, então este lookup NÃO toca pontos de
+// loja. Idempotente por (ref_type='estorno', ref_id=payment.id): REFUNDED e
+// CHARGEBACK do MESMO pagamento estornam UMA vez só.
+async function reversePointsForPayment(payment: any): Promise<void> {
+  const paymentId = idOf(payment);
+  if (!paymentId) return;
+
+  const { data: credito, error: selErr } = await supabaseAdmin
+    .from('points_ledger')
+    .select('user_id, delta')
+    .eq('ref_type', 'subscription')
+    .eq('ref_id', paymentId)
+    .gt('delta', 0)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (!credito || !(Number(credito.delta) > 0)) return; // nada creditado → nada a estornar
+
+  const { error: insErr } = await supabaseAdmin.from('points_ledger').insert({
+    user_id: credito.user_id,
+    delta: -Number(credito.delta),
+    motivo: 'estorno da assinatura',
+    descricao: 'estorno da assinatura',
+    ref_type: 'estorno',
+    ref_id: paymentId,
+  });
+  // 23505 = já estornado (segundo evento do mesmo pagamento) → idempotente, ok.
+  if (insErr && insErr.code !== '23505') throw insErr;
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('método não permitido', { status: 405 });
 
@@ -703,6 +806,8 @@ Deno.serve(async (req) => {
           await activateSubscription(checkout);
         } else if (ref.startsWith('upg:')) {
           await applyUpgrade(checkout);
+        } else if (ref.startsWith('gift:')) {
+          await handleGiftPaid(checkout);
         } else {
           await finalizeStoreOrder(checkout, 'pago');
         }
@@ -712,9 +817,11 @@ Deno.serve(async (req) => {
       case 'CHECKOUT_CANCELED': {
         const checkout = evt.checkout ?? {};
         const ref = typeof checkout.externalReference === 'string' ? checkout.externalReference : '';
-        // Só a LOJA tem pedido pendente pra cancelar. Assinatura (sub:) e upgrade
-        // (upg:) não pré-criam linha, então não há nada a reverter aqui.
-        if (!ref.startsWith('sub:') && !ref.startsWith('upg:')) {
+        // Só a LOJA e o PRESENTE pré-criam linha pra cancelar. Assinatura (sub:) e
+        // upgrade (upg:) não pré-criam, então não há nada a reverter neles.
+        if (ref.startsWith('gift:')) {
+          await cancelGift(checkout);
+        } else if (!ref.startsWith('sub:') && !ref.startsWith('upg:')) {
           await finalizeStoreOrder(checkout, 'cancelado');
         }
         break;
@@ -727,14 +834,24 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ---- Falha de cobrança de assinatura (renovação recusada / estorno) ----
+      // ---- Falha de cobrança de assinatura (renovação recusada / dispute) ----
       // Rebaixa a assinatura pra 'pausada' pra o benefício não persistir de graça.
+      // OVERDUE/DELETED/DISPUTE não estornam pontos: uma renovação vencida ou uma
+      // disputa aberta não é (ainda) dinheiro devolvido — só pausa o benefício.
       case 'PAYMENT_OVERDUE':
       case 'PAYMENT_DELETED':
-      case 'PAYMENT_REFUNDED':
-      case 'PAYMENT_CHARGEBACK_REQUESTED':
       case 'PAYMENT_CHARGEBACK_DISPUTE': {
         await handleSubscriptionPaymentFailure(evt.payment ?? {});
+        break;
+      }
+
+      // ---- Estorno de verdade (dinheiro devolvido) ----
+      // Além de pausar, ESTORNA os pontos creditados por aquele pagamento — senão
+      // dá pra pagar → ganhar pontos → resgatar → pedir chargeback e ficar com tudo.
+      case 'PAYMENT_REFUNDED':
+      case 'PAYMENT_CHARGEBACK_REQUESTED': {
+        await handleSubscriptionPaymentFailure(evt.payment ?? {});
+        await reversePointsForPayment(evt.payment ?? {});
         break;
       }
 

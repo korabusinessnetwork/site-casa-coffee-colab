@@ -257,3 +257,42 @@ downgrade agendado.
 3. Cadastra o webhook na conta de **produção** (mesmos eventos), com o token novo.
 4. Habilita Pix e Cartão na conta de produção (se ainda não estiverem).
 5. O client não muda (não tem chave de pagamento).
+
+---
+
+## Apêndice — `spotify-now-playing` (o som de agora na home)
+
+Function **independente** do Asaas: diz o que está tocando AGORA na conta Spotify do
+Casa, pro painel "o som de agora" da home. **Leitura pública** (deploy com
+`--no-verify-jwt`) — não recebe nem devolve nada sensível, só a faixa atual. **Não**
+importa o `_shared/lib.ts` (aquele exige `ASAAS_API_KEY` no topo); é auto-contida.
+
+> **A Spotify Web API é GRÁTIS** e **não exige Premium pra LER** o que toca (só pra
+> *controlar* play/pause). O custo é só a montagem abaixo. **Condição prática:** o som
+> do Casa precisa tocar por essa conta Spotify (é o que a API enxerga); se tocar de
+> outra fonte, o painel cai no estado gentil.
+
+**Secrets (só nesta function, nunca no client/repo):** `SPOTIFY_CLIENT_ID`,
+`SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`.
+
+**Ligar (uma vez):**
+
+1. Cria um app grátis em https://developer.spotify.com/dashboard. Em **Redirect URIs**
+   adiciona exatamente `http://127.0.0.1:8888/callback`. Copia o Client ID e o Secret.
+2. Com o navegador logado na conta do Casa, roda o helper (pega o refresh token):
+   ```bash
+   # PowerShell:
+   $env:SPOTIFY_CLIENT_ID="<client id>"; $env:SPOTIFY_CLIENT_SECRET="<client secret>"
+   npm run spotify-token
+   ```
+   Autoriza no Spotify → ele imprime o `SPOTIFY_REFRESH_TOKEN`.
+3. Seta os secrets e faz o deploy (público):
+   ```bash
+   npx supabase secrets set SPOTIFY_CLIENT_ID=... SPOTIFY_CLIENT_SECRET=... SPOTIFY_REFRESH_TOKEN=...
+   npx supabase functions deploy spotify-now-playing --no-verify-jwt
+   ```
+4. No `src/app.js`, vira a flag `SOM_AO_VIVO = true` (em `initSomDoCasa`) e sobe o front.
+
+Enquanto a flag está `false` (padrão atual), o front **nem chama** a function — o painel
+fica no estado gentil. Deployada sem os secrets, a function responde
+`{ tocando:false, configurado:false }` e o front para de sondar sozinho.

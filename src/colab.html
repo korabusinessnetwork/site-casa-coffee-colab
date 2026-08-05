@@ -37,7 +37,16 @@
            troca pra sólido ao rolar). Ver .page-hero em styles.css.
            =================================================================== -->
       <section class="page-hero" data-hero-transparent>
-        <div class="ph ph-hero"></div>
+        <div class="ph ph-hero has-foto">
+          <!-- Foto do hero: sem loading="lazy" de propósito, é o primeiro conteúdo
+               visível da página (os cards do carrossel é que carregam preguiçoso).
+               O músico na calçada é a colab acontecendo, que é do que a página fala. -->
+          <img
+            src="/fotos/agenda-in-the-flow.jpg"
+            alt="Músico de boné e óculos escuros tocando violino sobre a mesa de discotecagem, na calçada do Casa, sob o letreiro Café e muita coisa boa"
+            decoding="async"
+          />
+        </div>
         <div class="scrim"></div>
         <div class="wrap">
           <div class="reveal">
@@ -89,7 +98,14 @@
           aria-label="Colabs do Casa"
         >
           <article class="carousel-slide colab-card w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="ph ph-tan light"></div>
+            <div class="ph ph-tan light has-foto">
+              <img
+                src="/fotos/agenda-brunch.jpg"
+                alt="Prato de louça rústica com ovos mexidos, torradas de pão de fermentação natural, tomate assado e muçarela de búfala, servido na mesa do Casa"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <div class="colab-card-body">
               <span class="tag gold">residência do trimestre</span>
               <h3 class="title sm" style="margin-top: 10px">Ateliê Lomba Grande</h3>
@@ -99,7 +115,14 @@
             </div>
           </article>
           <article class="carousel-slide colab-card w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="ph ph-dark"></div>
+            <div class="ph ph-dark has-foto">
+              <img
+                src="/fotos/loja-cafe.jpg"
+                alt="Barista servindo café coado de uma jarra de vidro num copo, sobre a mesa de madeira do Casa"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <div class="colab-card-body">
               <span class="tag coral">produto convidado</span>
               <h3 class="title sm" style="margin-top: 10px">Torrefação Vale dos Sinos</h3>
@@ -109,7 +132,14 @@
             </div>
           </article>
           <article class="carousel-slide colab-card w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="ph ph-matcha"></div>
+            <div class="ph ph-matcha has-foto">
+              <img
+                src="/fotos/agenda-matcha-club.jpg"
+                alt="Matchá sendo despejado de uma jarrinha de metal num copo alto com camadas de leite e maracujá fresco, na mesa de madeira do Casa"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <div class="colab-card-body">
               <span class="tag green">rota afetiva</span>
               <h3 class="title sm" style="margin-top: 10px">Feira da Hamburgo Velho</h3>
@@ -119,7 +149,14 @@
             </div>
           </article>
           <article class="carousel-slide colab-card w-[82%] sm:w-[48%] lg:w-[32%]">
-            <div class="ph ph-vinyl"></div>
+            <div class="ph ph-vinyl has-foto">
+              <img
+                src="/fotos/clube-abraco.jpg"
+                alt="Duas amigas se abraçando e rindo dentro do Casa, com um disco de vinil na prateleira ao fundo"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <div class="colab-card-body">
               <span class="tag">colab passada</span>
               <h3 class="title sm" style="margin-top: 10px">Selo Trilha Sonora</h3>
@@ -221,7 +258,8 @@
     <div id="site-footer"></div>
 
     <!-- Estilos pontuais desta página (cartão do carrossel com faixa lateral de
-         foto — ver TODO de fotos reais no CLAUDE.md — e os botões prev/next) -->
+         foto e os botões prev/next). A faixa é estreita e alta, quase o mesmo
+         recorte dos retratos 2:3 do acervo, então o cover corta pouco. -->
     <style>
       .colab-card { display: flex; align-items: stretch; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; height: 100% }
       .colab-card .ph { width: 96px; flex: 0 0 auto }
