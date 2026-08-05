@@ -323,25 +323,23 @@ a.txt-link.gold { color: var(--gold) }
 .site-header.scrolled .burger span { background: var(--ink) }
 
 /* ---------- menu mobile (cartão flutuante que sobrepõe, canto direito) ---------- */
-/* O container é fixo só pra capturar o toque fora (scrim leve que fecha o menu);
-   o menu em si é um cartão compacto ancorado no canto direito, sob o header —
-   não ocupa a tela toda, só sobrepõe o conteúdo. */
-.menu-mobile { position: fixed; inset: 0; z-index: 45 }
-.menu-mobile .menu-scrim { position: absolute; inset: 0; background: rgba(27, 22, 17, .22); animation: menuScrim .25s var(--e) both }
+/* Popover NÃO-modal: o container fixo cobre a viewport só como referência de
+   posição, mas é transparente ao ponteiro (pointer-events:none) — o scroll passa
+   direto pra página atrás. Só o cartão captura o ponteiro e rola por dentro
+   (overscroll-behavior:contain evita empurrar a página ao chegar na ponta). */
+.menu-mobile { position: fixed; inset: 0; z-index: 45; pointer-events: none }
 .menu-mobile .menu-inner {
   position: absolute; top: calc(var(--hh) + 8px); right: 12px; left: auto;
   width: min(320px, calc(100vw - 24px));
   max-height: calc(100dvh - var(--hh) - 24px);
-  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
   background: var(--paper); border: 1px solid var(--line); border-radius: 18px;
   box-shadow: 0 26px 60px -22px rgba(27, 22, 17, .6), 0 8px 20px -14px rgba(27, 22, 17, .4);
   padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
   transform-origin: top right; animation: menuInner .22s var(--e) both;
 }
-@keyframes menuScrim { from { opacity: 0 } to { opacity: 1 } }
 @keyframes menuInner { from { opacity: 0; transform: translateY(-8px) scale(.96) } to { opacity: 1; transform: none } }
-/* trava o scroll da página enquanto o menu está aberto (ligado pelo JS) */
-body.menu-aberto { overflow: hidden }
 
 /* rótulo de seção (navegar / minha conta): guia o olho pelos dois blocos */
 .menu-mobile .menu-rotulo { font-family: var(--sans); text-transform: uppercase; letter-spacing: .16em; font-size: 9.5px; font-weight: 700; color: var(--muted); margin: 8px 8px 2px }
@@ -666,7 +664,7 @@ body.menu-aberto { overflow: hidden }
 @media (prefers-reduced-motion: reduce) {
   .reveal { opacity: 1; transform: none; transition: none }
   .arrow, .btn-visit, .circle-arrow, .mainnav a, .mainnav .nav-off, .hdr-icon, .hdr-user-trigger { transition: none }
-  .menu-mobile .menu-scrim, .menu-mobile .menu-inner { animation: none }
+  .menu-mobile .menu-inner { animation: none }
 }
 
 /* =============================================================================

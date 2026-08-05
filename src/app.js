@@ -607,9 +607,8 @@ function renderHeader() {
         </div>
       </div>
 
-      <!-- Menu mobile (painel paper sob o header, com scrim) -->
+      <!-- Menu mobile (cartão flutuante não-modal: a página rola atrás) -->
       <div id="menu-mobile" class="menu-mobile hidden" data-menu-panel>
-        <div class="menu-scrim" data-menu-scrim aria-hidden="true"></div>
         <nav class="menu-inner" aria-label="Navegação mobile">
           <p class="menu-rotulo">navegar</p>
           ${linksMobile}
@@ -633,6 +632,14 @@ function initHeaderInteractions() {
   const toggle = document.querySelector('[data-menu-toggle]');
   const panel = document.querySelector('[data-menu-panel]');
 
+  // O cartão é position:fixed, mas dentro do header (sticky) o fixed rola junto
+  // com a página. Mudando o painel pra baixo do <body> (como o drawer e a tab
+  // bar), o fixed passa a valer de verdade em relação à viewport e o cartão fica
+  // parado enquanto a página rola atrás.
+  if (panel && panel.parentElement !== document.body) {
+    document.body.appendChild(panel);
+  }
+
   // Estado do header conforme a página:
   // - home (tem [data-hero-transparent]): transparente sobre o hero escuro e vira
   //   sólido (.scrolled) ao passar do hero;
@@ -650,33 +657,56 @@ function initHeaderInteractions() {
     }
   }
 
-  // Menu hambúrguer (a animação em X vem do CSS via aria-expanded na .burger)
+  // Menu hambúrguer (a animação em X vem do CSS via aria-expanded na .burger).
+  // É um popover NÃO-modal: não trava o scroll da página — atrás rola normal
+  // (mouse sobre a página) e o cartão rola por dentro (mouse sobre o menu).
   if (toggle && panel) {
-    const scrim = panel.querySelector('[data-menu-scrim]');
     const fechar = () => {
       panel.classList.add('hidden');
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-label', 'Abrir menu');
-      document.body.classList.remove('menu-aberto');
     };
     const abrir = () => {
       panel.classList.remove('hidden');
       toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-label', 'Fechar menu');
-      document.body.classList.add('menu-aberto'); // trava o scroll da página atrás
     };
     toggle.addEventListener('click', () => {
       const aberto = toggle.getAttribute('aria-expanded') === 'true';
       aberto ? fechar() : abrir();
     });
-    // Fecha ao clicar num link, no escurecido (scrim) ou apertar Esc
+    // Fecha ao clicar num link do menu ou apertar Esc
     panel.querySelectorAll('[data-menu-link]').forEach((el) =>
       el.addEventListener('click', fechar)
     );
-    scrim?.addEventListener('click', fechar);
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') fechar();
     });
+    // Fecha ao clicar/tocar fora do cartão (o botão cuida do próprio toggle).
+    // Como não há scrim bloqueando, o clique também segue pro que estiver atrás.
+    document.addEventListener('click', (e) => {
+      if (toggle.getAttribute('aria-expanded') !== 'true') return;
+      if (panel.contains(e.target) || toggle.contains(e.target)) return;
+      fechar();
+    });
+    // Com o mouse sobre o cartão, a rolagem é do cartão, nunca da página por
+    // baixo. O overscroll-behavior:contain do CSS já segura quando dá pra rolar;
+    // aqui a gente engole o wheel quando o cartão não tem pra onde rolar (cabe
+    // inteiro, ou já está na ponta), senão o scroll vazaria pra página.
+    const inner = panel.querySelector('.menu-inner');
+    inner?.addEventListener(
+      'wheel',
+      (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = inner;
+        const podeRolar = scrollHeight > clientHeight;
+        const noTopo = scrollTop <= 0;
+        const noFim = scrollTop + clientHeight >= scrollHeight - 1;
+        if (!podeRolar || (e.deltaY < 0 && noTopo) || (e.deltaY > 0 && noFim)) {
+          e.preventDefault();
+        }
+      },
+      { passive: false }
+    );
   }
 }
 
