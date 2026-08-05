@@ -173,7 +173,7 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Página        | Arquivo             | URL                | Conteúdo                                                            |
 |---------------|---------------------|--------------------|--------------------------------------------------------------------|
 | Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
-| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, selo "Feito no Casa", localização (mapa + "como chegar") |
+| O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, Mural do Casa (seção escura), localização (mapa + "como chegar"), tour 360 |
 | Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) — informativo, **sem carrinho**   |
 | Loja          | `loja.html`         | `/loja`            | catálogo + filtro por categoria                                    |
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=` (conta como "Loja" na nav)                    |
@@ -1034,7 +1034,8 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   apaga o próprio recado, staff modera (ocultar/apagar). Function **nova** `postar-mural`
   (**já deployada em 03/ago/2026**): exige JWT, valida **assinante vigente** via
   `getEffectiveSubscription` (perk exclusivo de assinante, igual aos pontos), sanitiza o
-  texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its) +
+  texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its na
+  **seção escura**, no lugar do antigo selo "Feito no Casa", que saiu da página) +
   `initMuralPage` (lê a parede público; compose só pra assinante; deslogado/sem-plano vê
   CTA pros planos; leitura tolerante se a migration ainda não foi aplicada). **Falta:**
   aplicar esta migration + subir o front.
