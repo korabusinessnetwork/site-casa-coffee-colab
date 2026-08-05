@@ -1193,6 +1193,10 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .empty .e-title { font-family: var(--serif); font-size: clamp(20px, 3vw, 26px); color: var(--ink); margin: 0 0 8px }
 .empty p { margin: 0 auto 20px; max-width: 40ch; line-height: 1.6 }
 
+/* o caminho que a pessoa tentou abrir, na página 404 */
+.erro-caminho { margin: 0; font-family: var(--sans); font-size: 13px; color: var(--muted); word-break: break-all }
+.erro-caminho code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px }
+
 /* ---------- filtro (catálogo) — restyle editorial do legado ---------- */
 .filtro { border: 1px solid var(--line); color: var(--ink-2); background: var(--card); border-radius: 999px; padding: 9px 18px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .2s var(--e), color .2s var(--e), background .2s var(--e) }
 .filtro:hover { border-color: var(--coral); color: var(--coral) }

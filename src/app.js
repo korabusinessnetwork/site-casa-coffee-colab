@@ -871,6 +871,19 @@ function membroDesde(iso) {
   return `desde ${mes}/${d.getFullYear()}`;
 }
 
+// Página 404: mostra o caminho que a pessoa tentou abrir, pra ela ver onde o link
+// quebrou (link velho, letra trocada). Só o pathname, escapado, sem query nem hash.
+function init404Page() {
+  const el = document.querySelector('[data-404-caminho]');
+  if (!el) return;
+
+  const caminho = window.location.pathname;
+  if (!caminho || caminho === '/') return; // nada útil pra mostrar
+
+  el.innerHTML = `tu tentou abrir <code>${escapeHtml(caminho.slice(0, 120))}</code>`;
+  el.hidden = false;
+}
+
 // Página /gente/{handle}: o cartão público de quem optou. Leitura pública via RPC
 // perfil_publico (só campos seguros). Tolerante: sem a migration 0024, cai no vazio.
 async function initGentePage() {
@@ -7383,6 +7396,7 @@ export function initSite() {
   initAgenda(); // próximos encontros na home (só age se houver [data-agenda])
   initTrilha(); // playlists do Spotify na home (só age se houver [data-trilha])
   initGentePage(); // cartão público /gente/{handle} (só age se houver [data-gente-root])
+  init404Page(); // mostra o caminho quebrado na 404 (só age se houver [data-404-caminho])
   initCheckoutSucessoPage(); // só age na checkout-sucesso.html (limpa o carrinho)
   initCadastroPage(); // só age se houver [data-cadastro-form]
   initLoginPage(); // só age se houver [data-login-form]

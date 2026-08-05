@@ -186,6 +186,15 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 
 A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
 
+**URL que não existe cai no `src/404.html`** (`/asdf`, link velho, letra trocada), com o
+mesmo estado vazio gentil do `/produto` e do `/gente`: header/footer normais, o caminho
+tentado mostrado (`init404Page`, escapado) e saídas pra home/cardápio/o-casa. Quem serve
+essa página **com status 404** é a **Vercel** (todo arquivo `404.html` na raiz do `dist` vira
+a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
+`vite.config.js` em desenvolvimento — sem ele, o fallback de SPA do Vite serviria o
+`index.html`, que redireciona pra `/home` e faz o link quebrado **sumir em silêncio**. O
+`404.html` está no `rollupOptions.input` e leva `robots: noindex`.
+
 - **NAV** (array no `app.js`): Home, O Casa, Cardápio, Loja, Planos, Colab — todas
   apontam pras páginas reais, com href limpo (`/o-casa`). `activeNavHref()` detecta a
   página atual pelo pathname (tolerando um `.html` no fim, pra links antigos) e marca o
