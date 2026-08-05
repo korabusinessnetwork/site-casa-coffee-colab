@@ -322,40 +322,49 @@ a.txt-link.gold { color: var(--gold) }
 .site-header.scrolled .hdr-icon:hover { background: rgba(27, 22, 17, .06) }
 .site-header.scrolled .burger span { background: var(--ink) }
 
-/* ---------- menu mobile (painel paper sob o header, com scrim) ---------- */
-/* fixed sob o header (--hh): cobre a tela até embaixo, escurece o resto com o
-   scrim (que fecha ao toque) e rola por dentro se a lista passar da altura. */
-.menu-mobile { position: fixed; left: 0; right: 0; top: var(--hh); bottom: 0; z-index: 45 }
-.menu-mobile .menu-scrim { position: absolute; inset: 0; background: rgba(27, 22, 17, .38); animation: menuScrim .3s var(--e) both }
-.menu-mobile .menu-inner { position: relative; max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--paper); border-top: 1px solid var(--line); box-shadow: 0 24px 44px -28px rgba(27, 22, 17, .8); padding: 12px 18px calc(24px + env(safe-area-inset-bottom)); animation: menuInner .28s var(--e) both }
+/* ---------- menu mobile (cartão flutuante que sobrepõe, canto direito) ---------- */
+/* O container é fixo só pra capturar o toque fora (scrim leve que fecha o menu);
+   o menu em si é um cartão compacto ancorado no canto direito, sob o header —
+   não ocupa a tela toda, só sobrepõe o conteúdo. */
+.menu-mobile { position: fixed; inset: 0; z-index: 45 }
+.menu-mobile .menu-scrim { position: absolute; inset: 0; background: rgba(27, 22, 17, .22); animation: menuScrim .25s var(--e) both }
+.menu-mobile .menu-inner {
+  position: absolute; top: calc(var(--hh) + 8px); right: 12px; left: auto;
+  width: min(320px, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--hh) - 24px);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 18px;
+  box-shadow: 0 26px 60px -22px rgba(27, 22, 17, .6), 0 8px 20px -14px rgba(27, 22, 17, .4);
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+  transform-origin: top right; animation: menuInner .22s var(--e) both;
+}
 @keyframes menuScrim { from { opacity: 0 } to { opacity: 1 } }
-@keyframes menuInner { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: none } }
+@keyframes menuInner { from { opacity: 0; transform: translateY(-8px) scale(.96) } to { opacity: 1; transform: none } }
 /* trava o scroll da página enquanto o menu está aberto (ligado pelo JS) */
 body.menu-aberto { overflow: hidden }
 
 /* rótulo de seção (navegar / minha conta): guia o olho pelos dois blocos */
-.menu-mobile .menu-rotulo { font-family: var(--sans); text-transform: uppercase; letter-spacing: .18em; font-size: 10px; font-weight: 700; color: var(--muted); margin: 8px 4px 4px }
-.menu-mobile .menu-rotulo-conta { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line) }
+.menu-mobile .menu-rotulo { font-family: var(--sans); text-transform: uppercase; letter-spacing: .16em; font-size: 9.5px; font-weight: 700; color: var(--muted); margin: 8px 8px 2px }
+.menu-mobile .menu-rotulo-conta { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line) }
 
-/* linha de navegação: ícone + rótulo num alvo de toque generoso, cantos macios */
+/* linha de navegação: ícone + rótulo, alvo de toque confortável mas compacto */
 .menu-mobile a[data-menu-link], .menu-mobile .nav-off, .menu-mobile .menu-conta-link {
-  display: flex; align-items: center; gap: 14px; padding: 13px 12px; color: var(--ink);
-  text-decoration: none; font-size: 16px; letter-spacing: .01em; border: 0; border-radius: 12px }
+  display: flex; align-items: center; gap: 12px; padding: 10px 10px; color: var(--ink);
+  text-decoration: none; font-size: 15px; letter-spacing: .01em; border: 0; border-radius: 11px }
 .menu-mobile a[data-menu-link]:active, .menu-mobile .menu-conta-link:active { background: rgba(27, 22, 17, .05) }
-.menu-mobile .menu-ico { width: 21px; height: 21px; flex: 0 0 auto; color: var(--muted) }
+.menu-mobile .menu-ico { width: 19px; height: 19px; flex: 0 0 auto; color: var(--muted) }
 .menu-mobile .menu-txt { flex: 1 1 auto }
 .menu-mobile a[data-menu-link][aria-current] { color: var(--coral); font-weight: 600; background: rgba(223, 86, 56, .09) }
 .menu-mobile a[data-menu-link][aria-current] .menu-ico { color: var(--coral) }
 /* item sem link (Loja "em breve"): apagado, sem ação */
 .menu-mobile .nav-off { color: var(--muted); cursor: default; user-select: none }
 .menu-mobile .nav-off .menu-ico { opacity: .55 }
-/* No menu mobile a linha é larga e sobra espaço à direita, então o carimbo fica
-   ao lado do rótulo em vez de por cima — mesma tinta, mesma inclinação. */
-.menu-mobile .nav-selo { display: inline-block; transform: rotate(-6deg); font-size: 8.5px; letter-spacing: .16em; padding: 3px 7px; vertical-align: 2px }
+/* No cartão o carimbo fica ao lado do rótulo, mesma tinta, mesma inclinação. */
+.menu-mobile .nav-selo { display: inline-block; transform: rotate(-6deg); font-size: 8px; letter-spacing: .16em; padding: 2.5px 6px; vertical-align: 2px }
 
 /* CTA "passa aqui?" no rodapé do menu (o botão dourado do header some no mobile) */
-.menu-mobile .menu-cta { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 18px; padding: 15px 18px; background: var(--gold); color: #231a0c; border-radius: 8px; font-family: var(--sans); font-weight: 700; text-transform: uppercase; letter-spacing: .16em; font-size: 12.5px; text-decoration: none }
-.menu-mobile .menu-cta svg { width: 17px; height: 17px }
+.menu-mobile .menu-cta { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; padding: 13px 16px; background: var(--gold); color: #231a0c; border-radius: 10px; font-family: var(--sans); font-weight: 700; text-transform: uppercase; letter-spacing: .14em; font-size: 12px; text-decoration: none }
+.menu-mobile .menu-cta svg { width: 16px; height: 16px }
 
 /* ---------- hero ---------- */
 .hero { position: relative; margin-top: calc(-1 * var(--hh)); padding-top: var(--hh); min-height: 90vh; display: flex; align-items: center; overflow: hidden }
