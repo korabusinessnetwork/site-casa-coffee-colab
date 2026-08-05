@@ -24,17 +24,16 @@
 
   html {
     scroll-behavior: smooth;
-    /* Barra de rolagem discreta: trilho transparente (sem o bloco branco do
-       Chrome) + polegar translúcido que se lê tanto no paper claro quanto sobre
-       o hero escuro. Firefox usa scrollbar-color; WebKit, as regras abaixo. */
-    scrollbar-width: thin;
+    /* Só o fundo (trilho) fica transparente, sem o bloco branco do Chrome, e a
+       barra mantém a largura padrão. Firefox usa scrollbar-color (largura auto);
+       WebKit, as regras abaixo. */
     scrollbar-color: rgba(27, 22, 17, .28) transparent;
   }
 
-  /* WebKit/Blink (Chrome, Edge, Safari) */
+  /* WebKit/Blink (Chrome, Edge, Safari) — largura padrão da barra */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 16px;
+    height: 16px;
     background: transparent;
   }
   ::-webkit-scrollbar-track {
