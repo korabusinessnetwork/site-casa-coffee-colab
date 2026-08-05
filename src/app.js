@@ -1726,10 +1726,12 @@ async function initCardapioFavoritos() {
 // travada em auth.uid(). Só pra quem está logado; tolerante sem a migration 0029.
 async function initLojaDesejos() {
   if (!supabase) return;
-  const grid = document.querySelector('[data-catalog-grid]');
+  // Os dois grids que usam o card do catálogo: a vitrine da /loja e os
+  // relacionados da página de produto. O coração vale nos dois.
+  const grids = Array.from(document.querySelectorAll('[data-catalog-grid], [data-relacionados]'));
   const btnProduto = document.querySelector('[data-desejo-produto]');
   const tirinhas = Array.from(document.querySelectorAll('[data-loja-desejos], [data-desejos-perfil]'));
-  if (!grid && !btnProduto && !tirinhas.length) return;
+  if (!grids.length && !btnProduto && !tirinhas.length) return;
 
   const { data: sessData } = await supabase.auth.getSession();
   if (!sessData?.session) return; // guardar pra depois só pra quem está logado
@@ -1828,7 +1830,7 @@ async function initLojaDesejos() {
   };
 
   // Corações nos cards do catálogo (injetados por JS, como no cardápio).
-  if (grid) {
+  for (const grid of grids) {
     grid.querySelectorAll('[data-produto][data-slug]').forEach((card) => {
       const slug = card.dataset.slug;
       if (!slug) return;
@@ -3264,6 +3266,11 @@ function initCatalogPage() {
     openDrawer();
   });
 
+  // ?categoria= abre a loja já filtrada (é pra onde a trilha de migalhas da
+  // página de produto aponta). Valor desconhecido fica em "all", sem erro.
+  const catUrl = new URLSearchParams(window.location.search).get('categoria');
+  if (botoes.some((b) => b.getAttribute('data-filter') === catUrl)) estado.categoria = catUrl;
+
   aplicar();
   renderIcons();
 }
@@ -3272,6 +3279,55 @@ function initCatalogPage() {
 // PÁGINA DE PRODUTO (produto.html), lê ?slug=, renderiza o detalhe.
 // DOM: [data-product-root] recebe o markup (ou o estado vazio gentil).
 // =============================================================================
+
+// Trilha de migalhas: Loja › Categoria › Produto. O crumb da categoria leva pra
+// /loja?categoria=<slug>, que a initCatalogPage já entende e abre filtrada.
+// A última migalha é o próprio produto (texto morto, aria-current="page").
+function trilhaProdutoHTML(p) {
+  const cat = CATEGORIAS[p.categoria];
+  const meio = cat
+    ? `<li><a href="/loja?categoria=${encodeURIComponent(p.categoria)}">${escapeHtml(cat)}</a></li>`
+    : '';
+  return `
+    <nav class="crumbs" aria-label="Onde tu está">
+      <ol>
+        <li><a href="/loja">Loja</a></li>
+        ${meio}
+        <li><span aria-current="page">${escapeHtml(p.nome)}</span></li>
+      </ol>
+    </nav>`;
+}
+
+// "Quem sabe tu gosta": até 3 produtos, os da MESMA categoria primeiro e o resto
+// da vitrine completando (é o que dá cross-sell enquanto o catálogo é pequeno).
+// Em cada grupo, o que está disponível vem antes do esgotado. Reusa o mesmo card
+// do catálogo, então herda o selo "esgotado" e o botão "me avisa" (initReposicao
+// pega os [data-avisar] de qualquer página) — e por isso o grid é cols-3 igual ao
+// da /loja, que é a largura em que os dois botões do card cabem lado a lado.
+function relacionadosHTML(p) {
+  const disponivelPrimeiro = (lista) => [
+    ...lista.filter((x) => x.disponivel !== false),
+    ...lista.filter((x) => x.disponivel === false),
+  ];
+  const outros = PRODUTOS.filter((x) => x.slug !== p.slug);
+  const escolhidos = [
+    ...disponivelPrimeiro(outros.filter((x) => x.categoria === p.categoria)),
+    ...disponivelPrimeiro(outros.filter((x) => x.categoria !== p.categoria)),
+  ].slice(0, 3);
+  if (!escolhidos.length) return '';
+
+  return `
+    <section class="prod-rel reveal" aria-label="Outros produtos da loja">
+      <div class="prod-rel-head">
+        <span class="eyebrow">Da mesma prateleira</span>
+        <h2 class="title sm">quem sabe tu gosta</h2>
+      </div>
+      <div class="card-grid cols-3" data-relacionados>
+        ${escolhidos.map(cardProdutoHTML).join('')}
+      </div>
+    </section>`;
+}
+
 function initProductPage() {
   const rootEl = document.querySelector('[data-product-root]');
   if (!rootEl) return;
@@ -3382,15 +3438,13 @@ function initProductPage() {
         </div>`;
 
   rootEl.innerHTML = `
+    ${trilhaProdutoHTML(p)}
     <div class="grid gap-8 lg:grid-cols-2">
       <div class="ph ${p.imagemPlaceholder} aspect-square w-full">${esgotado ? '<span class="prod-esgotado">esgotado</span>' : ''}</div>
       <!-- min-w-0: sem isso a tabela de medidas (células sem quebra) estica a coluna
            do grid e a página inteira ganha scroll lateral no mobile. -->
       <div class="min-w-0">
-        <a href="/loja" class="inline-flex items-center gap-1 text-sm text-muted hover:text-coral">
-          <i data-lucide="chevron-left" class="h-4 w-4"></i> voltar pra loja
-        </a>
-        <p class="mt-4 prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
+        <p class="prod-cat">${escapeHtml(CATEGORIAS[p.categoria] ?? '')}</p>
         <h1 class="title md mt-1">${escapeHtml(p.nome)}</h1>
         <p class="mt-3 title sm" style="color:var(--coral)">${formatBRL(p.preco_centavos)}</p>
         <p class="mt-4 max-w-prose text-ink-2">${escapeHtml(p.descricao)}</p>
@@ -3399,7 +3453,8 @@ function initProductPage() {
         ${compraHTML}
         <p class="mt-6 text-xs text-muted">leva junto, no teu ritmo. o frete e o pagamento a gente acerta no checkout (em breve).</p>
       </div>
-    </div>`;
+    </div>
+    ${relacionadosHTML(p)}`;
 
   // Variante
   rootEl.querySelectorAll('[data-variante]').forEach((btn) =>
@@ -3428,6 +3483,15 @@ function initProductPage() {
   // Adicionar → abre o drawer
   rootEl.querySelector('[data-add-detail]')?.addEventListener('click', () => {
     Cart.addItem(p.id, variante, qtd);
+    openDrawer();
+  });
+
+  // "adicionar" dos relacionados (produtos sem variante), mesmo comportamento
+  // do catálogo: bota no carrinho e abre o drawer.
+  rootEl.querySelector('[data-relacionados]')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-add]');
+    if (!btn) return;
+    Cart.addItem(btn.getAttribute('data-add'), null, 1);
     openDrawer();
   });
 
