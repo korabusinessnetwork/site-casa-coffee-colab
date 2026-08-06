@@ -1188,8 +1188,15 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
   .som-barra span { transition: none }
 }
 
-/* ---------- "como chegar" (/o-casa): grupo de botões, logo abaixo do mapa ---------- */
+/* ---------- "como chegar" (/o-casa): grupo de botões, logo abaixo do mapa ----------
+   Os três botões (.btn tem white-space: nowrap) não cabem numa linha só na largura
+   da coluna do mapa, então quebram. O `flex: 1 1 auto` faz cada linha esticar até a
+   borda do mapa: em vez de dois botões soltos e um terceiro sobrando na largura
+   natural, a quebra fica alinhada com o quadro acima. A base é `auto` (largura do
+   conteúdo), não um valor fixo, pra nenhum botão ficar mais estreito que o próprio
+   texto. Num celular estreito cada um vira uma faixa cheia, empilhada. */
 .como-chegar { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px }
+.como-chegar > .btn { flex: 1 1 auto; padding-left: 18px; padding-right: 18px }
 
 /* ---------- planos (tiers) ---------- */
 /* Tela grande: grade normal de 4 colunas (o arraste NÃO existe aqui). O
