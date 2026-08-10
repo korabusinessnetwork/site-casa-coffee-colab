@@ -612,10 +612,10 @@ function renderHeader() {
         <nav class="mainnav" aria-label="Navegação principal">${linksDesktop}</nav>
 
         <div class="header-right">
-          <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
-          <div class="auth-desktop" data-auth-slot></div>
-
-          <!-- Notificações (sino) — escondido até initNotificacoes achar algo -->
+          <!-- Notificações (sino) — vem ANTES do slot de auth: os avisos são da
+               pessoa, então ficam do lado da foto dela, e não perdidos entre a
+               conta e o carrinho. Nasce hidden; quem revela (só pra quem está
+               logado) é a initNotificacoes. -->
           <div class="relative notif-wrap" data-notif-wrap hidden>
             <button type="button" class="hdr-icon" aria-label="Notificações" data-notif-trigger aria-haspopup="true" aria-expanded="false">
               <i data-lucide="bell"></i>
@@ -627,6 +627,9 @@ function renderHeader() {
               <div class="notif-lista" data-notif-lista></div>
             </div>
           </div>
+
+          <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
+          <div class="auth-desktop" data-auth-slot></div>
 
           <!-- Carrinho -->
           <button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
