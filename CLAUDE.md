@@ -724,7 +724,13 @@ desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mura
   ligava `perfil_publico` e escolhia `handle` sem nunca ter assinado, e handle é unique
   (dava pra tomar de vez o nome da casa). A 0033 põe uma trigger nas duas colunas, no mesmo
   desenho do `prevent_points_tamper`, e reserva um punhado de handles.
-- **Falta:** aplicar a `0024` **e a `0033`** + subir o front. Nenhum secret novo.
+- **A `0036` fecha a régua na leitura:** ligar o cantinho sempre exigiu plano, mas a
+  `perfil_publico(handle)` só olhava a flag, então quem assinava, ligava e depois saía do
+  plano ficava no ar pra sempre. Agora a leitura pública também pede `tier_slug`. Quem fica
+  sem plano **some da vitrine e volta sozinho** ao reassinar: a flag e o handle continuam
+  guardados, nada é apagado nem reciclado. O `/conta/perfil` conta isso na cara ("teu
+  cantinho tá guardado") em vez de mostrar um link que abriria no estado vazio.
+- **Falta:** aplicar a `0024`, a `0033` **e a `0036`** + subir o front. Nenhum secret novo.
 
 ---
 
@@ -1176,7 +1182,9 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `mural_notes` (recado curto ≤240, `autor_nome` snapshot, `status` aprovado|oculto) com
   RLS — **leitura pública** dos `aprovado` (o `/o-casa` é aberto; autor vê os próprios,
   staff vê tudo), **escrita só via Edge Function** (deny-by-default pro client), autor
-  apaga o próprio recado, staff modera (ocultar/apagar). Function **nova** `postar-mural`
+  apaga o próprio recado, staff modera (ocultar/apagar) — **"modera" vira verdade só com a
+  `0036`**, que barra o staff de reescrever `texto`/`autor_nome`/`user_id`; a policy daqui,
+  sozinha, libera a linha inteira. Function **nova** `postar-mural`
   (**já deployada em 03/ago/2026**): exige JWT, valida **assinante vigente** via
   `getEffectiveSubscription` (perk exclusivo de assinante, igual aos pontos), sanitiza o
   texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its na
@@ -1301,6 +1309,18 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   ao CHECK de `orders.status`. É o estado que faltava pro webhook marcar a compra devolvida:
   `'cancelado'` é o pedido que nunca foi pago, e usar ele apagaria a diferença no histórico.
   **Falta:** aplicar + re-deploy do `asaas-webhook`.
+- **`0036_mural_e_cantinho_estritos` — PENDENTE (aplicar DEPOIS da 0020 e da 0024).** Os
+  dois apertos que a auditoria apontou e que ficaram de fora da leva 0032–0035 por mexerem
+  em comportamento, não em falha alcançável pelo cliente:
+  **(a) mural** — a `mural_update_staff` (0020) libera UPDATE da linha inteira pra quem é
+  `is_staff()`, e RLS não restringe coluna, então o staff podia **reescrever** `texto`,
+  `autor_nome` e `user_id`, não só ocultar: dava pra pôr na parede uma frase que a pessoa
+  não escreveu, assinada com o nome dela. Trigger `prevent_mural_content_tamper` barra as
+  três colunas vindas de sessão logada; mexer no `status` (moderar) segue liberado e a
+  `postar-mural` não é afetada (escreve com service_role, `auth.uid()` nulo). Nenhuma tela
+  do console modera mural hoje, então não quebra fluxo nenhum.
+  **(b) cantinho** — a `perfil_publico(handle)` passa a exigir `tier_slug`, a mesma régua
+  que a `definir_perfil_publico` usa pra deixar ligar. Ver "Meu cantinho" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

@@ -5861,7 +5861,7 @@ async function initPerfilPage() {
         try {
           const { data, error } = await supabase
             .from('profiles')
-            .select('perfil_publico, handle')
+            .select('perfil_publico, handle, tier_slug')
             .eq('id', session.user.id)
             .maybeSingle();
           if (error) return; // colunas ainda não existem → seção fica hidden
@@ -5895,14 +5895,29 @@ async function initPerfilPage() {
           if (linkWrap) linkWrap.hidden = false;
         };
 
+        // Ligar o cantinho é perk de assinante, e desde a 0036 a leitura pública
+        // também exige plano: sem plano vigente a página fica fora do ar mesmo com
+        // a chavinha ligada. Então a tela precisa saber do plano pra não prometer
+        // um link que abre no estado vazio.
+        let temPlano = Boolean(estado.tier_slug);
+
         const aplicarEstado = (ativo, handle) => {
           if (check) check.checked = Boolean(ativo);
-          if (labelEl) labelEl.textContent = ativo ? 'teu cantinho está no ar' : 'mostrar meu cantinho';
-          if (ativo) pintarLink(handle);
+          if (labelEl) {
+            labelEl.textContent = ativo
+              ? temPlano
+                ? 'teu cantinho está no ar'
+                : 'teu cantinho tá guardado'
+              : 'mostrar meu cantinho';
+          }
+          if (ativo && temPlano) pintarLink(handle);
           else if (linkWrap) linkWrap.hidden = true;
         };
 
         aplicarEstado(estado.perfil_publico, estado.handle);
+        if (estado.perfil_publico && !temPlano) {
+          mostrarMsgC('teu cantinho fica guardado enquanto tu tá sem plano, no mesmo endereço, esperando tu voltar 💛');
+        }
         cantinhoSec.hidden = false;
 
         check?.addEventListener('change', async () => {
@@ -5916,6 +5931,9 @@ async function initPerfilPage() {
               mostrarMsgC(data?.erro || 'não deu pra mudar agora. tenta de novo? 💛', 'erro');
               return;
             }
+            // A RPC só deixa LIGAR quem tem plano vigente, então um `ativo` de
+            // volta é prova de plano (o estado inicial pode estar velho).
+            if (data.ativo) temPlano = true;
             aplicarEstado(data.ativo, data.handle);
             mostrarMsgC(
               data.ativo ? 'pronto, teu cantinho está no ar 💛' : 'teu cantinho voltou a ser só teu.',
