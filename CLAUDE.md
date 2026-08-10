@@ -233,14 +233,17 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
 `index.html`, que redireciona pra `/home` e faz o link quebrado **sumir em silêncio**. O
 `404.html` está no `rollupOptions.input` e leva `robots: noindex`.
 
-- **NAV** (array no `app.js`): O Casa, Colab, Cardápio, Loja, Clube — todas apontam pras
+- **NAV** (array no `app.js`): O Casa, Colab, Cardápio, Loja, Planos — todas apontam pras
   páginas reais, com href limpo (`/o-casa`). A ordem conta uma frase: quem a gente é
-  (O Casa, Colab), o que a gente serve (Cardápio, Loja), como tu entra (Clube, que fecha
-  a fila encostado no "visite-nos"). **A Home não tem item**: o logo do header já é um
+  (O Casa, Colab), o que a gente serve (Cardápio, Loja), como tu entra (Planos, que fecham
+  a fila encostados no "visite-nos"). **A Home não tem item**: o logo do header já é um
   link pra `/home` (no celular, o "C" do meio da tab bar), então o item repetia o mesmo
-  destino na posição mais lida da barra. **`/planos` se chama "Clube"** nos cinco lugares
-  (era "Planos" no desktop e "Clube" só na tab bar; a mesma porta com dois nomes conforme
-  o aparelho confundia) — a URL segue `/planos`. `activeNavHref()` detecta a página atual
+  destino na posição mais lida da barra. **`/planos` se chama "Planos"** nos cinco lugares
+  (a tab bar do celular chamava de "Clube"; a mesma porta com dois nomes conforme o
+  aparelho confundia). Na barra vale mais a palavra que qualquer pessoa entende de
+  primeira do que a mais bonita: quem já está decidindo varre a nav atrás de onde ficam
+  os valores, e "Clube" ainda ficava a dois itens de "Colab", duas palavras com C
+  cheirando a comunidade, sendo uma delas a assinatura paga. `activeNavHref()` detecta a página atual
   pelo pathname (tolerando um `.html` no fim, pra links antigos) e marca o item ativo com
   `aria-current="page"` + `text-terracota font-semibold` (produto → "Loja";
   raiz/`index`/`home` → "Home", que não está na NAV mas alimenta o `aria-current` do logo

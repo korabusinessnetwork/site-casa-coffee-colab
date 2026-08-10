@@ -174,8 +174,8 @@ const MARCA = {
 //             souber a URL entra direto. É só o menu que para de oferecer.
 //
 // A ordem conta uma frase: quem a gente é (O Casa, Colab), o que a gente serve
-// (Cardápio, Loja), como tu entra (Clube). O Clube fecha a fila porque encosta
-// no "visite-nos" do header, e os dois leem como um convite só.
+// (Cardápio, Loja), como tu entra (Planos). Os Planos fecham a fila porque
+// encostam no "visite-nos" do header, e os dois leem como um convite só.
 //
 // A HOME NÃO ESTÁ AQUI de propósito: o logo à esquerda já é um link pra /home
 // (no celular, o "C" do meio da tab bar), então o item repetia o mesmo destino
@@ -186,9 +186,13 @@ const NAV = [
   { rotulo: 'Colab', href: '/colab', icone: 'users' },
   { rotulo: 'Cardápio', href: '/cardapio', icone: 'utensils' },
   { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true, icone: 'shopping-bag' },
-  // "Clube" também no desktop: a tab bar do celular já chamava assim, e a mesma
-  // porta com dois nomes dependendo do aparelho confunde. /planos segue a URL.
-  { rotulo: 'Clube', href: '/planos', icone: 'sparkles' },
+  // "Planos" nos cinco lugares (a tab bar do celular chamava de "Clube": a mesma
+  // porta com dois nomes dependendo do aparelho confunde). Na barra vale mais a
+  // palavra que qualquer pessoa entende de primeira do que a mais bonita: quem já
+  // está decidindo varre a nav atrás de onde ficam os valores. E "Clube" ficava a
+  // dois itens de "Colab", duas palavras com C cheirando a comunidade, sendo uma
+  // delas a assinatura paga.
+  { rotulo: 'Planos', href: '/planos', icone: 'sparkles' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
@@ -2464,7 +2468,8 @@ function renderTabbar() {
   // Mesmo critério do header, do menu mobile e do rodapé: item com semLink na NAV
   // (hoje a Loja) vira texto morto aqui também, com o carimbo "em breve". Senão a
   // tab bar — que é A navegação no celular — abriria a porta que os outros fecharam.
-  // O rótulo vem à parte porque aqui a nav usa nome curto ("Clube" pra /planos).
+  // O rótulo vem à parte porque aqui a fila é outra (a home é o "C" do meio) e
+  // porque a tab bar pode precisar de nome curto se algum rótulo não couber.
   const tab = (href, icone, rotulo) => {
     const item = NAV.find((n) => n.href === href) || {};
     const corpo = `<i data-lucide="${icone}"></i><span>${rotulo}</span>`;
@@ -2481,7 +2486,7 @@ function renderTabbar() {
     ${tab('/cardapio', 'utensils', 'Cardápio')}
     ${tab('/loja', 'shopping-bag', 'Loja')}
     <a href="${HOME}" class="center" aria-label="Início"${on(HOME)}>C</a>
-    ${tab('/planos', 'sparkles', 'Clube')}
+    ${tab('/planos', 'sparkles', 'Planos')}
     ${tab('/colab', 'users', 'Colab')}
   `;
   document.body.appendChild(el);
