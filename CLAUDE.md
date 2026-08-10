@@ -87,7 +87,9 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - **Telefone:** (51) 99360-5262
 - **Horário:** Seg a sáb 8h–19h · dom 15h–19h
 
-Redes (placeholders por enquanto): Instagram, Facebook, Spotify.
+Redes (placeholders por enquanto): Instagram, Spotify. **Sem Facebook** — a casa não tem
+perfil por lá, e link morto no rodapé é promessa que não se cumpre. Fonte única no
+`MARCA.redes` (`app.js`), que serve o rodapé e o link do "som do Casa" na home.
 
 ---
 
@@ -242,9 +244,14 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   `renderTabbar` consulta a NAV pelo href, então religar vale pros quatro lugares de uma
   vez). A página continua no ar — dá pra abrir digitando `/loja`. Pra religar o link, é
   só tirar o `semLink`.
-- **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
-  "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) chama a
-  `create-checkout-session` e leva pro Checkout hospedado do Asaas.
+- **Cardápio** usa preços de tom com a nota "* valores ilustrativos" no rodapé da página.
+  Os **Planos** mostram os preços **sem ressalva** (a nota "* valores fictícios, a definir"
+  saiu a pedido: dizer que o preço é fictício na hora de assinar derruba a compra). Botão
+  **"assinar"** (`initPlanosPage`) chama a `create-checkout-session` e leva pro Checkout
+  hospedado do Asaas.
+- **Âncora `#planos`** na seção dos cards do `planos.html`: quem chega de outra página já
+  decidido cai direto na escolha, sem reler a abertura. É o destino do botão "assina um
+  plano" do **Mural do Casa** (`/o-casa`), nos dois estados do CTA (deslogado e sem plano).
 - **Cardápio, atalhos entre as seções** (`initCardapioNav`): a página é longa e de puro
   scroll, então uma tirinha de chips (`[data-cardapio-nav]`) gruda no topo da janela
   (`position: sticky; top: 0` — o header do site **rola junto com a página**, o sticky dele

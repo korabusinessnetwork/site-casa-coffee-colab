@@ -158,9 +158,11 @@ const MARCA = {
     whatsappMensagem: 'Oii, gente do casa!! Quero saber mais sobre vocês!!',
     horario: 'Seg a sáb 8h–19h · dom 15h–19h',
   },
+  // Fonte única das redes (rodapé e o link do "som do Casa" na home). O Facebook
+  // saiu daqui: a casa não tem perfil por lá, e link morto no rodapé é promessa
+  // que não se cumpre.
   redes: [
     { nome: 'Instagram', href: '#' },
-    { nome: 'Facebook', href: '#' },
     { nome: 'Spotify', href: '#' },
   ],
 };
@@ -4038,7 +4040,9 @@ async function initMuralPage() {
   // Estado do compose: só assinante vigente escreve. Deslogado/sem plano → CTA.
   if (!session) {
     mostrarCta(
-      'o mural é de quem faz parte do Casa. <a href="/planos">assina um plano</a> e deixa teu recado na parede. 💛',
+      // O #planos leva direto pros cards (a âncora existe no planos.html): quem
+      // clica aqui já decidiu olhar plano, não precisa reler a abertura da página.
+      'o mural é de quem faz parte do Casa. <a href="/planos#planos">assina um plano</a> e deixa teu recado na parede. 💛',
     );
     return;
   }
@@ -4060,7 +4064,7 @@ async function initMuralPage() {
 
   if (!vigente) {
     mostrarCta(
-      'quase lá 💛 o mural é um agrado de quem tem plano. <a href="/planos">vem pro clube</a> e deixa teu recado.',
+      'quase lá 💛 o mural é um agrado de quem tem plano. <a href="/planos#planos">vem pro clube</a> e deixa teu recado.',
     );
     return;
   }
