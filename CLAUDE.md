@@ -233,11 +233,18 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
 `index.html`, que redireciona pra `/home` e faz o link quebrado **sumir em silêncio**. O
 `404.html` está no `rollupOptions.input` e leva `robots: noindex`.
 
-- **NAV** (array no `app.js`): Home, O Casa, Cardápio, Loja, Planos, Colab — todas
-  apontam pras páginas reais, com href limpo (`/o-casa`). `activeNavHref()` detecta a
-  página atual pelo pathname (tolerando um `.html` no fim, pra links antigos) e marca o
-  item ativo com `aria-current="page"` + `text-terracota font-semibold`
-  (produto → "Loja"; raiz/`index` → "Home").
+- **NAV** (array no `app.js`): O Casa, Colab, Cardápio, Loja, Clube — todas apontam pras
+  páginas reais, com href limpo (`/o-casa`). A ordem conta uma frase: quem a gente é
+  (O Casa, Colab), o que a gente serve (Cardápio, Loja), como tu entra (Clube, que fecha
+  a fila encostado no "visite-nos"). **A Home não tem item**: o logo do header já é um
+  link pra `/home` (no celular, o "C" do meio da tab bar), então o item repetia o mesmo
+  destino na posição mais lida da barra. **`/planos` se chama "Clube"** nos cinco lugares
+  (era "Planos" no desktop e "Clube" só na tab bar; a mesma porta com dois nomes conforme
+  o aparelho confundia) — a URL segue `/planos`. `activeNavHref()` detecta a página atual
+  pelo pathname (tolerando um `.html` no fim, pra links antigos) e marca o item ativo com
+  `aria-current="page"` + `text-terracota font-semibold` (produto → "Loja";
+  raiz/`index`/`home` → "Home", que não está na NAV mas alimenta o `aria-current` do logo
+  e do "C" da tab bar).
 - **Loja está com selo "em breve" e SEM link** (`semLink: true` na NAV): o item aparece no
   header, no menu mobile e no rodapé como texto morto (`.nav-off`) e na **tab bar do
   mobile** como `.tab-off` (ícone e rótulo apagados, carimbo "em breve" sobre o ícone —

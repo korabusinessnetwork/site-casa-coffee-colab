@@ -172,23 +172,37 @@ const MARCA = {
 //   selo    — carimbo sobre o rótulo (ver .nav-selo no styles.css).
 //   semLink — o item vira texto, sem clique. A PÁGINA CONTINUA NO AR: quem
 //             souber a URL entra direto. É só o menu que para de oferecer.
+//
+// A ordem conta uma frase: quem a gente é (O Casa, Colab), o que a gente serve
+// (Cardápio, Loja), como tu entra (Clube). O Clube fecha a fila porque encosta
+// no "visite-nos" do header, e os dois leem como um convite só.
+//
+// A HOME NÃO ESTÁ AQUI de propósito: o logo à esquerda já é um link pra /home
+// (no celular, o "C" do meio da tab bar), então o item repetia o mesmo destino
+// na posição mais lida da barra. Quem cuida de marcar a home como página atual
+// é a activeNavHref, que segue devolvendo '/home' pro logo e pra tab bar.
 const NAV = [
-  { rotulo: 'Home', href: '/home', icone: 'home' },
   { rotulo: 'O Casa', href: '/o-casa', icone: 'heart' },
+  { rotulo: 'Colab', href: '/colab', icone: 'users' },
   { rotulo: 'Cardápio', href: '/cardapio', icone: 'utensils' },
   { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true, icone: 'shopping-bag' },
-  { rotulo: 'Planos', href: '/planos', icone: 'sparkles' },
-  { rotulo: 'Colab', href: '/colab', icone: 'users' },
+  // "Clube" também no desktop: a tab bar do celular já chamava assim, e a mesma
+  // porta com dois nomes dependendo do aparelho confunde. /planos segue a URL.
+  { rotulo: 'Clube', href: '/planos', icone: 'sparkles' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
 // As URLs são limpas (/o-casa), mas o .html continua aceito — em dev dá pra
 // abrir /o-casa.html, e links antigos ainda chegam aqui via redirect.
 // "produto" conta como "Loja"; a raiz "/" conta como "Home".
+// A home não tem item na NAV (quem leva pra lá é o logo), mas continua sendo
+// devolvida aqui: é dela que o logo do header e o "C" da tab bar tiram o
+// aria-current. Por isso a linha da home é um return próprio, e não uma busca
+// no array — lá ela não existe.
 function activeNavHref() {
   const path = window.location.pathname.replace(/\/+$/, '');
   const base = path.substring(path.lastIndexOf('/') + 1).replace(/\.html$/, '');
-  if (base === '' || base === 'index') return '/home';
+  if (base === '' || base === 'index' || base === 'home') return '/home';
   if (base === 'produto') return '/loja';
   const found = NAV.find((item) => item.href === '/' + base);
   return found ? found.href : null;
@@ -603,8 +617,10 @@ function renderHeader() {
   slot.innerHTML = `
     <header id="topo" class="site-header" data-site-header>
       <div class="wrap">
-        <!-- Marca (logo oficial; o texto acessível vive no aria-label do link) -->
-        <a href="/home" class="brand" aria-label="Casa Coffee Colab, início">
+        <!-- Marca (logo oficial; o texto acessível vive no aria-label do link).
+             Com a home fora da NAV, este link é a única porta pra ela no
+             desktop, então é ele que carrega o aria-current lá. -->
+        <a href="/home" class="brand" aria-label="Casa Coffee Colab, início"${ativo === '/home' ? ' aria-current="page"' : ''}>
           <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
         </a>
 
