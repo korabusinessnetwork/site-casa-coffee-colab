@@ -690,18 +690,10 @@ a.txt-link.gold { color: var(--gold) }
    não o meio do bloco. */
 .foot .ft-whats svg { width: 15px; height: 15px; flex: 0 0 auto; margin-top: .5em; color: var(--gold-2) }
 /* ---------- horário de funcionamento (coluna do rodapé) ---------- */
-/* Cada linha é dia à esquerda, horas à direita. O <dl> não vira flex-column como
-   as outras colunas (.foot nav/address) porque quem empilha aqui são as linhas,
-   e cada linha tem duas pontas. */
-/* O max-width segura a linha quando o bloco cai numa coluna larga (no layout de
-   3 colunas ele divide a coluna da marca): sem ele, dia e horas ficariam em
-   pontas opostas de 360px, com um vão no meio. */
-.foot .ft-horarios { margin: 0; display: flex; flex-direction: column; gap: 2px; max-width: 260px }
-.foot .ft-hr { display: flex; align-items: baseline; justify-content: space-between; gap: 12px }
-.foot .ft-hr dt, .foot .ft-hr dd { margin: 0; font-size: 13.5px; line-height: 1.9; color: var(--cream-soft) }
-.foot .ft-hr dd { font-variant-numeric: tabular-nums; white-space: nowrap }
-/* hoje: só a cor muda (a informação em texto vive no .sr-only do <dt>) */
-.foot .ft-hr.hoje dt, .foot .ft-hr.hoje dd { color: var(--gold-2); font-weight: 600 }
+/* Uma linha por faixa (seg a sáb em cima, domingo embaixo). O max-width segura o
+   texto quando o bloco cai numa coluna larga, no layout de 3 colunas, pra frase
+   quebrar no mesmo lugar das outras colunas. */
+.foot .ft-horarios { max-width: 240px }
 
 /* ---------- lista de espera (campinho de e-mail no rodapé) ---------- */
 .foot .ft-espera { margin-top: 24px; max-width: 330px }
