@@ -199,6 +199,34 @@
   text-wrap: balance; margin: 0;
 }
 
+/* "pular pro conteúdo" (renderSkipLink): fica fora da tela e só aparece quando o
+   teclado chega nele — é o primeiro foco da página. Sem outline: o próprio
+   botão já é a moldura. */
+.skip-link {
+  position: fixed; top: 10px; left: 10px; z-index: 60;
+  transform: translateY(-160%);
+  padding: 11px 18px; border-radius: 999px;
+  background: var(--ink); color: var(--cream);
+  font-family: var(--sans); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600;
+  text-decoration: none; box-shadow: 0 18px 40px -22px rgba(12, 8, 4, .8);
+  transition: transform .18s var(--e);
+}
+.skip-link:focus { transform: translateY(0) }
+.skip-link:focus-visible { outline: 2px solid var(--coral); outline-offset: 3px }
+/* O alvo do skip link ganha tabindex="-1" pra receber o foco; o anel do
+   navegador em volta da página inteira só polui (o próprio salto até o
+   conteúdo já mostra que o foco andou). */
+[data-skip-alvo]:focus, [data-skip-alvo]:focus-visible { outline: none }
+
+/* O [hidden] do HTML é regra do NAVEGADOR (folha do user-agent), então qualquer
+   `display` de classe nossa — e este arquivo inteiro mora fora de @layer — vence
+   ele e o elemento que nasceu escondido aparece na tela. Já mordeu três vezes
+   (.som-live, .prod-guardar, o "cancelar edição" dos recados no console), sempre
+   do mesmo jeito: elemento nasce hidden no HTML, a classe define display, o JS é
+   quem ia soltar depois. Esta regra fecha a família inteira, e as regras
+   `.classe[hidden]` espalhadas pelo arquivo viram só reforço. */
+[hidden] { display: none !important }
+
 .wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px }
 @media (max-width: 640px) { .wrap { padding: 0 22px } }
 .label { font-family: var(--sans); font-size: 11px; letter-spacing: .22em; text-transform: uppercase; font-weight: 600 }
@@ -420,10 +448,23 @@ a.txt-link.gold { color: var(--gold) }
 .hero-prev { left: 22px }
 .hero-skip:hover, .hero-skip:focus-visible, .hero-prev:hover, .hero-prev:focus-visible { opacity: 1; border-color: rgba(239, 233, 221, .6) }
 .hero-skip svg, .hero-prev svg { width: 13px; height: 13px }
-/* No mobile a tab bar fixa come os últimos ~74px da tela; os botões sobem pra
-   não ficar embaixo dela. */
+/* Bolinhas de posição, no meio dos dois botões e na mesma linha deles (mesmo
+   `bottom`): dizem quantas imagens existem e em qual a pessoa está. Miúdas de
+   propósito — é foto de fundo, não galeria. */
+.hero-dots { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; justify-content: center; gap: 8px }
+.hero-dot {
+  width: 7px; height: 7px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(239, 233, 221, .38);
+  transition: width .2s var(--e), background .2s var(--e);
+}
+.hero-dot:hover { background: rgba(239, 233, 221, .7) }
+.hero-dot[aria-current="true"] { width: 20px; background: var(--cream) }
+.hero-dot:focus-visible { outline: 2px solid var(--cream); outline-offset: 3px }
+/* No mobile a tab bar fixa come os últimos ~74px da tela; os controles sobem
+   pra não ficar embaixo dela. */
 @media (max-width: 820px) {
-  .hero-skip, .hero-prev { bottom: 86px; padding: 7px 12px }
+  .hero-skip, .hero-prev, .hero-dots { bottom: 86px }
+  .hero-skip, .hero-prev { padding: 7px 12px }
   .hero-skip { right: 16px }
   .hero-prev { left: 16px }
 }
@@ -640,9 +681,42 @@ a.txt-link.gold { color: var(--gold) }
 .foot .nav-selo { display: inline-block; margin-left: 9px; transform: rotate(-6deg); font-size: 7.5px; letter-spacing: .16em; padding: 2px 5px; vertical-align: 2px }
 /* colunas de links/contato empilhadas (os <a>/<p> viram itens flex = bloco) */
 .foot nav, .foot address { display: flex; flex-direction: column; font-style: normal }
+/* O telefone do rodapé abre o WhatsApp; o ícone e o rótulo dizem isso antes do
+   clique. Fica na mesma coluna de contato, então herda cor e tamanho dos vizinhos. */
+.foot .ft-whats { display: inline-flex; align-items: flex-start; gap: 7px }
+/* A coluna é estreita e o rótulo quebra em duas linhas: o ícone acompanha a
+   PRIMEIRA linha (daí o flex-start + o empurrãozinho pra alinhar com o texto),
+   não o meio do bloco. */
+.foot .ft-whats svg { width: 15px; height: 15px; flex: 0 0 auto; margin-top: .5em; color: var(--gold-2) }
+/* ---------- lista de espera (campinho de e-mail no rodapé) ---------- */
+.foot .ft-espera { margin-top: 24px; max-width: 330px }
+.foot .ft-espera .ft-label { display: block; margin-bottom: 10px }
+.ft-espera-linha { display: flex; gap: 8px; flex-wrap: wrap }
+.ft-espera-linha input {
+  flex: 1 1 150px; min-width: 0; padding: 10px 12px; border-radius: 9px;
+  border: 1px solid var(--line-dark); background: rgba(239, 233, 221, .07);
+  color: var(--cream); font-family: var(--sans); font-size: 13px;
+}
+.ft-espera-linha input::placeholder { color: var(--cream-soft); opacity: .75 }
+.ft-espera-linha input:focus-visible { outline: 2px solid var(--gold-2); outline-offset: 1px }
+.ft-espera-btn {
+  flex: 0 0 auto; padding: 10px 16px; border: 0; border-radius: 9px;
+  background: var(--gold); color: #231a0c; cursor: pointer;
+  font-family: var(--sans); font-weight: 700; font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  transition: background .2s var(--e), opacity .2s var(--e);
+}
+.ft-espera-btn:hover { background: var(--gold-2) }
+.ft-espera-btn[disabled] { opacity: .55; cursor: default }
+.foot .ft-espera-msg { margin-top: 10px; font-size: 12.5px; line-height: 1.6; color: var(--gold-2) }
+.foot .ft-espera-msg.erro { color: var(--coral-2) }
+
 .foot .bottom { border-top: 1px solid var(--line-dark) }
 .foot .bottom .wrap { display: flex; justify-content: space-between; gap: 12px; padding-top: 20px; padding-bottom: 26px; flex-wrap: wrap; grid-template-columns: none }
 .foot .bottom p { font-size: 11.5px; letter-spacing: .06em }
+/* Privacidade/termos: as colunas de cima empilham os links (.foot nav é column),
+   aqui a fila é horizontal, na mesma linha do © e do "feito com afeto". */
+.foot .bottom .ft-legal { flex-direction: row; gap: 18px; flex-wrap: wrap }
+.foot .bottom .ft-legal a { font-size: 11.5px; letter-spacing: .06em; line-height: 1.6 }
 
 /* ---------- mobile tab bar ---------- */
 .tabbar { display: none }

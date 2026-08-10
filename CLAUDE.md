@@ -217,6 +217,8 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Login         | `login.html`        | `/login`           | entrar (e-mail/senha) + "esqueci a senha" (reset por e-mail)       |
 | Auth OK       | `auth-confirmado.html` | `/auth-confirmado` | retorno do link de confirmação; detecta a sessão na URL         |
 | Perfil        | `conta/perfil.html` | `/conta/perfil`    | área logada (protegida): dados, pontos, plano; editar nome/telefone |
+| Privacidade   | `privacidade.html`  | `/privacidade`     | política de privacidade (LGPD); linkada no rodapé e no `/cadastro`  |
+| Termos        | `termos.html`       | `/termos`          | termos de uso (conta, assinatura, loja, pontos, mural); mesmo lugar |
 
 A raiz `/` é o `src/index.html`, que só redireciona pra `/home`.
 
@@ -959,6 +961,62 @@ texto e o app de mapa geocoda o lugar certo. O endereço vive só no `MARCA` (me
 
 ---
 
+## Privacidade, termos e a lista de espera (rodapé)
+
+Três coisas que faltavam pro site poder ir ao ar: os dois documentos legais e um jeito
+de quem só está de passagem deixar contato.
+
+- **`/privacidade` e `/termos`** (`privacidade.html`/`termos.html`, no `rollupOptions.input`):
+  texto no tom da casa, mas valendo de verdade. A privacidade cobre o que a gente guarda
+  (por tela: cadastro, perfil, compra, clube, sessões, lista de espera), por quê, com quem
+  divide (Supabase, Asaas, Vercel, e os embeds de Google Maps e Spotify), o que fica no
+  localStorage, prazos e os direitos do art. 18 da LGPD, apontando pro que a pessoa já
+  resolve sozinha no `/conta/perfil`. Os termos cobrem conta, assinatura (pausar, retomar,
+  upgrade proporcional, downgrade agendado, presente), loja (arrependimento de 7 dias e
+  prazos do CDC), pontos, indicação e Mural. Linkados no **rodapé** (`.ft-legal`, toda
+  página) e no `/cadastro`, logo abaixo do botão de criar conta.
+  > **TODO (humano, antes do go-live):** entrar com **razão social e CNPJ** nos dois
+  > arquivos (há comentário `TODO` no lugar exato), fechar o **prazo real de retirada/
+  > entrega** nos termos e atualizar a **data** de "última atualização".
+- **Lista de espera** (`initListaEspera`, campinho no rodapé): quem não vai criar conta
+  hoje deixa só o e-mail ("avisa quando a loja abrir de vez"). Grava na tabela
+  `lista_espera` (**migration 0031, PENDENTE**), que é **insert-only pelo client**: existe
+  policy de INSERT (anon e authenticated) e **nenhuma de select** — nem quem está logado lê
+  a lista; quem lê é o console, pela RPC `admin_lista_espera()` (`tem_permissao('relatorios')`),
+  na aba **"lista de espera"** (`viewListaEspera`, ícone `mail`). O insert vai com
+  `ignoreDuplicates` (ON CONFLICT DO NOTHING), então repetir o e-mail responde igual à
+  primeira vez e o formulário não vira sonda de "quem já está na lista". Sem `supabase`
+  configurado o campo nem aparece; com a migration pendente, a mensagem é honesta (não
+  finge que guardou) e oferece o e-mail da casa.
+
+---
+
+## Acessibilidade
+
+- **"pular pro conteúdo"** (`renderSkipLink`, chamado pelo `renderHeader`, toda página):
+  primeiro foco do teclado, fora da tela até receber foco. O alvo é descoberto no DOM
+  (`main`, ou a primeira `section` depois do header, que é o caso da área `conta/`), ganha
+  `id` + `tabindex="-1"` + `data-skip-alvo` — assim vale em todas as páginas sem precisar
+  marcar cada `.html`. Entra como primeiro filho do `<body>`, antes até da tarja de recado.
+- **`[hidden] { display: none !important }`** no `styles.css`: o `[hidden]` é regra do
+  user-agent e **qualquer** `display` de classe nossa vencia ele (o arquivo mora fora de
+  `@layer`), fazendo aparecer na tela elemento que nasceu escondido — aconteceu com
+  `.som-live`, `.prod-guardar` e o "cancelar edição" dos recados no console. A regra global
+  fecha a família; as regras `.classe[hidden]` espalhadas pelo arquivo viram só reforço.
+  **Elemento novo que nasce `hidden` só precisa de `el.hidden = false` pra aparecer** (é o
+  padrão do projeto) — mostrar por classe não funciona enquanto o atributo estiver lá.
+- **Hero da home**: além de "voltar"/"pular", agora tem **bolinhas de posição**
+  (`[data-hero-dots]`, montadas pelo `setupHeroCarousel`, uma por slide, clicáveis,
+  `aria-current` na atual). Com um slide só, a fila nem aparece.
+- **Tour 360 do `/o-casa`**: link **"o tour não abriu? dá a volta no Google Maps"** abaixo
+  do quadro (mesmo papel do "traçar rota" pro mapa) — se o iframe não carregar, o giro
+  continua a um toque, com o `pano` da mesma foto esférica e o `viewpoint` da porta do Casa
+  como rede de segurança.
+- **WhatsApp no rodapé**: o telefone sempre abriu o WhatsApp, mas nada dizia isso na tela.
+  Agora tem ícone e rótulo (`.ft-whats`), em toda página, sem depender do link da `/colab`.
+
+---
+
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
@@ -1167,6 +1225,16 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   false`, tirinha "voltou pra vitrine" na `/loja` e no `/conta/perfil` (`initReposicao`) +
   aba "esperando" no console. Tolerante à migration pendente. **Falta:** aplicar + subir o
   front. Nenhum secret novo; nenhuma Edge Function. Ver "Volta pra vitrine" acima.
+- **`0031_lista_espera` — PENDENTE (aplicar no SQL Editor).** "Avisa quando a loja abrir":
+  tabela `lista_espera` (`email` unique com CHECK de formato/tamanho, `origem` = o caminho
+  da página, sem `user_id` — a graça é justamente não exigir conta) com RLS **insert-only
+  pro client**: policy de INSERT pra `anon` e `authenticated` repetindo os limites no
+  `with check`, e **nenhuma policy de select** (deny-by-default), então ninguém lê a lista
+  pelo client. Leitura só pela RPC `admin_lista_espera(limite)` (SECURITY DEFINER,
+  `tem_permissao('relatorios')`). Front: campinho no rodapé (`initListaEspera`, insert com
+  `ignoreDuplicates`) + aba "lista de espera" no console. **Falta:** aplicar + subir o
+  front. Nenhum secret novo; nenhuma Edge Function. Ver "Privacidade, termos e a lista de
+  espera" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

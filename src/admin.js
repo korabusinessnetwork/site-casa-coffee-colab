@@ -39,6 +39,7 @@ import {
   Heart,
   Bookmark,
   BellRing,
+  Mail,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -69,6 +70,7 @@ const LUCIDE_ICONS = {
   Heart,
   Bookmark,
   BellRing,
+  Mail,
 };
 
 function renderIcons() {
@@ -249,6 +251,9 @@ const NAV = [
   // "quem espera reposição" — os avisos de produto esgotado. Relatório que guia a
   // reposição, mesma permissão 'relatorios'.
   { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'relatorios' },
+  // "quem deixou o e-mail" — a lista de espera do rodapé (0031). Também é leitura
+  // de interesse, mesma permissão 'relatorios'.
+  { id: 'espera', rotulo: 'lista de espera', icone: 'mail', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -615,6 +620,7 @@ function abrirDoHash() {
     favoritos: viewFavoritos,
     desejos: viewDesejos,
     esperando: viewReposicao,
+    espera: viewListaEspera,
     equipe: viewEquipe,
     recados: viewRecados,
     trilha: viewTrilha,
@@ -2313,6 +2319,59 @@ function cardReposicao(l, i, max) {
       </div>
       <span class="ad-fav-n"><i data-lucide="bell-ring"></i>${formatNumero(n)}</span>
     </div>`;
+}
+
+// ===== LISTA DE ESPERA ("quem deixou o e-mail") ====================
+// O campinho do rodapé do site (initListaEspera no app.js) grava em
+// `lista_espera` (0031), que ninguém lê pelo client — nem quem está logado. A
+// leitura mora aqui, pela RPC gated por 'relatorios'.
+async function viewListaEspera(view) {
+  view.innerHTML =
+    cabecalho(
+      'quem deixou o e-mail',
+      'gente que pediu pra ser avisada quando a loja abrir de vez, da mais recente pra mais antiga.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    '<div data-corpo></div>';
+  const corpo = $('[data-corpo]', view);
+  $('[data-recarregar]', view).addEventListener('click', () => carregarListaEspera(corpo));
+  renderIcons();
+  carregarListaEspera(corpo);
+}
+
+async function carregarListaEspera(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_lista_espera');
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        'ninguém na fila ainda',
+        'quando alguém deixar o e-mail no rodapé do site, ele aparece aqui.',
+      );
+      return;
+    }
+    corpo.innerHTML = `
+      <section class="card ad-card">
+        <p class="lbl">${formatNumero(linhas.length)} ${linhas.length === 1 ? 'e-mail' : 'e-mails'}</p>
+        <div class="rows">
+          ${linhas
+            .map(
+              (l) => `
+            <div class="row">
+              <div class="row-main">
+                <span>${escapeHtml(l.email || '')}</span>
+                ${l.origem ? `<span class="row-meta">deixou em ${escapeHtml(l.origem)}</span>` : ''}
+              </div>
+              <span class="row-meta">${escapeHtml(formatData(l.created_at, false))}</span>
+            </div>`,
+            )
+            .join('')}
+        </div>
+      </section>`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
 }
 
 // ===== TUA CONTA ====================================================
