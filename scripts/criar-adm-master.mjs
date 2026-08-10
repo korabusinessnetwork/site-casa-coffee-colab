@@ -13,8 +13,17 @@
 // em casa@casacoffeecolab.com.br e o próprio console traduz login → e-mail na
 // hora de entrar (loginParaEmail, em src/admin.js).
 //
-// A senha inicial é combinada e vale uma vez: `senha_alterada_em` nasce nulo, e
-// enquanto estiver assim o console não abre nenhuma tela antes da troca.
+// A senha inicial é SORTEADA a cada execução e aparece uma vez só, aqui no
+// terminal. Não existe senha padrão: uma senha combinada, escrita no repo, é uma
+// porta aberta pra conta mais poderosa do sistema — quem lesse o arquivo entrava
+// no endpoint do Auth direto e recebia um JWT de owner, sem passar por tela
+// nenhuma. (Ver a 0032_senha_inicial_master, que é a outra metade da correção.)
+//
+// Enquanto essa senha inicial não for trocada de verdade, o BANCO não reconhece
+// nenhum privilégio da conta: `is_owner`, `is_staff` e `tem_permissao` respondem
+// falso, então nem o console nem o PostgREST entregam nada. Quem destrava é a
+// troca real da senha, no Auth — o banco compara o hash guardado com o de agora,
+// e não há RPC que minta sobre isso.
 //
 // Roda quantas vezes quiser: se a conta já existe, ele só confere e conta o que
 // achou — não duplica, não mexe na senha (a menos que peçam --resetar-senha).
@@ -23,26 +32,33 @@
 // daquele comando):
 //   $env:SUPABASE_URL="https://xxxx.supabase.co"
 //   $env:SUPABASE_SERVICE_ROLE_KEY="eyJ..."
-//   node scripts/criar-adm-master.mjs                  # cria com a senha padrão
-//   node scripts/criar-adm-master.mjs --senha="outra"  # cria com outra senha
-//   node scripts/criar-adm-master.mjs --resetar-senha  # esqueceu? repõe a inicial
+//   node scripts/criar-adm-master.mjs                  # cria com senha sorteada
+//   node scripts/criar-adm-master.mjs --senha="outra"  # cria com uma senha tua
+//   node scripts/criar-adm-master.mjs --resetar-senha  # esqueceu? sorteia outra
 //
-// PRECISA da migration 0017_admin aplicada (é ela que traz as colunas `master` e
-// `senha_alterada_em`).
+// PRECISA das migrations 0017_admin (colunas `master` e `senha_alterada_em`) e
+// 0032_senha_inicial_master (a trava no banco + a RPC registrar_senha_inicial).
 // =============================================================================
+import { randomBytes } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const EMAIL = 'casa@casacoffeecolab.com.br';
 const LOGIN = 'casa';
 const NOME = 'Casa';
-const SENHA_PADRAO = 'casa1234'; // o Auth exige 6+; o painel troca no 1º acesso
 const PAGINA = 200; // listUsers pagina; isto é o tamanho de cada página
+
+// Senha inicial sorteada: 24 chars base64url, ~144 bits. Ela vive só nesta
+// execução e no terminal de quem rodou — não vai pro repo nem pro banco (o banco
+// guarda o hash que o Auth já guardaria de qualquer jeito).
+function sortearSenha() {
+  return randomBytes(18).toString('base64url');
+}
 
 // --- argumentos --------------------------------------------------------------
 const args = process.argv.slice(2);
 const resetarSenha = args.includes('--resetar-senha');
 const senhaArg = args.find((a) => a.startsWith('--senha='));
-const senha = senhaArg ? senhaArg.slice('--senha='.length) : SENHA_PADRAO;
+const senha = senhaArg ? senhaArg.slice('--senha='.length) : sortearSenha();
 
 if (senha.length < 6) {
   console.error('✗ a senha precisa ter pelo menos 6 caracteres (regra do Supabase Auth).');
@@ -190,7 +206,29 @@ if (Object.keys(mudancas).length) {
   console.log('  perfil já estava certinho.');
 }
 
-// --- 4) relatório ------------------------------------------------------------
+// --- 4) a trava da senha inicial ---------------------------------------------
+// Guarda o hash da senha que acabou de nascer. É ele que a 0032 compara com o
+// hash de agora pra saber se a troca aconteceu de verdade — sem esse registro a
+// conta ficaria com privilégio de owner valendo desde o primeiro login, que é
+// justamente o que a gente está fechando. O hash mora em auth.users, que o
+// PostgREST não expõe, então quem copia é a RPC (service_role).
+if (criado || resetarSenha) {
+  const { error } = await supabase.rpc('registrar_senha_inicial', { p_user_id: usuario.id });
+  if (error) {
+    console.error('');
+    console.error('✗ não deu pra registrar o hash da senha inicial:');
+    console.error(`  ${error.message}`);
+    console.error('');
+    console.error('  Sem isso a conta entra no console JÁ com todo o poder de owner,');
+    console.error('  antes de trocar a senha. Aplica a migration');
+    console.error('  supabase/migrations/0032_senha_inicial_master.sql no SQL Editor e');
+    console.error('  roda este comando de novo com --resetar-senha.');
+    process.exit(1);
+  }
+  console.log('  trava da senha inicial registrada.');
+}
+
+// --- 5) relatório ------------------------------------------------------------
 const precisaTrocar = criado || resetarSenha || !perfil.senha_alterada_em;
 
 console.log('');
@@ -205,8 +243,14 @@ if (criado || resetarSenha) {
 }
 console.log('');
 if (precisaTrocar) {
-  console.log('O console vai pedir uma senha nova no primeiro acesso, antes de abrir');
-  console.log('qualquer tela. Essa senha aí em cima serve só pra essa primeira vez.');
+  console.log('Essa senha aparece uma vez só, aqui. Copia ela agora: ela não fica');
+  console.log('guardada em lugar nenhum e não dá pra pedir de volta (o e-mail é');
+  console.log('interno, então "esqueci a senha" não chega em caixa nenhuma). Se');
+  console.log('perder, roda de novo com --resetar-senha e sorteia outra.');
+  console.log('');
+  console.log('O console vai pedir uma senha nova no primeiro acesso, e até essa troca');
+  console.log('acontecer a conta não tem poder nenhum: o banco recusa toda permissão');
+  console.log('de owner enquanto a senha for esta. Trocou, destrava sozinho.');
 } else {
   console.log('A senha já foi trocada no painel — essa conta está em uso normal.');
 }

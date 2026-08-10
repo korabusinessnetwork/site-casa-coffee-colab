@@ -39,7 +39,7 @@ function walk(dir, out = []) {
 // Procuramos VALORES de segredo, não a palavra "service_role" (que aparece em
 // comentários/SQL legitimamente).
 // =============================================================================
-console.log('1) Segredos em src/ e dist/');
+console.log('1) Segredos em src/, dist/, supabase/ e scripts/');
 const SECRET_PATTERNS = [
   // ASAAS — gateway atual. A API key vaza tudo; NUNCA pode ir pro client/repo.
   { re: /\$aact_[0-9A-Za-z_=+/-]{10,}/, nome: 'Asaas API key ($aact_)' },
@@ -50,9 +50,18 @@ const SECRET_PATTERNS = [
   { re: /\brk_live_[0-9a-zA-Z]{10,}/, nome: 'Stripe restricted key (rk_live_)' },
   { re: /\bwhsec_[0-9a-zA-Z]{10,}/, nome: 'Stripe webhook secret (whsec_)' },
   { re: /\bAKIA[0-9A-Z]{16}\b/, nome: 'AWS access key id' },
-  // Atribuição explícita de segredo em código
-  { re: /(SERVICE_ROLE_KEY|ASAAS_API_KEY|ASAAS_WEBHOOK_TOKEN|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|POS_WEBHOOK_SECRET)\s*[:=]\s*['"][^'"]+['"]/, nome: 'segredo atribuído literal' },
 ];
+
+// Atribuição explícita de segredo em código: `ASAAS_API_KEY = "..."`. Aqui o nome
+// da variável não basta pra acusar — os READMEs e os cabeçalhos dos scripts estão
+// cheios de exemplo de uso (`$env:SUPABASE_SERVICE_ROLE_KEY="eyJ..."`), que é
+// documentação, não vazamento. Quem denuncia é o VALOR: um segredo de verdade é
+// longo e não tem reticência, `<placeholder>` nem "xxx".
+const ATRIB_RE = /(SERVICE_ROLE_KEY|ASAAS_API_KEY|ASAAS_WEBHOOK_TOKEN|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|POS_WEBHOOK_SECRET)\s*[:=]\s*['"]([^'"]+)['"]/g;
+function pareceExemplo(valor) {
+  if (valor.length < 16) return true; // curto demais pra ser chave de verdade
+  return /\.\.\.|…|[<>]|\bxxx|\byour\b|\bseu\b|\bsua\b|_aqui\b|\btroca\b|\bcole\b/i.test(valor);
+}
 
 // JWTs do Supabase são todos "eyJ...". A ANON key é PÚBLICA e PODE ir pro bundle
 // do client (a RLS é quem protege). Já a SERVICE_ROLE key jamais pode vazar.
@@ -68,7 +77,17 @@ function papelDoJwt(token) {
   }
 }
 
-const scanDirs = [join(ROOT, 'src'), join(ROOT, 'dist')];
+// `src/` e `dist/` são o que vai pro navegador, mas os segredos de verdade
+// (ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN, service_role) moram em `supabase/functions/`
+// e `scripts/` — os dois versionados. Varrer só o que vai pro client deixava o
+// gate cego justamente onde um fallback do tipo `Deno.env.get('X') ?? '$aact_…'`
+// apareceria, e ele passaria com ✓ e seria commitado.
+const scanDirs = [
+  join(ROOT, 'src'),
+  join(ROOT, 'dist'),
+  join(ROOT, 'supabase'),
+  join(ROOT, 'scripts'),
+];
 let segredoAchado = false;
 for (const dir of scanDirs) {
   for (const file of walk(dir)) {
@@ -80,6 +99,17 @@ for (const dir of scanDirs) {
         fail(`segredo (${nome}) em ${relative(ROOT, file)}`);
       }
     }
+    // Segredo atribuído literal: acusa só quando o valor não é exemplo, e só em
+    // CÓDIGO. Num .md a linha quase sempre é a documentação do próprio comando de
+    // `supabase secrets set`, com um valor inventado no lugar do segredo, e não
+    // dá pra distinguir isso de um segredo por heurística de valor. Nada se perde:
+    // chave de verdade colada num README continua caindo nas regras por FORMATO
+    // ($aact_, sk_live_, AKIA) e no decodificador de JWT, que varrem todo arquivo.
+    for (const m of file.endsWith('.md') ? [] : txt.matchAll(ATRIB_RE)) {
+      if (pareceExemplo(m[2])) continue;
+      segredoAchado = true;
+      fail(`segredo (${m[1]} atribuído literal) em ${relative(ROOT, file)}`);
+    }
     // JWTs: anon/authenticated OK; qualquer outra role (ex.: service_role) reprova.
     for (const m of txt.matchAll(JWT_RE)) {
       const papel = papelDoJwt(m[0]);
@@ -89,7 +119,7 @@ for (const dir of scanDirs) {
     }
   }
 }
-if (!segredoAchado) ok('nenhum segredo em src/dist (anon key é permitida; service_role reprova)');
+if (!segredoAchado) ok('nenhum segredo no código versionado (anon key é permitida; service_role reprova)');
 if (!existsSync(join(ROOT, 'dist'))) console.log('    (dist/ ausente — rode "npm run build" pra escanear o bundle também)');
 
 // =============================================================================

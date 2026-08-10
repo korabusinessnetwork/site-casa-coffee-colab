@@ -2351,12 +2351,15 @@ function renderFooter() {
 
 // --- Lista de espera (campinho de e-mail no rodapé) ----------------------------
 // Quem só está de passagem não vai criar conta hoje, mas deixa um e-mail se a
-// gente pedir direito. Grava na tabela `lista_espera` (0031), que é insert-only
-// pelo RLS: o client escreve e não lê — quem lê é o console.
+// gente pedir direito. Vai pela RPC `entrar_na_lista_espera` (0034), não por
+// INSERT direto na tabela: o `on conflict do nothing` mora DENTRO da função e a
+// resposta é a mesma pra e-mail novo e pra e-mail repetido.
 //
-// `ignoreDuplicates` faz o INSERT virar ON CONFLICT DO NOTHING, então repetir o
-// e-mail responde igual à primeira vez: sem erro na cara da pessoa e sem dar pra
-// usar o formulário pra descobrir quem já está na lista.
+// Antes o insert era direto e quem garantia isso era o `ignoreDuplicates` daqui —
+// um header do client. Quem chamasse a tabela sem ele recebia 409 pra e-mail já
+// cadastrado e 201 pra novo, e com a anon key dava pra ir testando endereço por
+// endereço pra descobrir quem tinha se inscrito. Promessa de privacidade não pode
+// depender de como o client pede.
 function initListaEspera() {
   const form = document.querySelector('[data-lista-espera]');
   if (!form || !supabase) return;
@@ -2383,20 +2386,23 @@ function initListaEspera() {
     botao.disabled = true;
     msgEl.hidden = true;
     try {
-      const { error } = await supabase
-        .from('lista_espera')
-        .upsert({ email, origem: window.location.pathname.slice(0, 120) }, {
-          onConflict: 'email',
-          ignoreDuplicates: true,
-        });
-      // 23505 = e-mail repetido. Pra quem está do outro lado da tela é a mesma
-      // coisa que ter entrado agora: já está na lista.
-      if (error && error.code !== '23505') throw error;
+      const { data, error } = await supabase.rpc('entrar_na_lista_espera', {
+        p_email: email,
+        p_origem: window.location.pathname.slice(0, 120),
+      });
+      if (error) throw error;
+      // O único `ok:false` que a função devolve é e-mail malformado — e isso
+      // quem digitou já sabe, não conta nada sobre quem está na lista.
+      if (data && data.ok === false) {
+        dizer(data.erro || 'esse e-mail parece incompleto, dá uma conferida?', true);
+        input.focus();
+        return;
+      }
       form.reset();
       dizer('anotado 💛 a gente te avisa quando abrir.');
     } catch (err) {
-      // Migration 0031 ainda não aplicada, sem rede, o que for: nada de fingir
-      // que guardou. O e-mail da casa continua sendo uma saída.
+      // Migrations 0031/0034 ainda não aplicadas, sem rede, o que for: nada de
+      // fingir que guardou. O e-mail da casa continua sendo uma saída.
       console.warn('lista de espera:', err?.message || err);
       dizer('não consegui guardar teu e-mail agora, tenta de novo ou escreve pra casacoffeecolab@gmail.com', true);
     } finally {

@@ -454,6 +454,18 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
     linha tem `scheduled_downgrade_to`, o handler troca o `tier_slug` pro plano leve
     **antes** de creditar os pontos (pra já valer o multiplicador novo) e limpa a coluna
     no mesmo update — idempotente, o reenvio do evento não desce duas vezes.
+  - **estorno e chargeback** (`PAYMENT_REFUNDED`/`PAYMENT_CHARGEBACK_REQUESTED`): devolve os
+    pontos que aquele pagamento creditou, senão dá pra pagar, ganhar pontos, resgatar a
+    recompensa e pedir chargeback ficando com tudo. O delta negativo pode deixar o saldo
+    **negativo** de propósito (a pessoa "deve" pontos; resgate só volta a passar quando o
+    saldo cobre). Os dois fluxos creditam com chaves diferentes, então são dois caminhos:
+    **assinatura** acha o crédito por `ref_id=payment.id` e estorna em `ref_type='estorno'`;
+    **loja** acha o pedido pela ponte `payment.checkoutSession` = `orders.asaas_checkout_id`
+    (o crédito da loja é por `order.id`, o id do pagamento não aparece nele), estorna em
+    `ref_type='estorno_order'` / `ref_id=order.id` **e marca o pedido `'estornado'`** (0035),
+    pra ele sair da fila de separar e entregar. Carimba o `asaas_payment_id` no pedido, que
+    até então nunca era gravado. Idempotente nos dois; `CHECKOUT_PAID` reenviado **não**
+    ressuscita pedido estornado.
 - **Migration `0011_asaas`**: `profiles.asaas_customer_id`; `subscriptions.asaas_customer_id`
   + `asaas_subscription_id` (UNIQUE); `orders.asaas_checkout_id` (UNIQUE) + `asaas_payment_id`;
   tabela `asaas_events(id text pk, event, processed_at)` com RLS (SELECT só do owner).
@@ -706,7 +718,13 @@ desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mura
   handle não existe/fechou. `/conta/perfil` ganhou a seção **"meu cantinho"**
   (`[data-cantinho]`): toggle liga/desliga (`definir_perfil_publico`), mostra o link + copiar.
   Tudo tolerante à migration pendente (seção some, página cai no vazio).
-- **Falta:** aplicar a `0024` + subir o front. Nenhum secret novo.
+- **A `0033_perfil_publico_trava` é obrigatória junto:** a RPC é a porta com a régua
+  (exige plano, gera handle livre), mas não era a única — a `profiles_update_self` (0002)
+  libera UPDATE da **linha inteira** e RLS não restringe coluna, então um PATCH direto
+  ligava `perfil_publico` e escolhia `handle` sem nunca ter assinado, e handle é unique
+  (dava pra tomar de vez o nome da casa). A 0033 põe uma trigger nas duas colunas, no mesmo
+  desenho do `prevent_points_tamper`, e reserva um punhado de handles.
+- **Falta:** aplicar a `0024` **e a `0033`** + subir o front. Nenhum secret novo.
 
 ---
 
@@ -980,14 +998,22 @@ de quem só está de passagem deixar contato.
   > entrega** nos termos e atualizar a **data** de "última atualização".
 - **Lista de espera** (`initListaEspera`, campinho no rodapé): quem não vai criar conta
   hoje deixa só o e-mail ("avisa quando a loja abrir de vez"). Grava na tabela
-  `lista_espera` (**migration 0031, PENDENTE**), que é **insert-only pelo client**: existe
-  policy de INSERT (anon e authenticated) e **nenhuma de select** — nem quem está logado lê
-  a lista; quem lê é o console, pela RPC `admin_lista_espera()` (`tem_permissao('relatorios')`),
-  na aba **"lista de espera"** (`viewListaEspera`, ícone `mail`). O insert vai com
-  `ignoreDuplicates` (ON CONFLICT DO NOTHING), então repetir o e-mail responde igual à
-  primeira vez e o formulário não vira sonda de "quem já está na lista". Sem `supabase`
-  configurado o campo nem aparece; com a migration pendente, a mensagem é honesta (não
-  finge que guardou) e oferece o e-mail da casa.
+  `lista_espera` (**migrations 0031 + 0034, PENDENTES**), que o client **não toca
+  direto**: nem lê (nenhuma policy de select) nem escreve (a 0034 tira a policy de
+  INSERT). Quem escreve é a RPC `entrar_na_lista_espera(email, origem)`, quem lê é o
+  console, pela `admin_lista_espera()` (`tem_permissao('relatorios')`), na aba **"lista
+  de espera"** (`viewListaEspera`, ícone `mail`). O `on conflict do nothing` mora
+  **dentro** da RPC e a resposta é a mesma pra e-mail novo e repetido, então o
+  formulário não vira sonda de "quem já está na lista".
+  > **Por que não é mais INSERT direto:** antes quem garantia a resposta igual era o
+  > `ignoreDuplicates` do `app.js`, que é só um header do client. Chamando a tabela
+  > sem ele, o PostgREST devolvia 409 (`23505`) pra e-mail já cadastrado e 201 pra
+  > novo — com a anon key, sem conta nenhuma, dava pra varrer uma lista de endereços
+  > e descobrir quem tinha se inscrito. Promessa de privacidade não pode depender de
+  > como o client resolve pedir.
+
+  Sem `supabase` configurado o campo nem aparece; com as migrations pendentes, a
+  mensagem é honesta (não finge que guardou) e oferece o e-mail da casa.
 
 ---
 
@@ -1056,12 +1082,22 @@ de quem só está de passagem deixar contato.
 - `npm run avatares-orfaos` — varre o bucket `avatares` do Storage e lista as fotos
   que ninguém usa. Ver "Fotos órfãs no Storage" abaixo.
 - `npm run criar-adm-master` — cria a conta do adm master do console (login `casa`,
-  e-mail interno `casa@casacoffeecolab.com.br`, senha inicial `casa1234`,
-  `role='owner'` + `master=true`). Precisa da **service_role no ambiente** (mesmo
-  esquema do comando acima) e da migration `0017_admin` aplicada. Idempotente: se a
-  conta já existe, não duplica nem mexe na senha — `--resetar-senha` repõe a inicial
+  e-mail interno `casa@casacoffeecolab.com.br`, `role='owner'` + `master=true`).
+  Precisa da **service_role no ambiente** (mesmo esquema do comando acima) e das
+  migrations `0017_admin` e `0032_senha_inicial_master` aplicadas. Idempotente: se a
+  conta já existe, não duplica nem mexe na senha — `--resetar-senha` sorteia outra
   (o e-mail é interno, então "esqueci a senha" não chega em lugar nenhum) e volta a
   exigir a troca no primeiro acesso.
+  > **A senha inicial é SORTEADA e aparece uma vez só, no terminal.** Não existe
+  > mais senha padrão: uma senha combinada no repo era porta aberta pra conta mais
+  > poderosa do sistema (a URL do projeto e a anon key estão no bundle público, como
+  > têm que estar, então dava pra logar no endpoint do Auth e receber um JWT de owner
+  > sem passar por tela nenhuma). Enquanto essa senha não for trocada de verdade, o
+  > **banco** não reconhece privilégio nenhum da conta: `is_owner`, `is_staff`,
+  > `is_gerente_or_owner`, `tem_permissao` e `pode_entrar_no_console` respondem falso
+  > (0032), então nem o console nem o PostgREST entregam nada. A trava compara o
+  > **hash** da senha inicial com o de agora, não um carimbo — só a troca real
+  > destrava, e destrava sozinha.
 
 ### Fotos órfãs no Storage (`scripts/avatares-orfaos.mjs`)
 
@@ -1234,7 +1270,37 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `tem_permissao('relatorios')`). Front: campinho no rodapé (`initListaEspera`, insert com
   `ignoreDuplicates`) + aba "lista de espera" no console. **Falta:** aplicar + subir o
   front. Nenhum secret novo; nenhuma Edge Function. Ver "Privacidade, termos e a lista de
-  espera" acima.
+  espera" acima. **A 0034 revoga a policy de INSERT desta migration** e troca o insert
+  direto por RPC — aplicar as duas.
+- **`0032_senha_inicial_master` — PENDENTE (aplicar no SQL Editor).** Fecha o buraco de a
+  senha inicial do adm master só ser cobrada na tela: coluna `profiles.senha_inicial_hash`
+  (backfill pro master que ainda não trocou), função `senha_inicial_pendente()` e o mesmo
+  `and not senha_inicial_pendente()` acrescentado a `is_owner`, `is_gerente_or_owner`,
+  `is_staff`, `tem_permissao` e `pode_entrar_no_console` — enquanto a senha for a inicial,
+  a conta não tem privilégio em lugar nenhum (nem RLS, nem `admin_*`). `admin_senha_alterada`
+  passa a **conferir** que o hash mudou antes de carimbar (era por aí que dava pra desarmar
+  a tela sem trocar nada) e `admin_minhas_permissoes` segue devolvendo `console:true` pro
+  master travado, senão ele não alcançaria o formulário de troca. Mais a RPC
+  `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. **Falta:** aplicar
+  + rodar `npm run criar-adm-master --resetar-senha` pra sortear uma senha nova.
+- **`0033_perfil_publico_trava` — PENDENTE (aplicar DEPOIS da 0024).** Trigger
+  `prevent_perfil_publico_tamper` (mesmo desenho do `prevent_points_tamper`, com GUC
+  `casa.trusted_perfil`): `profiles.perfil_publico` e `profiles.handle` param de ser
+  graváveis por PATCH direto — a `profiles_update_self` libera a linha inteira e RLS não
+  restringe coluna, então dava pra publicar um cantinho **sem plano** e tomar qualquer
+  handle livre. A `definir_perfil_publico` volta a ser a única porta (acende a GUC) e passa
+  a recusar handles reservados (`casa`, `contato`, `equipe`…), pra ninguém virar
+  `/gente/casa`. **Falta:** aplicar + subir o front.
+- **`0034_lista_espera_rpc` — PENDENTE (aplicar DEPOIS da 0031).** Tira a policy de INSERT
+  da `lista_espera` e põe a RPC `entrar_na_lista_espera(email, origem)` (SECURITY DEFINER,
+  granted a `anon`+`authenticated`) com o `on conflict do nothing` por dentro e **resposta
+  constante**. Sem isso o formulário respondia 409 pra e-mail já cadastrado e 201 pra novo,
+  virando sonda de quem está na lista pra qualquer um com a anon key. **Falta:** aplicar +
+  subir o front.
+- **`0035_orders_estornado` — PENDENTE (aplicar no SQL Editor).** Acrescenta `'estornado'`
+  ao CHECK de `orders.status`. É o estado que faltava pro webhook marcar a compra devolvida:
+  `'cancelado'` é o pedido que nunca foi pago, e usar ele apagaria a diferença no histórico.
+  **Falta:** aplicar + re-deploy do `asaas-webhook`.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
