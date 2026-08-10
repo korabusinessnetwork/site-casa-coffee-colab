@@ -1134,6 +1134,10 @@ a.txt-link.gold { color: var(--gold) }
 .notif-item-x { flex: 0 0 auto; align-self: center; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: 4px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; transition: color .15s var(--e), background .15s var(--e) }
 .notif-item-x svg { width: 15px; height: 15px }
 .notif-item-x:hover { color: var(--coral); background: color-mix(in srgb, var(--coral) 12%, transparent) }
+/* Sem aviso nenhum o painel não fica vazio: o sino segue na barra e aqui vai o
+   recado de que está tudo em dia. */
+.notif-vazio { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px 14px; margin: 0; font-family: var(--serif); font-size: 15px; color: var(--ink) }
+.notif-vazio span { font-family: var(--sans); font-size: 12.5px; color: var(--muted) }
 /* mobile: o sino não fica na ponta direita, então o painel ancorado a ele
    estouraria a borda. Vira fixo, ocupando a largura com margem; o `top` (logo
    abaixo do header, mesmo com a tarja de recado) é medido no JS ao abrir. */

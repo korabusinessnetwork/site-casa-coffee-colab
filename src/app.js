@@ -2105,16 +2105,11 @@ async function initNotificacoes() {
     } catch { return []; }
   };
 
-  const grupos = await Promise.all([
-    fonteVoltou(),
-    fonteIndicacao(),
-    fontePresente(),
-    fonteAniversario(),
-    fonteEncontros(),
-  ]);
-
-  const lidas = notifLidas();
-  let itens = grupos.flat().filter((n) => !lidas.has(n.id));
+  // A busca das cinco fontes vem DEPOIS de o sino estar montado e clicável: são
+  // cinco idas ao banco, e esperar todas pra só então mostrar o ícone faz a barra
+  // pular na cara de quem já está lendo a página. Aqui ele já nasce no lugar,
+  // vazio, e se enche quando as respostas chegarem.
+  let itens = [];
 
   const trigger = wrap.querySelector('[data-notif-trigger]');
   const panel = wrap.querySelector('[data-notif-panel]');
@@ -2148,12 +2143,17 @@ async function initNotificacoes() {
   };
 
   const pintar = () => {
+    // Logado, o sino fica SEMPRE na barra, mesmo sem aviso nenhum: some só pra
+    // quem não entrou. Um ícone que aparece e desaparece conforme a fila muda
+    // faz a barra dançar e ninguém aprende que ele existe — sem nada pendente
+    // ele fica quieto (sem badge) e o painel conta isso em uma linha.
+    wrap.hidden = false;
     if (!itens.length) {
-      wrap.hidden = true;
-      if (panel.dataset.aberto === 'true') fechar();
+      badge.classList.add('hidden');
+      badge.textContent = '0';
+      lista.innerHTML = `<p class="notif-vazio">por aqui tá calmo 💛<span>quando tiver novidade tua, ela aparece aqui.</span></p>`;
       return;
     }
-    wrap.hidden = false;
     badge.textContent = itens.length > 9 ? '9+' : String(itens.length);
     badge.classList.remove('hidden');
     lista.innerHTML = itens
@@ -2211,6 +2211,18 @@ async function initNotificacoes() {
     }
   });
 
+  pintar(); // sino no ar, ainda sem contagem
+
+  const grupos = await Promise.all([
+    fonteVoltou(),
+    fonteIndicacao(),
+    fontePresente(),
+    fonteAniversario(),
+    fonteEncontros(),
+  ]);
+
+  const lidas = notifLidas();
+  itens = grupos.flat().filter((n) => !lidas.has(n.id));
   pintar();
 }
 

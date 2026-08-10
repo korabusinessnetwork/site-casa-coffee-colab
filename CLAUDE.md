@@ -942,8 +942,14 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
   `.notif-item-corpo` com tag/nome/sub). No **mobile** o painel é `position: fixed` com o
   `top` medido do header ao abrir (respeita a tarja de recado). Mecânica de abrir/fechar
   (clique-fora/Esc/scale-opacity) reusa o padrão do painel do usuário.
+- **Quando o sino aparece:** **logado, sempre** — mesmo sem aviso nenhum. Ele é montado e
+  fica clicável ANTES de as cinco fontes responderem (senão a barra pulava quando as
+  consultas voltassem), e sem nada pendente fica sem badge, com o painel dizendo "por aqui
+  tá calmo" (`.notif-vazio`). Antes ele só existia quando havia item, então quem entrava
+  numa conta em dia nunca via o ícone e não aprendia que ele existe. **Deslogado →
+  escondido**, isso não muda.
 - **Só-leitura, zero confiança nova:** o sino nunca **credita** nada, só **reflete** estado
-  que os webhooks/RPCs já produziram. Deslogado → escondido.
+  que os webhooks/RPCs já produziram.
 - **No ar:** as cinco fontes (0019/0021/0025/0026/0030) estão aplicadas e o front está na
   `main`, então o painel serve as cinco.
 
