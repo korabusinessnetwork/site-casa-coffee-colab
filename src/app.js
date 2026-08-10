@@ -2273,10 +2273,11 @@ function renderFooter() {
           <p class="decor">${MARCA.bio}</p>
 
           <!-- Lista de espera: quem só está de passagem e ainda não quer criar
-               conta deixa só o e-mail. Guarda direto na tabela lista_espera
-               (0031, insert-only pelo RLS) via initListaEspera. Sem supabase
-               configurado o campo nem aparece — não adianta pedir e-mail que a
-               gente não tem onde guardar. -->
+               conta deixa só o e-mail. Quem grava é a RPC entrar_na_lista_espera
+               (0034), chamada pela initListaEspera — a tabela lista_espera
+               (0031) é deny-by-default pro client. Sem supabase configurado o
+               campo nem aparece — não adianta pedir e-mail que a gente não tem
+               onde guardar. -->
           ${
             supabase
               ? `<form class="ft-espera" data-lista-espera novalidate>

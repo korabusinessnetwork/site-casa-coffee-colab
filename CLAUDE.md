@@ -585,7 +585,7 @@ Cada usuário ganha um **código de indicação**; quem é trazido cria conta pe
 ganham pontos**. A recompensa cai no PAGAMENTO (não no cadastro) de propósito: só
 compensa quando entra gente de verdade pagando, matando conta-fantasma.
 
-- **Migration `0021_indicacoes` (PENDENTE — aplicar no SQL Editor):** coluna
+- **Migration `0021_indicacoes` (APLICADA em 10/ago/2026):** coluna
   `profiles.referral_code` (unique), tabela `referrals` (`referrer_id` ON DELETE SET
   NULL, `referred_id` UNIQUE → cada conta é indicada no máx. 1 vez, `status`
   pendente|premiado|invalido) com RLS (cada um lê só o que fez/recebeu; **sem escrita
@@ -614,8 +614,7 @@ compensa quando entra gente de verdade pagando, matando conta-fantasma.
   `meu_codigo_indicacao`, monta o link, botão "copiar" (com fallback de seleção), e conta
   quantos amigos já entraram (`referrals` premiados). Tudo **tolerante**: se a 0021 ainda
   não foi aplicada, a seção fica escondida e o registro só é adiado — nada quebra.
-- **Falta:** aplicar a `0021` no SQL Editor + subir o front. Nenhum secret novo; nenhum
-  evento novo no webhook.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ---
 
@@ -626,7 +625,7 @@ datado: *"hoje tem fornada de brioche a partir das 15h 🥐"*, *"a gente fecha 1
 sábado"*. Some sozinha quando a janela expira; a pessoa pode fechar e ela não volta
 (o front lembra pelo id). Editável **só pelo owner** no console do adm.
 
-- **Migration `0022_avisos` (PENDENTE — aplicar no SQL Editor):** tabela `avisos_casa`
+- **Migration `0022_avisos` (APLICADA em 10/ago/2026):** tabela `avisos_casa`
   (`texto` ≤160, `emoji`, `link_url`/`link_label`, janela `inicio_em`/`fim_em`,
   `prioridade`, `ativo`) com RLS: **leitura pública SÓ do vigente** (a policy filtra
   `ativo` + janela com `now()` — anon nunca vê rascunho/agendado/expirado; owner vê tudo).
@@ -643,7 +642,7 @@ sábado"*. Some sozinha quando a janela expira; a pessoa pode fechar e ela não 
   localStorage (`casa_avisos_lidos`). Tolerante: sem a 0022, a tarja só não aparece.
 - **Console:** aba **recados** (`viewRecados` em `admin.js`) — form pra escrever/agendar/
   ligar-desligar + lista com editar/remover.
-- **Falta:** aplicar a `0022` no SQL Editor + subir o front. Nenhum secret novo.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ---
 
@@ -653,7 +652,7 @@ A seção "a trilha do Casa" na home: playlists reais do Spotify (embed), curada
 clima ("pra focar", "manhã lenta"), com uma marcada como **tocando agora** (selo
 pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
 
-- **Migration `0023_trilha` (PENDENTE — aplicar no SQL Editor):** tabela `playlists_casa`
+- **Migration `0023_trilha` (APLICADA em 10/ago/2026):** tabela `playlists_casa`
   (`nome`, `clima`, `spotify_url`, `ordem`, `ativo`, `tocando`) com RLS (**leitura pública
   só das ativas**; owner vê tudo) + índice único parcial garantindo **uma `tocando` por
   vez**. Escrita só via 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
@@ -668,7 +667,7 @@ pulsante). Editável **só pelo owner** no console — nada de URL hardcoded.
   sem a 0023, a seção fica escondida.
 - **Console:** `viewTrilha` (`admin.js`) — form (nome/clima/link/ordem/na-home/tocando) +
   lista com editar/remover. Bloqueia no submit link que não é do Spotify.
-- **Falta:** aplicar a `0023` + subir o front. Nenhum secret novo.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ### O som de agora (faixa ao vivo do Spotify, na home)
 
@@ -708,7 +707,7 @@ comunidade sem expor nada sensível. Mostra: apelido (ou 1º nome), foto, plano,
 desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mural.
 **Ficam SEMPRE de fora:** e-mail, telefone, pontos, endereço, nome real completo.
 
-- **Migration `0024_perfil_publico` (PENDENTE — aplicar no SQL Editor):** colunas
+- **Migration `0024_perfil_publico` (APLICADA em 10/ago/2026):** colunas
   `profiles.perfil_publico` (bool, opt-in) e `profiles.handle` (slug único da URL) + 2 RPCs
   SECURITY DEFINER:
   - `definir_perfil_publico(ativar)` — o dono (`auth.uid()`) liga/desliga; ao ligar gera um
@@ -738,7 +737,8 @@ desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mura
   sem plano **some da vitrine e volta sozinho** ao reassinar: a flag e o handle continuam
   guardados, nada é apagado nem reciclado. O `/conta/perfil` conta isso na cara ("teu
   cantinho tá guardado") em vez de mostrar um link que abriria no estado vazio.
-- **Falta:** aplicar a `0024`, a `0033` **e a `0036`** + subir o front. Nenhum secret novo.
+- **No ar:** as três (`0024`, `0033` e `0036`) foram aplicadas em 10/ago/2026 e o front
+  está na `main`.
 
 ---
 
@@ -753,7 +753,7 @@ e dá baixa no console. **Um por ano.**
 - **Perk de assinante**, como o Mural/pontos/cantinho: só resgata quem tem `tier_slug`
   vigente. E só **no mês** do aniversário (janela generosa — dá pra vir num dia de semana).
   O código vale **30 dias** a partir do resgate.
-- **Migration `0025_brinde_aniversario` (PENDENTE — aplicar no SQL Editor):** tabela
+- **Migration `0025_brinde_aniversario` (APLICADA em 10/ago/2026):** tabela
   `brindes_aniversario` (`user_id`, `ano`, `codigo` unique, `valido_ate`, `status`
   ativo|usado, UNIQUE `(user_id, ano)`) com RLS (cada um lê o próprio; staff com
   `resgates` lê todos; **escrita só via RPC**) + 4 RPCs SECURITY DEFINER:
@@ -775,7 +775,7 @@ e dá baixa no console. **Um por ano.**
   (a validar / usados / vencidos) e o botão "brunch entregue". Tudo tolerante à migration
   pendente (a RPC falha → card some, sem ruído). Helper `dataDiaMes` formata datas FUTURAS
   (validade) sem o drift de fuso do `new Date` — o `dataCurta` não serve (devolve "hoje").
-- **Falta:** aplicar a `0025` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ---
 
@@ -787,7 +787,7 @@ tabela `events` já existia na `0004_reconcile` (nome, descrição, data, vagas,
 console, eles aparecem numa seção **"a agenda do Casa"** na home, e o **assinante confirma
 presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já previa).
 
-- **Migration `0026_agenda` (PENDENTE — aplicar no SQL Editor):** duas colunas novas em
+- **Migration `0026_agenda` (APLICADA em 10/ago/2026):** duas colunas novas em
   `events` (`local`, `updated_at`) + tabela `event_rsvps` (`(event_id, user_id)` PK =
   anti-duplicata, RLS: cada um lê o próprio, owner lê todos; **escrita só via RPC**) + 6
   RPCs SECURITY DEFINER:
@@ -804,7 +804,7 @@ presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já prev
   RPC barra com recado gentil). A seção fica escondida sem encontros ou sem a migration. No
   console, a aba **"agenda"** (`viewAgenda`, ícone `calendar-days`, owner-only) tem form
   (nome/data/local/vagas/descrição/na-home) + lista com confirmados, editar e remover.
-- **"Quem vai" (`0028_agenda_quem_vai`, PENDENTE):** a `agenda_proximos` ganhou a coluna
+- **"Quem vai" (`0028_agenda_quem_vai`, aplicada):** a `agenda_proximos` ganhou a coluna
   `vao_publicos` (jsonb) — os **rostinhos** de quem confirmou **E** ligou o perfil público
   (`perfil_publico`), com `handle`/nome de exibição/`avatar_url` (os mesmos campos já
   públicos do `/gente`). Quem não optou nunca aparece, só soma em `confirmados`. O card da
@@ -820,8 +820,8 @@ presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já prev
   de **2h** (os eventos não têm hora de fim), `location = local + endereço do Casa` e
   `details=descricao`. Encontro **sem data** (`em breve`) não mostra o link (não dá pra
   agendar o indefinido). Ícone `calendar-plus`.
-- **Falta:** aplicar a `0026` **e** a `0028` + subir o front. Nenhum secret novo; nenhuma
-  Edge Function.
+- **No ar:** as duas (`0026` e `0028`) foram aplicadas em 10/ago/2026 e o front está na
+  `main`.
 
 ---
 
@@ -834,7 +834,7 @@ o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama*
 - **Aberto a qualquer pessoa logada** (não é perk de assinante) — quanto mais gente marca,
   mais sinal pra casa. O cardápio é HTML curado, então o item é identificado por um `slug`
   **derivado do nome** (`slugify`, no client) — nada de tabela de menu.
-- **Migration `0027_cardapio_favoritos` (PENDENTE — aplicar no SQL Editor):** tabela
+- **Migration `0027_cardapio_favoritos` (APLICADA em 10/ago/2026):** tabela
   `cardapio_favoritos` (`(user_id, item_slug)` PK, `item_nome` snapshot pro console,
   `user_id` default `auth.uid()`). Favorito é dado **benigno** (não entra na lista de
   sensíveis do security-check): a **escrita é direta pelo client via RLS**, sempre travada
@@ -848,7 +848,7 @@ o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama*
   desfaz se o servidor recusar; `23505` (já favoritado) conta como sucesso. Tolerante: sem
   sessão ou sem a migration, nenhum coração aparece. No console, a aba **"favoritos"**
   (`viewFavoritos`, ícone `heart`, quem tem `relatorios`) lista o ranking com barrinha.
-- **Falta:** aplicar a `0027` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ---
 
@@ -863,7 +863,7 @@ pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa v
 - **Aberto a qualquer pessoa logada** (não é perk de assinante). O catálogo é mock no client
   (`PRODUTOS`), então o produto é identificado pelo **mesmo `slug` da URL `/produto`**; o
   `produto_nome` é snapshot pro console.
-- **Migration `0029_loja_desejos` (PENDENTE — aplicar no SQL Editor):** tabela `loja_desejos`
+- **Migration `0029_loja_desejos` (APLICADA em 10/ago/2026):** tabela `loja_desejos`
   (`(user_id, produto_slug)` PK, `produto_nome` snapshot, `user_id` default `auth.uid()`).
   Desejo é dado **benigno** (fora da lista de sensíveis do security-check): **escrita direta
   pelo client via RLS**, sempre travada em `auth.uid()` (policies select/insert/delete own),
@@ -880,7 +880,7 @@ pessoa guardou, tirando o atrito do "gostei mas agora não". De quebra, o Casa v
   A chamada do boot não pega o perfil (montado pós-guard), então `initPerfilPage` **religa**
   `initLojaDesejos()` no fim. No console, a aba **"desejos"** (`viewDesejos`, ícone `bookmark`,
   quem tem `relatorios`) lista o ranking com barrinha, igual aos favoritos.
-- **Falta:** aplicar a `0029` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ---
 
@@ -894,7 +894,7 @@ console mostra **quantas pessoas esperam cada produto** — o sinal mais forte p
 
 - **Disponibilidade no mock:** `PRODUTOS[].disponivel` (ausente = disponível; só marca-se
   `false`). Hoje **Torra Vale dos Sinos** e **Caneca de autor** estão esgotados.
-- **Migration `0030_avisos_reposicao` (PENDENTE — aplicar no SQL Editor):** tabela
+- **Migration `0030_avisos_reposicao` (APLICADA em 10/ago/2026):** tabela
   `avisos_reposicao` (mesma forma do `loja_desejos`: PK `(user_id, produto_slug)`,
   `produto_nome` snapshot, `user_id` default `auth.uid()`). Dado **benigno** (fora da lista
   de sensíveis): **escrita direta pelo client via RLS** (select/insert/delete own), sem Edge
@@ -912,7 +912,7 @@ console mostra **quantas pessoas esperam cada produto** — o sinal mais forte p
   (best-effort, RLS-direct).
 - **Console:** aba **"esperando"** (`viewReposicao`, ícone `bell-ring`, quem tem `relatorios`)
   lista o ranking de quem espera cada produto, com barrinha.
-- **Falta:** aplicar a `0030` + subir o front. Nenhum secret novo; nenhuma Edge Function.
+- **No ar:** migration aplicada em 10/ago/2026, front na `main`.
 
 ---
 
@@ -944,8 +944,8 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
   (clique-fora/Esc/scale-opacity) reusa o padrão do painel do usuário.
 - **Só-leitura, zero confiança nova:** o sino nunca **credita** nada, só **reflete** estado
   que os webhooks/RPCs já produziram. Deslogado → escondido.
-- **Falta:** nada além do que cada fonte já pede (0019/0021/0025/0026/0030 + subir o front).
-  Migration pendente de uma fonte só apaga aquela fonte do painel.
+- **No ar:** as cinco fontes (0019/0021/0025/0026/0030) estão aplicadas e o front está na
+  `main`, então o painel serve as cinco.
 
 ---
 
@@ -972,8 +972,8 @@ que a pessoa já tem espalhado pelo site, um atalho afetivo pro dia a dia. **Só
 - **Tolerante:** cada fonte é isolada (erro/migration pendente → aquela parte some); o
   cartão só depende do `profiles` (tabela base). Deslogado → seção fica `hidden`. Nada de
   escrita. Estilo `.tds-*` no `styles.css` (grid `auto-fit`, empilha no mobile).
-- **Falta:** nada de banco, é só front (subir o merge). As partes 2 e 3 ganham conteúdo
-  conforme as migrations 0026/0027 forem aplicadas.
+- **No ar:** nada de banco a fazer; as migrations 0026/0027, que dão conteúdo às partes 2
+  e 3, já estão aplicadas. O cartão segue desativado no boot, por decisão de visual.
 
 ---
 
@@ -1012,7 +1012,7 @@ de quem só está de passagem deixar contato.
   > entrega** nos termos e atualizar a **data** de "última atualização".
 - **Lista de espera** (`initListaEspera`, campinho no rodapé): quem não vai criar conta
   hoje deixa só o e-mail ("avisa quando a loja abrir de vez"). Grava na tabela
-  `lista_espera` (**migrations 0031 + 0034, PENDENTES**), que o client **não toca
+  `lista_espera` (**migrations 0031 + 0034**), que o client **não toca
   direto**: nem lê (nenhuma policy de select) nem escreve (a 0034 tira a policy de
   INSERT). Quem escreve é a RPC `entrar_na_lista_espera(email, origem)`, quem lê é o
   console, pela `admin_lista_espera()` (`tem_permissao('relatorios')`), na aba **"lista
@@ -1168,6 +1168,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
+- **Banco em dia (10/ago/2026):** o humano aplicou **toda a leva `0017` → `0036`** no SQL
+  Editor, então **não há migration pendente**. O front correspondente está na `main`.
+  Sobrou fora do SQL: **trocar de verdade a senha do adm master** (a `0032` arma a trava,
+  mas quem destrava é a troca) e o **re-deploy do `asaas-webhook`** pra ele passar a usar
+  o status `'estornado'` da `0035`. Pra conferir o banco a qualquer momento, rodar
+  `scripts/check-migrations.sql` no SQL Editor.
 - **`0015_avatar` — APLICADA em 29/jul/2026.** Bucket `avatares` no Storage (público, limite de **3 MB**, só `image/jpeg|png|webp`), coluna `profiles.avatar_url` e as policies de `storage.objects` (leitura pública; escrita/troca/apagar só na pasta `{auth.uid()}/`). É o que faz a foto de perfil subir.
 - **`0016_sessoes` — APLICADA em 29/jul/2026.** Funções `minhas_sessoes()`, `encerrar_sessao(uuid)`
   e `encerrar_outras_sessoes()` (SECURITY DEFINER, `search_path` fixo, `revoke` de `anon`/`public`,
@@ -1176,17 +1182,16 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   sempre da claim `session_id` do JWT: o client nunca diz de quem é a sessão. É o que alimenta a
   lista de aparelhos conectados no `/conta/perfil` (sem ela a tela cai no fallback "sair de todos
   os aparelhos").
-- **`0019_presentes` — PENDENTE (aplicar no SQL Editor).** "Presentear um plano": tabela
+- **`0019_presentes` — APLICADA em 10/ago/2026.** "Presentear um plano": tabela
   `gift_subscriptions` (+ RLS: comprador/quem-resgatou lê o próprio), coluna
   `subscriptions.presente_id` (marca a assinatura vinda de presente), e as RPCs
   SECURITY DEFINER `marcar_presente_pago(uuid,text)` (webhook gera o código no pagamento)
   e `resgatar_presente(uuid,text)` (resgate atômico com lock). **As Edge Functions já foram
   deployadas em 03/ago/2026** (`create-checkout-session`, `asaas-webhook` com
-  `--no-verify-jwt`, e a nova `resgatar-presente`) — os caminhos de presente só disparam com
-  pedido de presente, que não existe até o front subir. **Falta só:** (1) aplicar esta
-  migration no SQL Editor e (2) subir o front (merge `trabalho`→`main`). Nenhum secret novo;
-  nenhum evento novo no webhook (usa `CHECKOUT_PAID/EXPIRED/CANCELED`).
-- **`0020_mural` — PENDENTE (aplicar no SQL Editor).** "Mural do Casa": tabela
+  `--no-verify-jwt`, e a nova `resgatar-presente`). **No ar:** migration aplicada em
+  10/ago/2026, front na `main`; nenhum evento novo no webhook (usa
+  `CHECKOUT_PAID/EXPIRED/CANCELED`).
+- **`0020_mural` — APLICADA em 10/ago/2026.** "Mural do Casa": tabela
   `mural_notes` (recado curto ≤240, `autor_nome` snapshot, `status` aprovado|oculto) com
   RLS — **leitura pública** dos `aprovado` (o `/o-casa` é aberto; autor vê os próprios,
   staff vê tudo), **escrita só via Edge Function** (deny-by-default pro client), autor
@@ -1198,9 +1203,9 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its na
   **seção escura**, no lugar do antigo selo "Feito no Casa", que saiu da página) +
   `initMuralPage` (lê a parede público; compose só pra assinante; deslogado/sem-plano vê
-  CTA pros planos; leitura tolerante se a migration ainda não foi aplicada). **Falta:**
-  aplicar esta migration + subir o front.
-- **`0021_indicacoes` — PENDENTE (aplicar no SQL Editor).** "Indica um amigo": coluna
+  CTA pros planos; leitura tolerante se a migration ainda não foi aplicada). **No ar:**
+  migration aplicada em 10/ago/2026, front na `main`.
+- **`0021_indicacoes` — APLICADA em 10/ago/2026.** "Indica um amigo": coluna
   `profiles.referral_code` (unique), tabela `referrals` (`referred_id` UNIQUE, `status`
   pendente|premiado|invalido) com RLS (lê só o que fez/recebeu; sem escrita pelo client), e
   as RPCs `meu_codigo_indicacao()`/`registrar_indicacao(text)` (granted a `authenticated`,
@@ -1208,87 +1213,90 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   idempotente pendente→premiado, credita os dois no ledger). O `asaas-webhook` (**já
   deployado em 03/ago/2026**) chama `premiar_indicacao` no primeiro pagamento do indicado;
   valores dos pontos são FICTÍCIOS nas constantes do webhook. Front tolerante à migration
-  pendente. **Falta:** aplicar esta migration + subir o front. Ver "Indica um amigo" acima.
-- **`0022_avisos` — PENDENTE (aplicar no SQL Editor).** "Recado da casa": tabela
+  pendente. **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver "Indica
+  um amigo" acima.
+- **`0022_avisos` — APLICADA em 10/ago/2026.** "Recado da casa": tabela
   `avisos_casa` (RLS: leitura pública só do vigente por `ativo`+janela; owner vê tudo) +
   3 RPCs SECURITY DEFINER `is_owner()` (`admin_avisos_listar`/`admin_aviso_salvar`/
   `admin_aviso_remover`) — sem escrita pelo client. Front: `renderAvisoBar` (tarja no topo,
   toda página) + aba **recados** no console (owner-only). Tolerante à migration pendente.
-  **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "Recado da casa" acima.
-- **`0023_trilha` — PENDENTE (aplicar no SQL Editor).** "A trilha do Casa": tabela
+  **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver "Recado da casa" acima.
+- **`0023_trilha` — APLICADA em 10/ago/2026.** "A trilha do Casa": tabela
   `playlists_casa` (RLS leitura pública só das ativas; owner vê tudo; índice único parcial
   = uma `tocando` por vez) + 3 RPCs SECURITY DEFINER `is_owner()` (`admin_trilha_listar`/
   `salvar`/`remover`). Front: `initTrilha` (home) com `spotifyEmbed` trancando o src em
   `open.spotify.com/embed` + aba **trilha** no console (owner-only). Tolerante à migration
-  pendente. **Falta:** aplicar + subir o front. Nenhum secret novo. Ver "A trilha do Casa" acima.
-- **`0024_perfil_publico` — PENDENTE (aplicar no SQL Editor).** "Meu cantinho": colunas
+  pendente. **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver "A trilha
+  do Casa" acima.
+- **`0024_perfil_publico` — APLICADA em 10/ago/2026.** "Meu cantinho": colunas
   `profiles.perfil_publico`/`handle` + RPCs `definir_perfil_publico(bool)` (dono liga/desliga,
   exige assinante) e `perfil_publico(text)` (leitura pública anon, payload seguro curado —
   NÃO é RLS na profiles). Front: página `/gente/{handle}` (rewrite no vercel.json + middleware
   do dev) + seção "meu cantinho" no `/conta/perfil`. Tolerante à migration pendente.
-  **Falta:** aplicar + subir o front. Ver "Meu cantinho" acima.
-- **`0025_brinde_aniversario` — PENDENTE (aplicar no SQL Editor).** "Hoje o Casa é teu":
+  **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver "Meu cantinho" acima.
+- **`0025_brinde_aniversario` — APLICADA em 10/ago/2026.** "Hoje o Casa é teu":
   tabela `brindes_aniversario` (UNIQUE `(user_id, ano)`, RLS: dono lê o próprio, staff com
   `resgates` lê todos, escrita só via RPC) + 4 RPCs SECURITY DEFINER
   (`meu_brinde_aniversario`/`resgatar_brinde_aniversario` a `authenticated`;
   `admin_brindes_listar`/`admin_brinde_usar` gated por `tem_permissao('resgates')`). Front:
   card no `/conta/perfil` + aba "aniversários" no console. Tolerante à migration pendente.
-  **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge Function. Ver
-  "Hoje o Casa é teu — brunch de aniversário" acima.
-- **`0026_agenda` — PENDENTE (aplicar no SQL Editor).** "A agenda do Casa": acorda a tabela
+  **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver "Hoje o Casa é teu
+  — brunch de aniversário" acima.
+- **`0026_agenda` — APLICADA em 10/ago/2026.** "A agenda do Casa": acorda a tabela
   `events` (0004) com colunas `local`/`updated_at` + tabela `event_rsvps` (PK composta, RLS
   dono/owner, escrita só via RPC) + 6 RPCs SECURITY DEFINER (`agenda_proximos` pública;
   `confirmar_presenca`/`cancelar_presenca` a `authenticated`, RSVP perk de assinante com lock
   anti-estouro de vaga; `admin_evento_listar/salvar/remover` gated por `is_owner()`,
   owner-only). Front: seção "a agenda do Casa" na home (`initAgenda`) + aba "agenda" no
-  console. Tolerante à migration pendente. **Falta:** aplicar + subir o front. Nenhum secret
-  novo; nenhuma Edge Function. Ver "A agenda do Casa — encontros" acima.
-- **`0027_cardapio_favoritos` — PENDENTE (aplicar no SQL Editor).** "Teus favoritos":
+  console. Tolerante à migration pendente. **No ar:** migration aplicada em 10/ago/2026,
+  front na `main`. Ver "A agenda do Casa — encontros" acima.
+- **`0027_cardapio_favoritos` — APLICADA em 10/ago/2026.** "Teus favoritos":
   tabela `cardapio_favoritos` (PK `(user_id, item_slug)`, `item_nome` snapshot,
   `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
   delete own, sempre `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC
   `admin_cardapio_favoritos()` (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por
   slug com o nome mais frequente). Front: corações no `/cardapio` + bloco "teus favoritos"
   (`initCardapioFavoritos`, slug derivado do nome) + aba "favoritos" no console. Tolerante à
-  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
-  Function. Ver "Teus favoritos no cardápio" acima.
-- **`0028_agenda_quem_vai` — PENDENTE (aplicar no SQL Editor).** "Quem vai": reescreve a
+  migration pendente. **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver
+  "Teus favoritos no cardápio" acima.
+- **`0028_agenda_quem_vai` — APLICADA em 10/ago/2026.** "Quem vai": reescreve a
   função `agenda_proximos` (DROP+CREATE, muda a assinatura) pra devolver `vao_publicos`
   (jsonb) — os presentes que ligaram o perfil público (handle/nome/avatar, curado, só campos
   já públicos). Sem tabela nova, sem permissão nova. Front: avatares no card da agenda
   (`avatarBolha`). **Depende da `0026` estar aplicada** (usa `event_rsvps`). Tolerante:
-  sem ela, `agenda_proximos` fica na versão da 0026 e a home só não mostra rostos. **Falta:**
-  aplicar (depois da 0026) + subir o front. Ver "Quem vai" na seção da agenda.
-- **`0029_loja_desejos` — PENDENTE (aplicar no SQL Editor).** "Ficou pra depois": tabela
+  sem ela, `agenda_proximos` fica na versão da 0026 e a home só não mostra rostos. **No
+  ar:** migration aplicada em 10/ago/2026, front na `main`. Ver "Quem vai" na seção da
+  agenda.
+- **`0029_loja_desejos` — APLICADA em 10/ago/2026.** "Ficou pra depois": tabela
   `loja_desejos` (PK `(user_id, produto_slug)`, `produto_nome` snapshot, `user_id` default
   `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/delete own, sempre
   `auth.uid()` — dado benigno, fora da lista de sensíveis) + RPC `admin_loja_desejos()`
   (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por slug com o nome mais
   frequente). Front: corações no catálogo/produto + tirinha "ficou pra depois" na `/loja` e
   espelho no `/conta/perfil` (`initLojaDesejos`) + aba "desejos" no console. Tolerante à
-  migration pendente. **Falta:** aplicar + subir o front. Nenhum secret novo; nenhuma Edge
-  Function. Ver "Ficou pra depois (lista de desejos da loja)" acima.
-- **`0030_avisos_reposicao` — PENDENTE (aplicar no SQL Editor).** "Volta pra vitrine":
+  migration pendente. **No ar:** migration aplicada em 10/ago/2026, front na `main`. Ver
+  "Ficou pra depois (lista de desejos da loja)" acima.
+- **`0030_avisos_reposicao` — APLICADA em 10/ago/2026.** "Volta pra vitrine":
   tabela `avisos_reposicao` (PK `(user_id, produto_slug)`, `produto_nome` snapshot,
   `user_id` default `auth.uid()`) com RLS de **escrita direta pelo client** (select/insert/
   delete own — dado benigno, fora da lista de sensíveis) + RPC `admin_avisos_reposicao()`
   (SECURITY DEFINER, `tem_permissao('relatorios')`, agrega por slug com o nome mais
   frequente). Front: selo "esgotado" + "me avisa quando voltar" nos produtos `disponivel:
   false`, tirinha "voltou pra vitrine" na `/loja` e no `/conta/perfil` (`initReposicao`) +
-  aba "esperando" no console. Tolerante à migration pendente. **Falta:** aplicar + subir o
-  front. Nenhum secret novo; nenhuma Edge Function. Ver "Volta pra vitrine" acima.
-- **`0031_lista_espera` — PENDENTE (aplicar no SQL Editor).** "Avisa quando a loja abrir":
+  aba "esperando" no console. Tolerante à migration pendente. **No ar:** migration
+  aplicada em 10/ago/2026, front na `main`. Ver "Volta pra vitrine" acima.
+- **`0031_lista_espera` — APLICADA em 10/ago/2026.** "Avisa quando a loja abrir":
   tabela `lista_espera` (`email` unique com CHECK de formato/tamanho, `origem` = o caminho
   da página, sem `user_id` — a graça é justamente não exigir conta) com RLS **insert-only
   pro client**: policy de INSERT pra `anon` e `authenticated` repetindo os limites no
   `with check`, e **nenhuma policy de select** (deny-by-default), então ninguém lê a lista
   pelo client. Leitura só pela RPC `admin_lista_espera(limite)` (SECURITY DEFINER,
-  `tem_permissao('relatorios')`). Front: campinho no rodapé (`initListaEspera`, insert com
-  `ignoreDuplicates`) + aba "lista de espera" no console. **Falta:** aplicar + subir o
-  front. Nenhum secret novo; nenhuma Edge Function. Ver "Privacidade, termos e a lista de
-  espera" acima. **A 0034 revoga a policy de INSERT desta migration** e troca o insert
-  direto por RPC — aplicar as duas.
-- **`0032_senha_inicial_master` — PENDENTE (aplicar no SQL Editor).** Fecha o buraco de a
+  `tem_permissao('relatorios')`). Front: campinho no rodapé (`initListaEspera`) + aba
+  "lista de espera" no console. **No ar:** migration aplicada em 10/ago/2026, front na
+  `main`. **A 0034 revogou a policy de INSERT desta migration** e trocou o insert direto
+  do client pela RPC `entrar_na_lista_espera`; as duas estão aplicadas. Ver "Privacidade,
+  termos e a lista de espera" acima.
+- **`0032_senha_inicial_master` — APLICADA em 10/ago/2026.** Fecha o buraco de a
   senha inicial do adm master só ser cobrada na tela: coluna `profiles.senha_inicial_hash`
   (backfill pro master que ainda não trocou), função `senha_inicial_pendente()` e o mesmo
   `and not senha_inicial_pendente()` acrescentado a `is_owner`, `is_gerente_or_owner`,
@@ -1297,30 +1305,32 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   passa a **conferir** que o hash mudou antes de carimbar (era por aí que dava pra desarmar
   a tela sem trocar nada) e `admin_minhas_permissoes` segue devolvendo `console:true` pro
   master travado, senão ele não alcançaria o formulário de troca. Mais a RPC
-  `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. **Falta:** aplicar
-  + trocar a senha do master. O caminho curto é entrar no console e usar a tela de troca
-  obrigatória (a migration já arma a trava sozinha, no backfill); só quem perdeu a senha
-  precisa do script, e aí é `npm run criar-adm-master -- --resetar-senha` (o `--` solto é
+  `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. **Ainda falta
+  trocar a senha do master de verdade** — enquanto ela for a inicial (inclusive a sorteada
+  por um `--resetar-senha`), o banco não reconhece privilégio nenhum da conta. O caminho
+  curto é entrar no console e usar a tela de troca obrigatória (a
+  migration já arma a trava sozinha, no backfill); só quem perdeu a senha precisa do
+  script, e aí é `npm run criar-adm-master -- --resetar-senha` (o `--` solto é
   obrigatório, senão o npm engole a flag e o script não reseta nada).
-- **`0033_perfil_publico_trava` — PENDENTE (aplicar DEPOIS da 0024).** Trigger
+- **`0033_perfil_publico_trava` — APLICADA em 10/ago/2026.** Trigger
   `prevent_perfil_publico_tamper` (mesmo desenho do `prevent_points_tamper`, com GUC
   `casa.trusted_perfil`): `profiles.perfil_publico` e `profiles.handle` param de ser
   graváveis por PATCH direto — a `profiles_update_self` libera a linha inteira e RLS não
   restringe coluna, então dava pra publicar um cantinho **sem plano** e tomar qualquer
   handle livre. A `definir_perfil_publico` volta a ser a única porta (acende a GUC) e passa
   a recusar handles reservados (`casa`, `contato`, `equipe`…), pra ninguém virar
-  `/gente/casa`. **Falta:** aplicar + subir o front.
-- **`0034_lista_espera_rpc` — PENDENTE (aplicar DEPOIS da 0031).** Tira a policy de INSERT
+  `/gente/casa`. **No ar:** migration aplicada em 10/ago/2026, front na `main`.
+- **`0034_lista_espera_rpc` — APLICADA em 10/ago/2026.** Tira a policy de INSERT
   da `lista_espera` e põe a RPC `entrar_na_lista_espera(email, origem)` (SECURITY DEFINER,
   granted a `anon`+`authenticated`) com o `on conflict do nothing` por dentro e **resposta
   constante**. Sem isso o formulário respondia 409 pra e-mail já cadastrado e 201 pra novo,
-  virando sonda de quem está na lista pra qualquer um com a anon key. **Falta:** aplicar +
-  subir o front.
-- **`0035_orders_estornado` — PENDENTE (aplicar no SQL Editor).** Acrescenta `'estornado'`
+  virando sonda de quem está na lista pra qualquer um com a anon key. **No ar:**
+  migration aplicada em 10/ago/2026, front na `main`.
+- **`0035_orders_estornado` — APLICADA em 10/ago/2026.** Acrescenta `'estornado'`
   ao CHECK de `orders.status`. É o estado que faltava pro webhook marcar a compra devolvida:
   `'cancelado'` é o pedido que nunca foi pago, e usar ele apagaria a diferença no histórico.
-  **Falta:** aplicar + re-deploy do `asaas-webhook`.
-- **`0036_mural_e_cantinho_estritos` — PENDENTE (aplicar DEPOIS da 0020 e da 0024).** Os
+  **Falta o re-deploy do `asaas-webhook`**, que é quem marca o pedido como `'estornado'`.
+- **`0036_mural_e_cantinho_estritos` — APLICADA em 10/ago/2026.** Os
   dois apertos que a auditoria apontou e que ficaram de fora da leva 0032–0035 por mexerem
   em comportamento, não em falha alcançável pelo cliente:
   **(a) mural** — a `mural_update_staff` (0020) libera UPDATE da linha inteira pra quem é
