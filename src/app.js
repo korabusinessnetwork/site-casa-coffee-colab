@@ -1559,8 +1559,14 @@ function initCardapioNav() {
     .filter((s) => s.rotulo);
   if (secoes.length < 2) return; // uma seção só não pede atalho
 
+  // O chip herda a classe de acento da seção (.acc-gold, .acc-green, …), que só
+  // carrega as variáveis de cor — assim a tirinha acende no tom da seção onde a
+  // pessoa está. Seção sem acento cai no coral, o padrão do .cnav-chip.
   chipsEl.innerHTML = secoes
-    .map((s, i) => `<button type="button" class="cnav-chip" data-cnav="${i}">${escapeHtml(s.rotulo)}</button>`)
+    .map(
+      (s, i) =>
+        `<button type="button" class="cnav-chip ${s.sec.className.match(/\bacc-[a-z]+\b/)?.[0] || ''}" data-cnav="${i}">${escapeHtml(s.rotulo)}</button>`
+    )
     .join('');
   const chips = Array.from(chipsEl.querySelectorAll('.cnav-chip'));
   nav.hidden = false;

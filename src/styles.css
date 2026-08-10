@@ -1042,8 +1042,41 @@ a.txt-link.gold { color: var(--gold) }
 .cnav-chips { display: flex; gap: 8px; padding: 10px 0; overflow-x: auto; scrollbar-width: none }
 .cnav-chips::-webkit-scrollbar { display: none }
 .cnav-chip { flex: 0 0 auto; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--muted); font-family: var(--sans); font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: color .15s var(--e), background .15s var(--e), border-color .15s var(--e) }
-.cnav-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--coral) 35%, var(--line)) }
-.cnav-chip.on { background: color-mix(in srgb, var(--coral) 10%, var(--card)); border-color: color-mix(in srgb, var(--coral) 45%, var(--line)); color: var(--coral); font-weight: 600 }
+.cnav-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--acc, var(--coral)) 35%, var(--line)) }
+.cnav-chip.on { background: color-mix(in srgb, var(--acc, var(--coral)) 12%, var(--card)); border-color: color-mix(in srgb, var(--acc, var(--coral)) 45%, var(--line)); color: var(--acc-ink, var(--coral)); font-weight: 600 }
+
+/* ---------- cores por seção do cardápio ----------
+   Cada seção do /cardapio carrega uma classe .acc-* que só define as duas
+   variáveis do acento: --acc (o traço, a borda, o fundo tingido) e --acc-ink
+   (a tinta, quando o acento puro não teria contraste em fundo claro — é o caso
+   do dourado). A initCardapioNav copia a classe da seção pro chip, então a
+   tirinha acende na cor da seção onde a pessoa está. Seção nova no cardápio =
+   escolher uma classe .acc-*, nada de JS. */
+.acc-gold { --acc: var(--gold); --acc-ink: #8a6a1f }
+.acc-green { --acc: var(--green); --acc-ink: var(--green) }
+.acc-coral { --acc: var(--coral); --acc-ink: var(--coral) }
+.acc-blue { --acc: var(--blue); --acc-ink: var(--blue) }
+
+/* a seção em si: um traço da cor no topo no lugar do fundo alternado */
+.sec-cardapio { border-top: 3px solid var(--acc, var(--line)) }
+.sec-cardapio .icon-badge { border: 1px solid color-mix(in srgb, var(--acc, var(--line)) 55%, transparent) }
+
+/* as quatro bolinhas na abertura (o mesmo alfabeto de cores das seções) */
+.cardapio-dots { display: flex; gap: 7px; margin-top: 20px }
+.cardapio-dots span { width: 9px; height: 9px; border-radius: 50%; display: block }
+
+/* a faixa de quatro cores que fecha o cardápio, antes da nota */
+.cardapio-faixa { display: flex; height: 3px }
+.cardapio-faixa span { flex: 1 }
+
+/* o item que a casa destaca: sai da lista e vira cartão, com selo e recadinho */
+.menu-item.featured { position: relative; margin: 20px 0 18px; padding: 18px 18px 16px; background: var(--card); border: 1px solid color-mix(in srgb, var(--acc, var(--gold)) 55%, var(--line)); border-radius: 6px; box-shadow: 0 6px 18px -12px rgba(27, 22, 17, .5) }
+.menu-item.featured:last-child { border-bottom: 1px solid color-mix(in srgb, var(--acc, var(--gold)) 55%, var(--line)) }
+.mi-selo { position: absolute; top: -11px; left: 16px; padding: 4px 11px; border-radius: 999px; background: var(--acc, var(--gold)); color: var(--card); font-family: var(--sans); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; white-space: nowrap }
+.mi-note { font-family: 'Caveat', cursive; font-size: 20px; line-height: 1.2; color: var(--coral); margin: 8px 0 0 }
+/* o coração entra por dentro do cartão, então o conteúdo recua um pouco mais */
+.menu-item.featured.has-fav { padding-right: 56px }
+.menu-item.featured.has-fav .mi-fav { top: 14px; right: 14px }
 
 /* bloco "teus favoritos" no topo do cardápio */
 .cardapio-favoritos[hidden] { display: none }
