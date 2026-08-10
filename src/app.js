@@ -618,6 +618,14 @@ function renderHeader() {
   const linksDesktop = NAV.map((item) => navItem(item)).join('');
   const linksMobile = NAV.map(navItemMobile).join('');
 
+  // A sacolinha do header segue o MESMO interruptor da Loja na NAV: enquanto ela
+  // está "em breve" (semLink), o carrinho some da barra. Uma barra que diz que a
+  // loja não abriu e mostra um carrinho ao lado se contradiz. Não é o carrinho
+  // que morre, só o atalho permanente: quem entra pela URL direta da /loja e põe
+  // algo na sacola continua com o drawer, que abre sozinho ao adicionar. Religar
+  // a loja é tirar o semLink — a sacolinha volta junto.
+  const lojaAberta = !NAV.find((item) => item.href === '/loja')?.semLink;
+
   slot.innerHTML = `
     <header id="topo" class="site-header" data-site-header>
       <div class="wrap">
@@ -651,11 +659,15 @@ function renderHeader() {
           <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
           <div class="auth-desktop" data-auth-slot></div>
 
-          <!-- Carrinho -->
-          <button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
+          <!-- Carrinho (só com a loja aberta — ver lojaAberta acima) -->
+          ${
+            lojaAberta
+              ? `<button type="button" class="hdr-icon" aria-label="Abrir carrinho" data-cart-toggle>
             <i data-lucide="shopping-bag"></i>
             <span class="cart-badge hidden" data-cart-count aria-live="polite">0</span>
-          </button>
+          </button>`
+              : ''
+          }
 
           <!-- CTA -->
           <a href="/o-casa" class="btn-visit">Visite-nos</a>

@@ -184,7 +184,12 @@ cores da marca, via utilitários no `styles.css`:
   `addItem/removeItem/updateQty/getCart/getSubtotalCentavos/getCount/clearCart/onChange`.
   Sincroniza entre abas via evento `storage`.
 - **Drawer**: painel lateral reutilizável, injetado uma vez no `<body>`; abre pelo ícone
-  `shopping-bag` do header (com badge de contagem). Fecha por X, Esc e clique no backdrop.
+  `shopping-bag` do header (com badge de contagem). **Enquanto a Loja está "em breve"
+  (`semLink` na NAV) esse ícone não é renderizado**: a barra não pode dizer que a loja não
+  abriu e mostrar um carrinho ao lado. O drawer em si continua vivo, e quem entra pela URL
+  direta da `/loja` e adiciona algo o vê abrir sozinho; só o atalho permanente sai da
+  barra. Religar a loja (tirar o `semLink`) traz a sacolinha de volta junto.
+  Fecha por X, Esc e clique no backdrop.
   Botão "finalizar compra" chama a `create-checkout-session` e manda pro **Checkout
   hospedado do Asaas** (ver "Pagamentos"); deslogado, passa pelo login e volta pro carrinho.
 - **Preços**: sempre cheios, via `formatBRL(centavos)` (ex.: `R$ 49,90`). O **desconto por tier
@@ -250,10 +255,11 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   e do "C" da tab bar).
 - **Loja está com selo "em breve" e SEM link** (`semLink: true` na NAV): o item aparece no
   header, no menu mobile e no rodapé como texto morto (`.nav-off`) e na **tab bar do
-  mobile** como `.tab-off` (ícone e rótulo apagados, carimbo "em breve" sobre o ícone —
-  `renderTabbar` consulta a NAV pelo href, então religar vale pros quatro lugares de uma
-  vez). A página continua no ar — dá pra abrir digitando `/loja`. Pra religar o link, é
-  só tirar o `semLink`.
+  mobile** como `.tab-off` (ícone e rótulo apagados, carimbo "em breve" sobre o ícone).
+  O mesmo `semLink` **esconde a sacolinha do carrinho no header** (ver "Drawer"), então
+  religar vale pros cinco lugares de uma vez: `renderTabbar` e o `renderHeader` consultam
+  a NAV pelo href. A página continua no ar — dá pra abrir digitando `/loja`. Pra religar
+  o link, é só tirar o `semLink`.
 - **Cardápio**, **Planos** e **/presentear** mostram os preços **sem ressalva**. A nota
   "* valores ilustrativos" saiu do cardápio, e a "* valores fictícios, a definir" saiu dos
   planos e do presentear, as três a pedido: dizer que o preço não é bem aquele, na hora de
