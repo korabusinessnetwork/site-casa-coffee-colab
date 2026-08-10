@@ -976,6 +976,64 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
 
 ---
 
+## A tua área (menu da conta)
+
+As portas da área logada, nos quatro lugares em que elas aparecem. **Fonte única:
+`CONTA_LINKS` no `app.js`** (href, ícone, rótulo e um rótulo curto pras tirinhas) —
+a fila estava escrita duas vezes e já tinha divergido, então página nova em
+`/conta/` era lembrar de três lugares. Tratamento em **"tu"** (tua conta, teus
+pontos, tuas conquistas, teus pedidos, tua assinatura): o menu era o único canto
+do site que dizia "meu perfil" enquanto a página dizia "teus dados".
+
+- **Painel do avatar (desktop)** — anel de progresso (pontos → próxima recompensa),
+  saldo em count-up, emblemas e a fila do `CONTA_LINKS`. **Recarrega a cada
+  abertura** (o conteúdo antigo fica na tela enquanto a leitura nova não chega, e
+  um contador `userPanelPedido` descarta resposta atrasada): antes um
+  `carregado=true` montava uma vez só, e quem resgatava um mimo seguia vendo o
+  saldo velho pelo resto da navegação. Uma rodada só de leituras (`Promise.all`
+  com `getProfile` + tiers/rewards/achievements), não três em fila.
+- **`updateAuthUI` não re-renderiza à toa:** o slot guarda o `dataset.uid` e a
+  função sai cedo quando a conta montada é a mesma. O `onAuthStateChange` dispara
+  em `TOKEN_REFRESHED` e no `SIGNED_IN` de quando a aba volta ao foco, e reescrever
+  o slot ali fechava o painel aberto na cara da pessoa.
+- **Menu mobile** — era a versão pobre do painel: sem plano, sem emblema e **sem
+  porta nenhuma pra assinatura ou pros planos**, no aparelho onde a maioria está.
+  Agora abre com um cartão (foto, nome, plano, saldo) que também é atalho pro
+  perfil, traz a mesma fila e fecha com a porta do clube. Plano e convite chegam
+  pelo `hydrateAuthHeader`, que já ia ao banco pelo saldo.
+- **Atalho no header mobile** (`[data-conta-mob]`) — a bolinha do avatar ao lado do
+  sino, só pra quem entrou. Sem ela, chegar na própria conta pelo celular era abrir
+  o hambúrguer e rolar até depois da navegação inteira (a tab bar não tem item de
+  conta, e não vai ter: ela conta a frase do site, não a da pessoa).
+- **Tirinha entre as páginas da conta** (`renderContaNav`, boot) — as quatro
+  páginas de `/conta/` não se falavam, e o `/conta/pedidos` não era linkado de
+  lugar nenhum fora do menu. Mesmo desenho da tirinha do `/cardapio` (`.cnav-*`,
+  grudada no topo, `aria-current` na atual); entra antes da `<section>` da página
+  pra a faixa ir de ponta a ponta. Some sozinha fora de `/conta/`.
+- **Sem `role="menu"`** no painel da conta nem no do sino: os filhos são links, e
+  menu de verdade exige `menuitem` em cada um e navegação por setas — sem isso o
+  leitor de tela anunciava um menu vazio. Os dois são disclosure (`aria-expanded` +
+  `aria-controls`) e usam **`inert`** enquanto fechados, o que também fecha a
+  janelinha de 200ms da transição de saída em que os links seguiam focáveis. Os
+  emblemas ganharam `aria-label` (o `title` sozinho não existe em toque, então a
+  dica de "como desbloquear" da 0010 nunca chegava ao celular).
+- **Honestidade do clube:** sem plano e com saldo zero, o painel (e o "quase lá" da
+  `/conta/pontos`) não dizem mais "faltam X pontos pro teu primeiro agrado" —
+  pontuar é exclusivo de assinante, então aquela conta nunca ia andar. No lugar,
+  contam de onde vêm os pontos e abrem a porta dos planos. Resgatar **não** exige
+  plano, então quem tem saldo segue vendo a barrinha normal.
+- **`/conta/perfil`:** a "gerenciar assinatura" **nasce no template** logo depois da
+  linha de resumo (era movida por JS depois do render), com `id="assinatura"` — é o
+  destino do "tua assinatura" do menu, e a `initPerfilPage` faz o pulo na mão,
+  porque a âncora nativa não pega numa página montada depois do guard de auth. A
+  página ganhou um **índice de seções** (montado das `[data-section]` visíveis, some
+  seção nova entra sozinha) e a barra "perfil completo" passou a mostrar **o que
+  falta em chips que levam ao campo**. Na célula "teu plano", quem não assina vê
+  "ver os planos" com cara de botão e o "tem um presente?" discreto — estava ao
+  contrário, e o caso raro ganhava do principal.
+
+---
+
 ## O teu de sempre (cartão pessoal na home) — DESATIVADO
 
 > **DESATIVADO em 04/ago/2026** (a pedido): a chamada `initTeuDeSempre()` está comentada

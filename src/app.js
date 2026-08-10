@@ -257,6 +257,12 @@ function escapeHtml(valor) {
   );
 }
 
+// Quem pediu pro sistema parar de animar. Consultado na hora (a pessoa pode
+// mudar a preferência com a página aberta), não guardado numa constante.
+function semMovimento() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 // --- Helpers de sessão/perfil --------------------------------------------------
 async function getSession() {
   if (!supabase) return null;
@@ -649,11 +655,14 @@ function renderHeader() {
                conta e o carrinho. Nasce hidden; quem revela (só pra quem está
                logado) é a initNotificacoes. -->
           <div class="relative notif-wrap" data-notif-wrap hidden>
-            <button type="button" class="hdr-icon" aria-label="Notificações" data-notif-trigger aria-haspopup="true" aria-expanded="false">
+            <button type="button" class="hdr-icon" aria-label="Notificações" data-notif-trigger aria-controls="painel-avisos" aria-expanded="false">
               <i data-lucide="bell"></i>
               <span class="cart-badge hidden" data-notif-count aria-live="polite">0</span>
             </button>
-            <div data-notif-panel data-aberto="false" role="menu" aria-hidden="true"
+            <!-- Sem role="menu": são links, e menu de verdade exige um menuitem em
+                 cada filho e navegação por setas — sem isso o leitor de tela
+                 anunciava um menu vazio. Disclosure simples, com inert fechado. -->
+            <div id="painel-avisos" data-notif-panel data-aberto="false" inert
               class="notif-panel invisible absolute right-0 top-full z-50 mt-2 origin-top-right scale-95 card opacity-0 shadow-xl backdrop-blur-md transition duration-200">
               <p class="notif-head"><i data-lucide="bell-ring" aria-hidden="true"></i>teus avisos</p>
               <div class="notif-lista" data-notif-lista></div>
@@ -662,6 +671,15 @@ function renderHeader() {
 
           <!-- Auth (desktop), preenchido por updateAuthUI conforme a sessão -->
           <div class="auth-desktop" data-auth-slot></div>
+
+          <!-- Atalho da conta no MOBILE (some no desktop, que já tem o painel do
+               avatar). Sem ele, chegar na própria conta pelo celular era abrir o
+               hambúrguer e rolar até depois da navegação inteira — e a tab bar,
+               que é A navegação no celular, não tem porta pra conta. Nasce
+               escondido; quem revela é a updateAuthUI, só pra quem entrou. -->
+          <a href="/conta/perfil" class="hdr-conta-mob" data-conta-mob hidden aria-label="Tua conta">
+            <span class="hdr-user-avatar" data-hdr-avatar>☕</span>
+          </a>
 
           <!-- Carrinho (só com a loja aberta — ver lojaAberta acima) -->
           ${
@@ -689,7 +707,7 @@ function renderHeader() {
         <nav class="menu-inner" aria-label="Navegação mobile">
           <p class="menu-rotulo">navegar</p>
           ${linksMobile}
-          <p class="menu-rotulo menu-rotulo-conta">minha conta</p>
+          <p class="menu-rotulo menu-rotulo-conta">tua conta</p>
           <!-- Auth (mobile), preenchido por updateAuthUI conforme a sessão -->
           <div data-auth-slot-mobile></div>
           <!-- O botão dourado "Visite-nos" some no mobile: aqui ele volta gentil -->
@@ -994,7 +1012,7 @@ async function initGentePage() {
 
   const nome = escapeHtml(dados.nome || 'alguém do Casa');
   document.title = `${dados.nome || 'Gente'} · Casa Coffee Colab`;
-  const iniciais = escapeHtml(iniciaisDoNome(dados.nome || 'Casa'));
+  const iniciais = escapeHtml(iniciaisNome(dados.nome || 'Casa'));
   const avatar = dados.avatar_url
     ? `<img class="gente-avatar-img" src="${escapeHtml(dados.avatar_url)}" alt="foto de ${nome}" />`
     : `<span class="gente-avatar-ini">${iniciais}</span>`;
@@ -2164,7 +2182,7 @@ async function initNotificacoes() {
   const fechar = () => {
     panel.dataset.aberto = 'false';
     trigger.setAttribute('aria-expanded', 'false');
-    panel.setAttribute('aria-hidden', 'true');
+    panel.setAttribute('inert', '');
     panel.classList.add('scale-95', 'opacity-0');
     panel.classList.remove('scale-100', 'opacity-100');
     setTimeout(() => {
@@ -2182,7 +2200,7 @@ async function initNotificacoes() {
     }
     panel.dataset.aberto = 'true';
     trigger.setAttribute('aria-expanded', 'true');
-    panel.setAttribute('aria-hidden', 'false');
+    panel.removeAttribute('inert');
     panel.classList.remove('invisible', 'scale-95', 'opacity-0');
     panel.classList.add('scale-100', 'opacity-100');
   };
@@ -4332,10 +4350,12 @@ function tituloNome(str) {
 
 // Iniciais pro avatar: 1ª letra do primeiro termo + 1ª do último (ignora
 // conectores), sempre maiúsculas. "matheus bonato" → "MB"; "matheus" → "M";
-// "maria da silva" → "MS"; e-mail → 1ª letra antes do "@".
+// "maria da silva" → "MS"; e-mail → 1ª letra antes do "@". Fonte única: o header,
+// o avatar grande do perfil e o cartão do /gente liam daqui e de uma segunda
+// função quase igual, que discordava dela nos casos de borda.
 function iniciaisNome(str) {
   const s = String(str || '').trim();
-  if (!s) return '?';
+  if (!s) return '☕';
   if (s.includes('@')) return (s.charAt(0) || '?').toLocaleUpperCase('pt-BR');
   const conect = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
   const termos = s.split(/\s+/).filter(Boolean);
@@ -4346,26 +4366,64 @@ function iniciaisNome(str) {
   return (a + b || '?').toLocaleUpperCase('pt-BR');
 }
 
+// Fonte única dos destinos da área logada. O painel do header (desktop), a lista
+// do menu mobile e a tirinha das páginas /conta/ leem TODOS daqui. Antes a mesma
+// fila estava escrita duas vezes e já tinha divergido (o mobile não tinha porta
+// nenhuma pra assinatura), então página nova na conta significava lembrar de três
+// lugares. Tratamento em "tu", como o resto do site — o menu era o único canto
+// que falava "meu perfil" enquanto a página dizia "teus dados".
+const CONTA_LINKS = [
+  { href: '/conta/perfil', icone: 'user', rotulo: 'tua conta', curto: 'conta' },
+  { href: '/conta/pontos', icone: 'gift', rotulo: 'teus pontos', curto: 'pontos' },
+  { href: '/conta/conquistas', icone: 'award', rotulo: 'tuas conquistas', curto: 'conquistas' },
+  { href: '/conta/pedidos', icone: 'shopping-bag', rotulo: 'teus pedidos', curto: 'pedidos' },
+];
+
 // Preenche os slots de auth do header conforme a sessão (deslogado ↔ logado).
 // Logado (desktop) → painel do usuário "mini-game" (avatar + dropdown com anel de
-// progresso, saldo, emblemas e links). Mobile → lista compacta no drawer.
+// progresso, saldo, emblemas e links). Mobile → cartão compacto no drawer.
 function updateAuthUI(session) {
+  const slot = document.querySelector('[data-auth-slot]');
+  const slotM = document.querySelector('[data-auth-slot-mobile]');
+
+  // O onAuthStateChange dispara também em TOKEN_REFRESHED e no SIGNED_IN de
+  // quando a aba volta ao foco. Reescrever o slot nessas horas fecha o painel
+  // aberto na cara de quem está lendo e ainda dispara um getProfile() à toa —
+  // então, se a mesma conta já está montada, não se mexe em nada.
+  const uid = session?.user?.id || '';
+  const montado = (el) => !el || el.dataset.uid === uid;
+  if (montado(slot) && montado(slotM)) return;
+
   const raw = nomeDeExibicao(session) || '?';
   const nome = escapeHtml(tituloNome(raw)); // capitalizado + sempre escapado (anti-XSS)
   const inicial = escapeHtml(iniciaisNome(raw)); // iniciais do nome + sobrenome, maiúsculas
 
-  const slot = document.querySelector('[data-auth-slot]');
   if (slot) {
+    slot.dataset.uid = uid;
     slot.innerHTML = session
       ? authDesktopLogado(nome, inicial)
       : `<a href="/login" class="hdr-auth-link">entrar</a>`;
   }
 
-  const slotM = document.querySelector('[data-auth-slot-mobile]');
   if (slotM) {
-    slotM.innerHTML = session
-      ? authMobileLogado(nome)
-      : authMobileDeslogado();
+    slotM.dataset.uid = uid;
+    slotM.innerHTML = session ? authMobileLogado(nome, inicial) : authMobileDeslogado();
+  }
+
+  // Atalho da conta no header mobile: só existe pra quem entrou (deslogado, a
+  // porta é o "entrar" do menu, e um avatar vazio na barra não diria nada).
+  const contaMob = document.querySelector('[data-conta-mob]');
+  if (contaMob) {
+    contaMob.hidden = !session;
+    const bolha = contaMob.querySelector('[data-hdr-avatar]');
+    // textContent, não innerHTML: aqui entra o valor cru, sem escape (o `inicial`
+    // já vem escapado pra ir dentro de template de HTML).
+    if (bolha && session && !bolha.querySelector('img')) bolha.textContent = iniciaisNome(raw);
+    if (session && window.location.pathname.replace(/\.html$/, '') === '/conta/perfil') {
+      contaMob.setAttribute('aria-current', 'page');
+    } else {
+      contaMob.removeAttribute('aria-current');
+    }
   }
 
   // Liga o "sair" dos botões do header (o painel liga o seu próprio ao renderizar).
@@ -4379,21 +4437,38 @@ function updateAuthUI(session) {
       panel?.dataset.aberto === 'true' ? closeUserPanel() : openUserPanel();
     });
     initUserPanelGlobal(); // fecha por Esc/clique-fora (uma vez só)
-    hydrateAuthHeader();   // completa saldo (drawer) e foto de perfil (avatares)
+    hydrateAuthHeader();   // completa saldo, plano e foto de perfil
   }
   renderIcons();
 }
 
+// Uma linha do painel/menu, a partir do CONTA_LINKS. `classe` muda por superfície
+// (o painel do desktop é mais miúdo que a lista do drawer).
+function contaLinksHTML(classe, { menuLink = false } = {}) {
+  // Tolera um `.html` no fim e a barra final, como o activeNavHref do header.
+  const aqui = window.location.pathname.replace(/\.html$/, '').replace(/(.)\/$/, '$1');
+  return CONTA_LINKS.map(
+    (l) =>
+      `<a href="${l.href}" class="${classe}"${l.href === aqui ? ' aria-current="page"' : ''}${
+        menuLink ? ' data-menu-link' : ''
+      }><i data-lucide="${l.icone}" aria-hidden="true"></i>${l.rotulo}</a>`,
+  ).join('');
+}
+
 // Markup do usuário logado no header desktop: botão-gatilho (avatar+nome) + painel.
+// O painel NÃO se declara `role="menu"`: ele é uma lista de links, e menu de
+// verdade pede `menuitem` em cada filho e navegação por setas — sem isso o leitor
+// de tela anunciava um menu vazio. Aqui é um disclosure: `aria-expanded` no
+// gatilho, `aria-controls` apontando o painel, e `inert` enquanto fechado.
 function authDesktopLogado(nome, inicial) {
   return `
     <div class="relative" data-user-panel-wrap>
-      <button type="button" data-user-panel-trigger aria-haspopup="true" aria-expanded="false" class="hdr-user-trigger">
+      <button type="button" data-user-panel-trigger aria-expanded="false" aria-controls="painel-conta" class="hdr-user-trigger">
         <span class="hdr-user-avatar" data-hdr-avatar>${inicial}</span>
         <span class="hdr-user-name">${nome}</span>
         <i data-lucide="chevron-down" style="width:15px;height:15px;opacity:.55"></i>
       </button>
-      <div data-user-panel data-aberto="false" role="menu" aria-hidden="true"
+      <div id="painel-conta" data-user-panel data-aberto="false" inert
         class="invisible absolute right-0 top-full z-50 mt-2 w-80 origin-top-right scale-95 card opacity-0 shadow-xl backdrop-blur-md transition duration-200">
         <p class="text-center text-sm text-muted">só um instante…</p>
       </div>
@@ -4407,21 +4482,58 @@ function authMobileDeslogado() {
     <a href="/cadastro" class="menu-conta-link" data-menu-link><i data-lucide="sparkles" class="h-5 w-5 text-coral"></i>criar conta</a>`;
 }
 
-// Markup do usuário logado no drawer mobile: lista compacta (saldo + links).
-function authMobileLogado(nome) {
+// Markup do usuário logado no drawer mobile. Era a versão pobre do painel do
+// desktop: sem plano, sem emblema e — pior — sem porta nenhuma pra assinatura ou
+// pros planos, justamente no aparelho onde a maioria das pessoas está. Agora
+// carrega o mesmo cartão (foto, nome, plano, saldo), a mesma fila de links e o
+// mesmo convite pra quem ainda não assinou. O plano e o convite chegam pelo
+// hydrateAuthHeader, que já ia ao banco buscar o saldo.
+function authMobileLogado(nome, inicial) {
   return `
-    <div class="flex items-center gap-2 py-1 text-lg text-ink">
-      <span class="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-coral/10 text-coral" data-hdr-avatar><i data-lucide="user" class="h-4 w-4"></i></span>
-      <span class="truncate">${nome}</span>
-    </div>
-    <p class="pb-1 pl-10 text-sm text-muted"><span data-auth-saldo>—</span> pontos</p>
-    <a href="/conta/perfil" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="user" class="h-5 w-5 text-coral"></i>meu perfil</a>
-    <a href="/conta/pontos" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="gift" class="h-5 w-5 text-coral"></i>meus pontos</a>
-    <a href="/conta/conquistas" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="award" class="h-5 w-5 text-coral"></i>minhas conquistas</a>
-    <a href="/conta/pedidos" class="flex items-center gap-2 py-2 text-base text-ink" data-menu-link><i data-lucide="shopping-bag" class="h-5 w-5 text-coral"></i>meus pedidos</a>
-    <button type="button" data-signout class="mt-2 inline-flex items-center gap-2 text-muted hover:text-coral">
+    <a href="/conta/perfil" class="menu-conta-cartao" data-menu-link>
+      <span class="menu-conta-avatar" data-hdr-avatar>${inicial}</span>
+      <span class="menu-conta-txt">
+        <b>${nome}</b>
+        <span class="menu-conta-sub"><span data-auth-saldo>—</span> pontos<span data-auth-plano></span></span>
+      </span>
+      <i data-lucide="chevron-right" class="menu-conta-arw" aria-hidden="true"></i>
+    </a>
+    ${contaLinksHTML('menu-conta-link', { menuLink: true })}
+    <div data-auth-clube></div>
+    <button type="button" data-signout class="menu-conta-sair">
       <i data-lucide="log-out" class="h-5 w-5"></i>sair da conta
     </button>`;
+}
+
+// Tirinha de atalhos entre as quatro páginas da área logada (/conta/*). Elas não
+// se falavam: pra ir dos pontos pros pedidos era preciso subir no header e
+// reabrir o painel do avatar, e o /conta/pedidos não era linkado de lugar nenhum
+// fora dele. Mesmo desenho da tirinha do /cardapio (.cnav-*, grudada no topo),
+// montada da fonte única CONTA_LINKS. Some sozinha fora da área logada.
+function renderContaNav() {
+  const root = document.querySelector(
+    '[data-perfil-root], [data-pontos-root], [data-conquistas-root], [data-pedidos-root]',
+  );
+  if (!root || document.querySelector('[data-conta-nav]')) return;
+
+  // Entra ANTES da <section> da página, não dentro do .wrap: assim a faixa
+  // grudada no topo vai de ponta a ponta, como a do cardápio, em vez de ficar
+  // uma tarja estreita com o conteúdo passando pelos lados.
+  const secao = root.closest('section') || root;
+  if (!secao.parentElement) return;
+
+  // Tolera um `.html` no fim e a barra final, como o activeNavHref do header.
+  const aqui = window.location.pathname.replace(/\.html$/, '').replace(/(.)\/$/, '$1');
+  const nav = document.createElement('nav');
+  nav.className = 'conta-nav';
+  nav.setAttribute('data-conta-nav', '');
+  nav.setAttribute('aria-label', 'Tua área');
+  nav.innerHTML = `<div class="wrap"><div class="cnav-chips">${CONTA_LINKS.map((l) => {
+    const on = l.href === aqui;
+    return `<a href="${l.href}" class="cnav-chip${on ? ' on' : ''}"${on ? ' aria-current="page"' : ''}><i data-lucide="${l.icone}" aria-hidden="true"></i>${escapeHtml(l.curto)}</a>`;
+  }).join('')}</div></div>`;
+  secao.parentElement.insertBefore(nav, secao);
+  renderIcons();
 }
 
 // Fecha o painel por Esc e por clique fora, ligado UMA vez (evita empilhar
@@ -4452,13 +4564,15 @@ function openUserPanel() {
   if (!panel) return;
   panel.dataset.aberto = 'true';
   trigger?.setAttribute('aria-expanded', 'true');
-  panel.setAttribute('aria-hidden', 'false');
+  panel.removeAttribute('inert');
   panel.classList.remove('invisible', 'scale-95', 'opacity-0');
   panel.classList.add('scale-100', 'opacity-100');
-  if (panel.dataset.carregado !== 'true') {
-    panel.dataset.carregado = 'true';
-    renderUserPanel(panel);
-  }
+  // Recarrega SEMPRE que abre. Antes um `carregado=true` fazia o conteúdo ser
+  // montado uma vez só: quem abria o painel, ia resgatar um mimo e voltava
+  // continuava vendo o saldo velho pelo resto da navegação, porque o header só
+  // é remontado quando a sessão muda. O conteúdo já pintado fica na tela
+  // enquanto a leitura nova não chega, então não pisca.
+  renderUserPanel(panel);
 }
 
 function closeUserPanel() {
@@ -4467,7 +4581,7 @@ function closeUserPanel() {
   if (!panel) return;
   panel.dataset.aberto = 'false';
   trigger?.setAttribute('aria-expanded', 'false');
-  panel.setAttribute('aria-hidden', 'true');
+  panel.setAttribute('inert', '');
   panel.classList.add('scale-95', 'opacity-0');
   panel.classList.remove('scale-100', 'opacity-100');
   // Some da árvore de foco só depois da transição de saída.
@@ -4478,33 +4592,49 @@ function closeUserPanel() {
 
 // Preenche o painel com dados frescos: anel (pontos → próxima recompensa),
 // saldo (count-up), emblemas e links. Tudo do banco é escapado antes do DOM.
+// Chamado a cada abertura, então guarda um `pedido` pra uma resposta atrasada
+// nunca pintar por cima de uma leitura mais nova.
+let userPanelPedido = 0;
 async function renderUserPanel(panel) {
   if (!supabase) {
     panel.innerHTML = `<p class="text-center text-sm text-muted">tua conta ainda não está ligada por aqui (config pendente).</p>`;
     return;
   }
+  const meu = ++userPanelPedido;
   const session = await getSession();
   if (!session) return;
-  const profile = await getProfile();
-  const saldo = Number(profile?.points_balance || 0);
 
-  const [tierRes, rewardsRes, achRes, uachRes] = await Promise.all([
-    profile?.tier_slug
-      ? supabase.from('tiers').select('nome').eq('slug', profile.tier_slug).maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase.from('rewards_catalog').select('nome, custo_em_pontos, ativo, estoque').eq('ativo', true).order('custo_em_pontos', { ascending: true }),
-    supabase.from('achievements').select('slug, nome, dica, icone, ordem').eq('ativo', true).order('ordem', { ascending: true }),
+  // Uma rodada só de leituras. Antes eram três em fila (sessão → perfil → o
+  // resto), porque o tier era buscado pelo slug do perfil; buscando a tabela
+  // inteira de tiers (quatro linhas, leitura pública) tudo cabe num Promise.all.
+  const [profile, tiersRes, rewardsRes, achRes, uachRes] = await Promise.all([
+    getProfile(),
+    supabase.from('tiers').select('slug, nome'),
+    supabase.from('rewards_catalog').select('nome, custo_em_pontos, estoque').eq('ativo', true).order('custo_em_pontos', { ascending: true }).limit(24),
+    supabase.from('achievements').select('slug, nome, dica, icone, ordem').eq('ativo', true).order('ordem', { ascending: true }).limit(8),
     supabase.from('user_achievements').select('achievement_slug').eq('user_id', session.user.id),
   ]);
+  if (meu !== userPanelPedido) return; // chegou tarde: já tem leitura mais nova pintando
 
-  const planoNome = tierRes.data?.nome || (profile?.tier_slug ? profile.tier_slug : null);
+  const saldo = Number(profile?.points_balance || 0);
+  const planoSlug = profile?.tier_slug || null;
+  const planoNome = planoSlug
+    ? (tiersRes.data || []).find((t) => t.slug === planoSlug)?.nome || planoSlug
+    : null;
   const rewards = (rewardsRes.data || []).filter((r) => r.estoque === null || Number(r.estoque) > 0);
   const proximo = rewards.find((r) => Number(r.custo_em_pontos) > saldo);
 
-  // Anel: pontos → próxima recompensa acessível.
+  // Anel: pontos → próxima recompensa acessível. O resgate não exige plano (só
+  // saldo), então a barrinha é verdade pra qualquer um; o que É exclusivo de
+  // assinante é GANHAR ponto. Por isso, quem não assina e ainda está zerado não
+  // ouve mais "faltam 400 pontos pro teu primeiro agrado" — aquilo prometia uma
+  // conta que nunca ia andar sem plano. Ouve de onde vêm os pontos.
   let percent;
   let faltamTxt;
-  if (!rewards.length) {
+  if (!planoNome && saldo <= 0) {
+    percent = 0;
+    faltamTxt = 'no clube, cada real que tu gasta aqui vira ponto';
+  } else if (!rewards.length) {
     percent = 0;
     faltamTxt = 'junta pontos e troca por agrados quando quiser';
   } else if (!proximo) {
@@ -4514,21 +4644,24 @@ async function renderUserPanel(panel) {
     const custo = Number(proximo.custo_em_pontos);
     percent = custo > 0 ? Math.min(saldo / custo, 1) : 0;
     const faltam = custo - saldo;
-    faltamTxt = saldo <= 0
-      ? `faltam ${faltam.toLocaleString('pt-BR')} pontos pro teu primeiro agrado`
-      : `faltam ${faltam.toLocaleString('pt-BR')} pontos pro ${escapeHtml(proximo.nome)}`;
+    faltamTxt = `faltam ${faltam.toLocaleString('pt-BR')} pontos pro ${escapeHtml(proximo.nome)}`;
   }
 
   const desbloq = new Set((uachRes.data || []).map((u) => u.achievement_slug));
+  // O `title` sozinho não servia: em toque não existe hover, então a dica de
+  // "como desbloquear" (que a 0010 foi feita pra entregar) nunca aparecia no
+  // celular, e no leitor de tela ele é sinal fraco. O aria-label diz a mesma
+  // coisa em qualquer aparelho.
   const emblemas = (achRes.data || [])
-    .slice(0, 8)
     .map((a) => {
       const icone = iconeConquista(a.icone);
       const on = desbloq.has(a.slug);
-      const dicaTip = a.dica ? `, ${escapeHtml(a.dica)}` : '';
+      const nome = escapeHtml(a.nome);
+      const dica = a.dica ? `, ${escapeHtml(a.dica)}` : '';
+      const rotulo = on ? `${nome}, conquistada` : `${nome}, ainda bloqueada${dica}`;
       return on
-        ? `<span title="${escapeHtml(a.nome)}" class="grid h-9 w-9 place-items-center rounded-full bg-coral/10 text-coral"><i data-lucide="${icone}" class="h-4 w-4"></i></span>`
-        : `<span title="${escapeHtml(a.nome)}${dicaTip}" class="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-muted"><i data-lucide="lock" class="h-4 w-4"></i></span>`;
+        ? `<span role="img" aria-label="${rotulo}" title="${nome}" class="grid h-9 w-9 place-items-center rounded-full bg-coral/10 text-coral"><i data-lucide="${icone}" class="h-4 w-4" aria-hidden="true"></i></span>`
+        : `<span role="img" aria-label="${rotulo}" title="${nome}${dica}" class="grid h-9 w-9 place-items-center rounded-full bg-ink/5 text-muted"><i data-lucide="lock" class="h-4 w-4" aria-hidden="true"></i></span>`;
     })
     .join('');
 
@@ -4539,7 +4672,7 @@ async function renderUserPanel(panel) {
   panel.innerHTML = `
     <div class="flex items-center gap-3">
       <div class="relative h-20 w-20 shrink-0">
-        <svg viewBox="0 0 80 80" class="h-20 w-20 -rotate-90">
+        <svg viewBox="0 0 80 80" class="h-20 w-20 -rotate-90" aria-hidden="true">
           <circle cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="6" class="text-line" />
           <circle data-ring cx="40" cy="40" r="${R}" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"
             class="text-coral" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${C.toFixed(1)}"
@@ -4548,25 +4681,34 @@ async function renderUserPanel(panel) {
         <span class="absolute inset-0 grid place-items-center font-titulo text-lg text-coral" data-saldo-anim>0</span>
       </div>
       <div class="min-w-0">
-        <p class="font-titulo text-lg leading-tight">${planoNome ? escapeHtml(planoNome) : 'sem plano ainda'}</p>
+        <p class="font-titulo text-lg leading-tight text-ink">${planoNome ? escapeHtml(planoNome) : 'sem plano ainda'}</p>
         <p class="mt-0.5 text-sm text-muted">${faltamTxt}</p>
       </div>
     </div>
 
     ${emblemas ? `<div class="mt-4 flex flex-wrap gap-2">${emblemas}</div>` : ''}
 
-    <div class="mt-4 grid gap-0.5 border-t border-line pt-3 text-sm">
-      <a href="/conta/perfil" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="user" class="h-4 w-4 text-coral"></i>meu perfil</a>
-      <a href="/conta/pontos" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="gift" class="h-4 w-4 text-coral"></i>meus pontos</a>
-      <a href="/conta/conquistas" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="award" class="h-4 w-4 text-coral"></i>minhas conquistas</a>
-      <a href="/conta/pedidos" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="shopping-bag" class="h-4 w-4 text-coral"></i>meus pedidos</a>
+    ${
+      planoNome
+        ? ''
+        : `<a href="/planos" class="pnl-cta">
+             <span>
+               <b>vem ser do Casa</b>
+               <em>desconto na loja, pontos a cada compra e o brunch de aniversário por nossa conta</em>
+             </span>
+             <i data-lucide="arrow-right" class="h-4 w-4" aria-hidden="true"></i>
+           </a>`
+    }
+
+    <nav class="pnl-links" aria-label="tua área">
+      ${contaLinksHTML('pnl-link')}
       ${
         planoNome
-          ? `<button type="button" data-panel-assinatura class="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>minha assinatura</button>`
-          : `<a href="/planos" class="flex items-center gap-2 rounded-lg px-2 py-2 text-ink transition-colors hover:bg-ink/5"><i data-lucide="credit-card" class="h-4 w-4 text-coral"></i>conhecer os planos</a>`
+          ? `<a href="/conta/perfil#assinatura" class="pnl-link"><i data-lucide="credit-card" aria-hidden="true"></i>tua assinatura</a>`
+          : ''
       }
-      <button type="button" data-signout class="mt-1 flex items-center gap-2 rounded-lg px-2 py-2 text-left text-muted transition-colors hover:bg-ink/5 hover:text-coral"><i data-lucide="log-out" class="h-4 w-4"></i>sair da conta</button>
-    </div>`;
+      <button type="button" data-signout class="pnl-link pnl-sair"><i data-lucide="log-out" aria-hidden="true"></i>sair da conta</button>
+    </nav>`;
 
   renderIcons();
 
@@ -4585,7 +4727,6 @@ async function renderUserPanel(panel) {
   }
 
   panel.querySelector('[data-signout]')?.addEventListener('click', doSignOut);
-  panel.querySelector('[data-panel-assinatura]')?.addEventListener('click', irParaAssinatura);
 }
 
 // Count-up (easeOutCubic) do 0 até o alvo. Usado no saldo do painel.
@@ -4601,16 +4742,10 @@ function animarContagem(el, alvo, dur = 900) {
   requestAnimationFrame(passo);
 }
 
-// "minha assinatura" (painel do header) → leva pro perfil, onde fica a nossa tela
-// de gerenciar/cancelar (o Asaas não tem portal de cobrança hospedado).
-function irParaAssinatura() {
-  window.location.href = '/conta/perfil';
-}
-
 // Uma leitura só do perfil pra completar o header depois que ele já apareceu:
-// o saldo no drawer mobile e a foto nos dois avatares. O header nasce com as
-// iniciais e a foto entra por cima quando chega — assim ninguém espera o banco
-// pra ver o topo montado.
+// saldo, plano e o convite do clube no drawer mobile, mais a foto nos dois
+// avatares. O header nasce com as iniciais e a foto entra por cima quando chega
+// — assim ninguém espera o banco pra ver o topo montado.
 async function hydrateAuthHeader() {
   if (!supabase) return;
   const profile = await getProfile();
@@ -4620,6 +4755,39 @@ async function hydrateAuthHeader() {
   document.querySelectorAll('[data-auth-saldo]').forEach((el) => (el.textContent = saldo));
 
   pintarAvatarHeader(profile.avatar_url);
+
+  // Plano + a porta do clube no menu mobile. Com plano, "tua assinatura" leva
+  // direto pro bloco de gerenciar do perfil; sem plano, o convite — que era o
+  // que faltava no celular pra alguém sair do menu e virar assinante.
+  const clube = document.querySelector('[data-auth-clube]');
+  if (!profile.tier_slug) {
+    document.querySelectorAll('[data-auth-plano]').forEach((el) => (el.textContent = ' · sem plano ainda'));
+    if (clube) {
+      clube.innerHTML = `
+        <a href="/planos" class="menu-conta-cta" data-menu-link>
+          <span><b>vem ser do Casa</b><em>desconto na loja, pontos e mimos</em></span>
+          <i data-lucide="arrow-right" aria-hidden="true"></i>
+        </a>`;
+      renderIcons();
+    }
+    return;
+  }
+
+  const { data: tier } = await supabase
+    .from('tiers')
+    .select('nome')
+    .eq('slug', profile.tier_slug)
+    .maybeSingle();
+  const nomePlano = tier?.nome || profile.tier_slug;
+  // textContent, não innerHTML: o nome vem do banco e nunca é lido como markup.
+  document.querySelectorAll('[data-auth-plano]').forEach((el) => (el.textContent = ` · ${nomePlano}`));
+  if (clube) {
+    clube.innerHTML = `
+      <a href="/conta/perfil#assinatura" class="menu-conta-link" data-menu-link>
+        <i data-lucide="credit-card" class="h-5 w-5 text-coral" aria-hidden="true"></i>tua assinatura
+      </a>`;
+    renderIcons();
+  }
 }
 
 // Troca as iniciais (desktop) e o ícone genérico (drawer) pela foto de perfil.
@@ -5063,15 +5231,6 @@ function mascaraCep(v) {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 }
 
-// Iniciais pro avatar (no máximo duas letras, da primeira e da última palavra).
-function iniciaisDoNome(nome) {
-  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean);
-  if (!partes.length) return '☕';
-  const primeira = partes[0][0] || '';
-  const ultima = partes.length > 1 ? partes[partes.length - 1][0] || '' : '';
-  return (primeira + ultima).toUpperCase();
-}
-
 // Nome legível do aparelho a partir do user-agent que o GoTrue guardou. É
 // heurística mesmo — user-agent é string livre, não dá pra ter certeza. Serve
 // só pra pessoa reconhecer ("ah, esse é o meu celular"); nada depende disso.
@@ -5251,7 +5410,7 @@ async function initPerfilPage() {
   // Valores do formulário. Tudo que vem do banco é escapado antes de virar
   // atributo/texto no DOM (o site é JS vanilla, não tem escape automático).
   const val = (v) => escapeHtml(v == null ? '' : String(v));
-  const iniciais = escapeHtml(iniciaisDoNome(profile?.full_name || nomeDeExibicao(session)));
+  const iniciais = escapeHtml(iniciaisNome(profile?.full_name || nomeDeExibicao(session)));
   const avatarUrl = extra?.avatar_url || '';
   const emailVerificado = Boolean(session.user.email_confirmed_at || session.user.confirmed_at);
   // Default da migration primeiro, o que estiver salvo por cima.
@@ -5317,7 +5476,7 @@ async function initPerfilPage() {
                     ? `<p class="status"><span class="dot muted"></span>pausado</p>`
                     : reassinavel
                       ? `<p class="status"><span class="dot muted"></span>encerrado</p>`
-                      : `<a href="/planos">ver os planos</a>`
+                      : `<a href="/planos" class="pf-plano-cta"><i data-lucide="sparkles" aria-hidden="true"></i>ver os planos</a>`
           }
           ${
             temPlano
@@ -5352,178 +5511,9 @@ async function initPerfilPage() {
         </div>
       </section>
 
-      <!-- Hoje o Casa é teu 🎂: no mês do aniversário, o assinante reserva um brunch
-           (pra uma pessoa) por nossa conta. Preenchido pós-render (RPC
-           meu_brinde_aniversario). Escondido por padrão; o JS revela só quando faz
-           sentido (é o teu mês, ou tem código vivo). Migration 0025 pendente → some. -->
-      <section class="card pf-aniver" data-aniversario hidden>
-        <div class="pf-aniver-head">
-          <span class="pf-aniver-emoji" aria-hidden="true">🎂</span>
-          <div>
-            <p class="pf-script" data-aniver-script>é o teu mês</p>
-            <h2 class="pf-aniver-titulo" data-aniver-titulo>este mês, o Casa é teu</h2>
-          </div>
-        </div>
-        <p class="pf-aniver-txt" data-aniver-txt></p>
-        <div class="pf-aniver-corpo" data-aniver-corpo></div>
-      </section>
-
-      <section class="pf-prog" aria-label="perfil completo">
-        <div class="pf-prog-top">
-          <p class="pf-prog-title">teu perfil tá <em data-progress-pct>0%</em> completo</p>
-          <p class="pf-prog-hint">quanto mais tu contar, melhor a gente acerta teu café</p>
-        </div>
-        <div class="pf-prog-track" role="progressbar" aria-label="perfil completo" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <div class="pf-prog-bar" data-progress-bar style="width:0%"></div>
-        </div>
-      </section>
-
-      <form class="card pf-sec" data-section="dados" novalidate>
-        <div class="pf-head">
-          <h2>teus dados</h2>
-          <p>atualiza quando quiser, é só teu.</p>
-        </div>
-        <div class="pf-grid">
-          <label class="field" for="pf-nome">
-            <span class="lbl">nome completo</span>
-            <input id="pf-nome" name="nome" type="text" value="${nome}" autocomplete="name" />
-          </label>
-          <label class="field" for="pf-apelido">
-            <span class="lbl">como te chamar</span>
-            <input id="pf-apelido" name="apelido" type="text" value="${val(extra?.apelido)}" placeholder="do jeito que teus amigos te chamam" autocomplete="nickname" />
-          </label>
-          <label class="field" for="pf-telefone">
-            <span class="lbl">celular / whatsapp</span>
-            <input id="pf-telefone" name="telefone" type="tel" value="${telefone}" inputmode="tel" autocomplete="tel" data-mask="phone" />
-          </label>
-          <label class="field" for="pf-nascimento">
-            <span class="lbl">aniversário</span>
-            <input id="pf-nascimento" name="nascimento" type="date" value="${val(extra?.nascimento)}" autocomplete="bday" />
-            <span class="hint">no teu dia tem café por nossa conta</span>
-          </label>
-          <label class="field pf-wide" for="pf-email">
-            <span class="lbl">e-mail</span>
-            <input id="pf-email" name="email" type="email" value="${email}" readonly />
-            <button type="button" class="pf-inline-link" data-trocar-email>trocar e-mail</button>
-          </label>
-        </div>
-        <div class="hidden" data-email-painel>
-          <label class="field" for="pf-email-novo">
-            <span class="lbl">e-mail novo</span>
-            <input id="pf-email-novo" type="email" inputmode="email" autocomplete="email" placeholder="teu e-mail novo" />
-            <span class="hint">a gente manda um link pro endereço novo. ele só passa a valer depois que tu confirmar por lá.</span>
-          </label>
-          <div class="pf-actions">
-            <button type="button" class="btn solid sm" data-email-enviar>mandar o link</button>
-            <button type="button" class="btn ghost sm" data-email-cancelar>deixa quieto</button>
-          </div>
-          <p class="hidden text-sm" data-email-msg aria-live="polite"></p>
-        </div>
-        <p class="hidden text-sm" data-perfil-msg aria-live="polite"></p>
-        <div><button type="submit" class="btn solid">salvar teus dados</button></div>
-      </form>
-
-      <form class="card pf-sec g-lg" data-section="cafe" novalidate>
-        <div class="pf-head">
-          <h2>teu café</h2>
-          <p>o barista dá uma olhada aqui antes de moer.</p>
-        </div>
-        <div class="pf-chip-group">
-          <span class="lbl">método de casa</span>
-          <div class="pf-chips" role="group" aria-label="método de casa">${chips('metodo', CAFE_METODOS, extra?.cafe_metodo)}</div>
-        </div>
-        <div class="pf-chip-group">
-          <span class="lbl">torra preferida</span>
-          <div class="pf-chips" role="group" aria-label="torra preferida">${chips('torra', CAFE_TORRAS, extra?.cafe_torra)}</div>
-        </div>
-        <div class="pf-chip-group">
-          <span class="lbl">com leite?</span>
-          <div class="pf-chips" role="group" aria-label="com leite">${chips('leite', CAFE_LEITES, extra?.cafe_leite)}</div>
-        </div>
-        <div class="pf-grid">
-          <label class="field" for="pf-restricoes">
-            <span class="lbl">restrições / alergias</span>
-            <input id="pf-restricoes" name="restricoes" type="text" value="${val(extra?.cafe_restricoes)}" placeholder="sem lactose, sem castanha…" />
-          </label>
-          <label class="field" for="pf-horario">
-            <span class="lbl">costuma passar</span>
-            <select id="pf-horario" name="horario">
-              <option value="">quando dá</option>
-              ${CAFE_HORARIOS.map(
-                (o) =>
-                  `<option value="${o.valor}"${extra?.cafe_horario === o.valor ? ' selected' : ''}>${o.rotulo}</option>`,
-              ).join('')}
-            </select>
-          </label>
-        </div>
-        <div><button type="submit" class="btn solid">salvar teu café</button></div>
-      </form>
-
-      <form class="card pf-sec" data-section="entrega" data-endereco-form novalidate>
-        <div class="pf-head">
-          <h2>onde te entregamos</h2>
-          <p>endereço da tua assinatura. dá pra retirar aqui na casa também.</p>
-        </div>
-        <div class="pf-grid addr">
-          <label class="field" for="pf-cep">
-            <span class="lbl">cep</span>
-            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" data-endereco-campo readonly />
-          </label>
-          <label class="field pf-wide" for="pf-rua">
-            <span class="lbl">rua</span>
-            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" data-endereco-campo readonly />
-          </label>
-          <label class="field" for="pf-numero">
-            <span class="lbl">número</span>
-            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" data-endereco-campo readonly />
-          </label>
-          <label class="field" for="pf-complemento">
-            <span class="lbl">complemento</span>
-            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" data-endereco-campo readonly />
-          </label>
-          <label class="field" for="pf-bairro">
-            <span class="lbl">bairro</span>
-            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" data-endereco-campo readonly />
-          </label>
-          <label class="field" for="pf-cidade">
-            <span class="lbl">cidade</span>
-            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" data-endereco-campo readonly />
-          </label>
-          <label class="field" for="pf-uf">
-            <span class="lbl">uf</span>
-            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf data-endereco-campo readonly />
-          </label>
-        </div>
-        <div class="pf-actions">
-          <button type="button" class="btn ghost" data-endereco-editar>editar</button>
-          <button type="submit" class="btn solid" data-endereco-salvar disabled>salvar endereço</button>
-        </div>
-      </form>
-
-      <section class="card pf-sec">
-        <div class="pf-head">
-          <h2>teus avisos</h2>
-          <p>a gente fala pouco, e só do que importa.</p>
-        </div>
-        <div class="pf-toggles">
-          ${PERFIL_AVISOS.map(
-            (a) => `<div class="pf-toggle">
-                      <div class="pf-toggle-txt">
-                        <b>${a.titulo}</b>
-                        <span>${a.sub}</span>
-                      </div>
-                      <button type="button" class="pf-switch" role="switch" data-aviso="${a.chave}" aria-checked="${
-                        avisos[a.chave] ? 'true' : 'false'
-                      }" aria-label="${a.titulo}"><span></span></button>
-                    </div>`,
-          ).join('')}
-        </div>
-        <p class="hidden text-sm" data-avisos-msg aria-live="polite"></p>
-      </section>
-
       ${
         temGerenciar
-          ? `<section class="card pf-sec" data-gerenciar>
+          ? `<section class="card pf-sec" id="assinatura" data-gerenciar data-section="assinatura" tabindex="-1">
               <div class="flex items-center gap-2">
                 <i data-lucide="settings-2" class="h-5 w-5 text-coral"></i>
                 <h2 class="font-titulo text-xl">gerenciar assinatura</h2>
@@ -5653,9 +5643,190 @@ async function initPerfilPage() {
           : ''
       }
 
+      <!-- Hoje o Casa é teu 🎂: no mês do aniversário, o assinante reserva um brunch
+           (pra uma pessoa) por nossa conta. Preenchido pós-render (RPC
+           meu_brinde_aniversario). Escondido por padrão; o JS revela só quando faz
+           sentido (é o teu mês, ou tem código vivo). Migration 0025 pendente → some. -->
+      <section class="card pf-aniver" data-aniversario hidden>
+        <div class="pf-aniver-head">
+          <span class="pf-aniver-emoji" aria-hidden="true">🎂</span>
+          <div>
+            <p class="pf-script" data-aniver-script>é o teu mês</p>
+            <h2 class="pf-aniver-titulo" data-aniver-titulo>este mês, o Casa é teu</h2>
+          </div>
+        </div>
+        <p class="pf-aniver-txt" data-aniver-txt></p>
+        <div class="pf-aniver-corpo" data-aniver-corpo></div>
+      </section>
+
+      <section class="pf-prog" aria-label="perfil completo">
+        <div class="pf-prog-top">
+          <p class="pf-prog-title">teu perfil tá <em data-progress-pct>0%</em> completo</p>
+          <p class="pf-prog-hint">quanto mais tu contar, melhor a gente acerta teu café</p>
+        </div>
+        <div class="pf-prog-track" role="progressbar" aria-label="perfil completo" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="pf-prog-bar" data-progress-bar style="width:0%"></div>
+        </div>
+        <!-- O que falta, em chips que levam direto pro campo. A barra sozinha
+             dizia a nota e escondia a prova: ninguém adivinha quais dos doze
+             campos estão em branco numa página deste tamanho. -->
+        <div class="pf-prog-faltam" data-progress-faltam hidden></div>
+      </section>
+
+      <!-- Índice das seções: a página é longa e de puro scroll, então quem entra
+           pra trocar o telefone não deve precisar rolar metade dela. Montado pelo
+           JS a partir das próprias [data-section] visíveis, então seção nova já
+           aparece aqui sem tocar em mais nada. -->
+      <nav class="pf-indice" data-perfil-indice aria-label="Seções da tua conta" hidden>
+        <div class="cnav-chips" data-pindice-chips></div>
+      </nav>
+
+      <form class="card pf-sec" data-section="dados" tabindex="-1" novalidate>
+        <div class="pf-head">
+          <h2>teus dados</h2>
+          <p>atualiza quando quiser, é só teu.</p>
+        </div>
+        <div class="pf-grid">
+          <label class="field" for="pf-nome">
+            <span class="lbl">nome completo</span>
+            <input id="pf-nome" name="nome" type="text" value="${nome}" autocomplete="name" />
+          </label>
+          <label class="field" for="pf-apelido">
+            <span class="lbl">como te chamar</span>
+            <input id="pf-apelido" name="apelido" type="text" value="${val(extra?.apelido)}" placeholder="do jeito que teus amigos te chamam" autocomplete="nickname" />
+          </label>
+          <label class="field" for="pf-telefone">
+            <span class="lbl">celular / whatsapp</span>
+            <input id="pf-telefone" name="telefone" type="tel" value="${telefone}" inputmode="tel" autocomplete="tel" data-mask="phone" />
+          </label>
+          <label class="field" for="pf-nascimento">
+            <span class="lbl">aniversário</span>
+            <input id="pf-nascimento" name="nascimento" type="date" value="${val(extra?.nascimento)}" autocomplete="bday" />
+            <span class="hint">no teu dia tem café por nossa conta</span>
+          </label>
+          <label class="field pf-wide" for="pf-email">
+            <span class="lbl">e-mail</span>
+            <input id="pf-email" name="email" type="email" value="${email}" readonly />
+            <button type="button" class="pf-inline-link" data-trocar-email>trocar e-mail</button>
+          </label>
+        </div>
+        <div class="hidden" data-email-painel>
+          <label class="field" for="pf-email-novo">
+            <span class="lbl">e-mail novo</span>
+            <input id="pf-email-novo" type="email" inputmode="email" autocomplete="email" placeholder="teu e-mail novo" />
+            <span class="hint">a gente manda um link pro endereço novo. ele só passa a valer depois que tu confirmar por lá.</span>
+          </label>
+          <div class="pf-actions">
+            <button type="button" class="btn solid sm" data-email-enviar>mandar o link</button>
+            <button type="button" class="btn ghost sm" data-email-cancelar>deixa quieto</button>
+          </div>
+          <p class="hidden text-sm" data-email-msg aria-live="polite"></p>
+        </div>
+        <p class="hidden text-sm" data-perfil-msg aria-live="polite"></p>
+        <div><button type="submit" class="btn solid">salvar teus dados</button></div>
+      </form>
+
+      <form class="card pf-sec g-lg" data-section="cafe" tabindex="-1" novalidate>
+        <div class="pf-head">
+          <h2>teu café</h2>
+          <p>o barista dá uma olhada aqui antes de moer.</p>
+        </div>
+        <div class="pf-chip-group">
+          <span class="lbl">método de casa</span>
+          <div class="pf-chips" role="group" aria-label="método de casa">${chips('metodo', CAFE_METODOS, extra?.cafe_metodo)}</div>
+        </div>
+        <div class="pf-chip-group">
+          <span class="lbl">torra preferida</span>
+          <div class="pf-chips" role="group" aria-label="torra preferida">${chips('torra', CAFE_TORRAS, extra?.cafe_torra)}</div>
+        </div>
+        <div class="pf-chip-group">
+          <span class="lbl">com leite?</span>
+          <div class="pf-chips" role="group" aria-label="com leite">${chips('leite', CAFE_LEITES, extra?.cafe_leite)}</div>
+        </div>
+        <div class="pf-grid">
+          <label class="field" for="pf-restricoes">
+            <span class="lbl">restrições / alergias</span>
+            <input id="pf-restricoes" name="restricoes" type="text" value="${val(extra?.cafe_restricoes)}" placeholder="sem lactose, sem castanha…" />
+          </label>
+          <label class="field" for="pf-horario">
+            <span class="lbl">costuma passar</span>
+            <select id="pf-horario" name="horario">
+              <option value="">quando dá</option>
+              ${CAFE_HORARIOS.map(
+                (o) =>
+                  `<option value="${o.valor}"${extra?.cafe_horario === o.valor ? ' selected' : ''}>${o.rotulo}</option>`,
+              ).join('')}
+            </select>
+          </label>
+        </div>
+        <div><button type="submit" class="btn solid">salvar teu café</button></div>
+      </form>
+
+      <form class="card pf-sec" data-section="entrega" data-endereco-form tabindex="-1" novalidate>
+        <div class="pf-head">
+          <h2>onde te entregamos</h2>
+          <p>endereço da tua assinatura. dá pra retirar aqui na casa também.</p>
+        </div>
+        <div class="pf-grid addr">
+          <label class="field" for="pf-cep">
+            <span class="lbl">cep</span>
+            <input id="pf-cep" name="cep" type="text" value="${val(extra?.end_cep)}" placeholder="93000-000" inputmode="numeric" autocomplete="postal-code" data-mask="cep" data-endereco-campo readonly />
+          </label>
+          <label class="field pf-wide" for="pf-rua">
+            <span class="lbl">rua</span>
+            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" data-endereco-campo readonly />
+          </label>
+          <label class="field" for="pf-numero">
+            <span class="lbl">número</span>
+            <input id="pf-numero" name="numero" type="text" value="${val(extra?.end_numero)}" inputmode="numeric" data-endereco-campo readonly />
+          </label>
+          <label class="field" for="pf-complemento">
+            <span class="lbl">complemento</span>
+            <input id="pf-complemento" name="complemento" type="text" value="${val(extra?.end_complemento)}" placeholder="apto 302" autocomplete="address-line2" data-endereco-campo readonly />
+          </label>
+          <label class="field" for="pf-bairro">
+            <span class="lbl">bairro</span>
+            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" data-endereco-campo readonly />
+          </label>
+          <label class="field" for="pf-cidade">
+            <span class="lbl">cidade</span>
+            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" data-endereco-campo readonly />
+          </label>
+          <label class="field" for="pf-uf">
+            <span class="lbl">uf</span>
+            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf data-endereco-campo readonly />
+          </label>
+        </div>
+        <div class="pf-actions">
+          <button type="button" class="btn ghost" data-endereco-editar>editar</button>
+          <button type="submit" class="btn solid" data-endereco-salvar disabled>salvar endereço</button>
+        </div>
+      </form>
+
+      <section class="card pf-sec" data-section="avisos" tabindex="-1">
+        <div class="pf-head">
+          <h2>teus avisos</h2>
+          <p>a gente fala pouco, e só do que importa.</p>
+        </div>
+        <div class="pf-toggles">
+          ${PERFIL_AVISOS.map(
+            (a) => `<div class="pf-toggle">
+                      <div class="pf-toggle-txt">
+                        <b>${a.titulo}</b>
+                        <span>${a.sub}</span>
+                      </div>
+                      <button type="button" class="pf-switch" role="switch" data-aviso="${a.chave}" aria-checked="${
+                        avisos[a.chave] ? 'true' : 'false'
+                      }" aria-label="${a.titulo}"><span></span></button>
+                    </div>`,
+          ).join('')}
+        </div>
+        <p class="hidden text-sm" data-avisos-msg aria-live="polite"></p>
+      </section>
+
       <div class="pf-links">
         <a class="pf-link" href="/conta/conquistas">
-          <span><i data-lucide="award" class="h-4 w-4"></i>minhas conquistas</span>
+          <span><i data-lucide="award" class="h-4 w-4"></i>tuas conquistas</span>
           <span class="arw" aria-hidden="true">→</span>
         </a>
       </div>
@@ -5716,7 +5887,7 @@ async function initPerfilPage() {
         <div class="ld-chips" data-ld-chips></div>
       </section>
 
-      <section>
+      <section data-section="privacidade" tabindex="-1">
         <div class="pf-head">
           <h2>conta e privacidade</h2>
           <p>teus dados são teus. leva contigo quando quiser.</p>
@@ -5757,13 +5928,20 @@ async function initPerfilPage() {
 
   renderIcons();
 
-  // ── "gerenciar assinatura" logo abaixo do resumo ──────────────────────────
-  // No template ela nasce no fim da página; a gente sobe pra logo depois da
-  // linha de resumo (teus pontos / teu plano / e-mail), que é onde ela conversa.
-  {
-    const gerenciar = root.querySelector('[data-gerenciar]');
-    const stats = root.querySelector('.pf-stats');
-    if (gerenciar && stats) stats.after(gerenciar);
+  // A "gerenciar assinatura" nasce no template logo depois da linha de resumo
+  // (teus pontos / teu plano / e-mail), que é onde ela conversa. Antes ela
+  // nascia no fim da página e era movida por JS aqui: funcionava, mas quem
+  // fosse editar o HTML depois tropeçava na ordem que via.
+  //
+  // O "tua assinatura" do menu aponta pra /conta/perfil#assinatura, e a âncora
+  // nativa não pega: a página inteira é montada aqui, depois do guard de auth,
+  // então na hora em que o navegador procura o #assinatura ele ainda não existe.
+  if (window.location.hash === '#assinatura') {
+    const alvo = root.querySelector('#assinatura');
+    if (alvo) {
+      alvo.scrollIntoView({ block: 'start', behavior: semMovimento() ? 'auto' : 'smooth' });
+      alvo.focus({ preventScroll: true });
+    }
   }
 
   // ── Resgatar presente (código dado por outra pessoa) ──────────────────────
@@ -6600,27 +6778,121 @@ async function initPerfilPage() {
 
   // ── Barra "perfil completo" ───────────────────────────────────────────────
   // Sem CPF na conta: quem coleta é a página do Asaas, então ele não entra aqui.
+  // Cada campo carrega o apelido que aparece no chip do "o que falta": a barra
+  // sozinha dava a nota e escondia a prova, e ninguém adivinha quais dos doze
+  // campos estão em branco numa página deste tamanho.
   const CAMPOS_PROGRESSO = [
-    'pf-nome', 'pf-apelido', 'pf-telefone', 'pf-nascimento', 'pf-cep', 'pf-rua',
-    'pf-numero', 'pf-bairro', 'pf-cidade', 'pf-uf', 'pf-restricoes', 'pf-horario',
+    { id: 'pf-nome', rotulo: 'teu nome' },
+    { id: 'pf-apelido', rotulo: 'como te chamar' },
+    { id: 'pf-telefone', rotulo: 'teu whatsapp' },
+    { id: 'pf-nascimento', rotulo: 'teu aniversário' },
+    { id: 'pf-cep', rotulo: 'teu cep' },
+    { id: 'pf-rua', rotulo: 'tua rua' },
+    { id: 'pf-numero', rotulo: 'o número' },
+    { id: 'pf-bairro', rotulo: 'teu bairro' },
+    { id: 'pf-cidade', rotulo: 'tua cidade' },
+    { id: 'pf-uf', rotulo: 'teu estado' },
+    { id: 'pf-restricoes', rotulo: 'restrições' },
+    { id: 'pf-horario', rotulo: 'quando tu passa' },
+  ];
+  const CHIPS_PROGRESSO = [
+    { grupo: 'metodo', rotulo: 'teu método de casa' },
+    { grupo: 'torra', rotulo: 'tua torra' },
+    { grupo: 'leite', rotulo: 'com leite?' },
   ];
   const progPct = root.querySelector('[data-progress-pct]');
   const progBar = root.querySelector('[data-progress-bar]');
+  const progFaltam = root.querySelector('[data-progress-faltam]');
+  const MAX_CHIPS_FALTAM = 4;
+
   function atualizarProgresso() {
-    const preenchidos = CAMPOS_PROGRESSO.filter((id) => (campo(id)?.value || '').trim()).length;
-    const chipsMarcados = root.querySelectorAll('[data-chip][aria-pressed="true"]').length;
-    const total = CAMPOS_PROGRESSO.length + 3 + 1; // 3 grupos de chips + e-mail confirmado
-    const pct = Math.round(((preenchidos + chipsMarcados + (emailVerificado ? 1 : 0)) / total) * 100);
+    const vazios = CAMPOS_PROGRESSO.filter((c) => !(campo(c.id)?.value || '').trim());
+    const gruposVazios = CHIPS_PROGRESSO.filter(
+      (g) => !root.querySelector(`[data-chip="${g.grupo}"][aria-pressed="true"]`),
+    );
+    const total = CAMPOS_PROGRESSO.length + CHIPS_PROGRESSO.length + 1; // + e-mail confirmado
+    const feitos =
+      CAMPOS_PROGRESSO.length - vazios.length +
+      (CHIPS_PROGRESSO.length - gruposVazios.length) +
+      (emailVerificado ? 1 : 0);
+    const pct = Math.round((feitos / total) * 100);
     if (progPct) progPct.textContent = `${pct}%`;
     if (progBar) {
       progBar.style.width = `${pct}%`;
       progBar.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', String(pct));
     }
+    if (!progFaltam) return;
+
+    // Os chips levam ao campo em si (foco + scroll). O grupo de chips do café não
+    // tem um input pra focar, então o alvo é o primeiro botão do grupo.
+    const pendentes = [
+      ...vazios.map((c) => ({ rotulo: c.rotulo, alvo: c.id, tipo: 'campo' })),
+      ...gruposVazios.map((g) => ({ rotulo: g.rotulo, alvo: g.grupo, tipo: 'grupo' })),
+    ];
+    if (!pendentes.length) {
+      progFaltam.innerHTML = `<p class="pf-prog-pronto">tá tudo preenchido, obrigado 💛</p>`;
+      progFaltam.hidden = false;
+      return;
+    }
+    const mostrar = pendentes.slice(0, MAX_CHIPS_FALTAM);
+    const sobra = pendentes.length - mostrar.length;
+    progFaltam.innerHTML = `
+      <span class="pf-prog-lbl">falta contar</span>
+      ${mostrar
+        .map(
+          (p) =>
+            `<button type="button" class="pf-prog-chip" data-falta-tipo="${p.tipo}" data-falta="${escapeHtml(p.alvo)}">${escapeHtml(p.rotulo)}</button>`,
+        )
+        .join('')}
+      ${sobra > 0 ? `<span class="pf-prog-mais">e mais ${sobra}</span>` : ''}`;
+    progFaltam.hidden = false;
   }
+
+  progFaltam?.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-falta]');
+    if (!chip) return;
+    const alvo =
+      chip.dataset.faltaTipo === 'grupo'
+        ? root.querySelector(`[data-chip="${chip.dataset.falta}"]`)
+        : campo(chip.dataset.falta);
+    if (!alvo) return;
+    alvo.scrollIntoView({ block: 'center', behavior: semMovimento() ? 'auto' : 'smooth' });
+    alvo.focus({ preventScroll: true });
+  });
+
   root
     .querySelectorAll('.field input, .field select')
     .forEach((el) => el.addEventListener('input', atualizarProgresso));
   atualizarProgresso();
+
+  // ── Índice das seções ─────────────────────────────────────────────────────
+  // Montado das próprias [data-section] visíveis: seção nova no perfil já entra
+  // no índice sem tocar aqui. Rola até a seção e pousa o foco nela (todas levam
+  // tabindex="-1"), pra quem navega por teclado chegar junto com quem enxerga.
+  {
+    const indice = root.querySelector('[data-perfil-indice]');
+    const chipsEl = root.querySelector('[data-pindice-chips]');
+    const secoes = Array.from(root.querySelectorAll('[data-section]')).filter((s) => !s.hidden);
+    if (indice && chipsEl && secoes.length > 1) {
+      chipsEl.innerHTML = `<span class="pf-indice-lbl">ir direto pra</span>` + secoes
+        .map(
+          (s, i) =>
+            `<button type="button" class="cnav-chip" data-pindice="${i}">${escapeHtml(
+              s.querySelector('h2')?.textContent.trim() || s.dataset.section,
+            )}</button>`,
+        )
+        .join('');
+      indice.hidden = false;
+      chipsEl.addEventListener('click', (e) => {
+        const chip = e.target.closest('[data-pindice]');
+        if (!chip) return;
+        const sec = secoes[Number(chip.dataset.pindice)];
+        if (!sec) return;
+        sec.scrollIntoView({ block: 'start', behavior: semMovimento() ? 'auto' : 'smooth' });
+        sec.focus({ preventScroll: true });
+      });
+    }
+  }
 
   // ── Salvar por seção ──────────────────────────────────────────────────────
   // Cada form grava só as colunas da própria seção, na PRÓPRIA linha do profiles
@@ -6748,7 +7020,7 @@ async function initPerfilPage() {
           // junto o botão de trocar foto e o input.
           const av = root.querySelector('[data-avatar-iniciais]');
           const h1 = root.querySelector('.pf-name');
-          if (av) av.textContent = iniciaisDoNome(patch.full_name);
+          if (av) av.textContent = iniciaisNome(patch.full_name);
           if (h1) h1.textContent = `oi, ${patch.full_name}`;
         }
         toast(RECADOS[secao]);
@@ -7242,7 +7514,18 @@ async function initPontosPage() {
     const jaLiberado = emEstoque.find((r) => Number(r.custo_em_pontos) <= saldo);
 
     let cardQuaseLa = '';
-    if (proximoMimo) {
+    if (!planoNome && saldo <= 0) {
+      // Sem plano e zerado, a barrinha nunca ia andar: pontuar é exclusivo de
+      // assinante. Mostrar "faltam 400 pontos" aqui seria uma conta parada,
+      // prometida em cima de um mimo que não vem. Então o carimbo conta de onde
+      // vêm os pontos e abre a porta.
+      cardQuaseLa = `
+        <div class="mt-8 card">
+          <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="coffee" class="h-4 w-4"></i> teu primeiro carimbo</p>
+          <p class="mt-2 font-titulo text-xl leading-snug text-ink">o carimbo do Casa começa no <a href="/planos" class="text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">clube</a></p>
+          <p class="mt-1 text-sm text-muted">com plano, cada real que tu gasta aqui vira ponto, e ponto vira mimo. sem plano a gente segue te servindo café igual, só não dá pra carimbar.</p>
+        </div>`;
+    } else if (proximoMimo) {
       const custo = Number(proximoMimo.custo_em_pontos);
       const faltam = custo - saldo;
       const pct = custo > 0 ? Math.max(3, Math.min(100, Math.round((saldo / custo) * 100))) : 0;
@@ -7913,6 +8196,7 @@ export function initSite() {
   renderFooter();
   initListaEspera(); // campinho "avisa quando a loja abrir" do rodapé (migration 0031)
   renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
+  renderContaNav(); // tirinha entre as páginas da conta (só age em /conta/*)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)
   initIndicacao(); // capta ?indica= e registra o vínculo quando logado (todas as páginas)
   initCart(); // drawer + badge (todas as páginas)

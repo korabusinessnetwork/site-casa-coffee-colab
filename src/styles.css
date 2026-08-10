@@ -322,6 +322,12 @@ a.txt-link.gold { color: var(--gold) }
 /* peças do Casa dentro do header (auth + carrinho) */
 .auth-desktop { display: flex; align-items: center; color: var(--cream) }
 @media (max-width: 1080px) { .auth-desktop { display: none } }
+/* Espelho mobile do painel do avatar: no celular o painel some junto com a
+   .auth-desktop, e a conta ficava só no fundo do hambúrguer. Aqui ela volta pra
+   barra, do lado do sino, a um toque. */
+.hdr-conta-mob { display: none; align-items: center; padding: 0 2px; border-radius: 999px; text-decoration: none; color: inherit }
+@media (max-width: 1080px) { .hdr-conta-mob { display: inline-flex } }
+.hdr-conta-mob[aria-current] .hdr-user-avatar { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--coral) }
 .hdr-icon { position: relative; display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: none; border: 0; cursor: pointer; color: var(--cream); transition: background .2s var(--e), color .2s var(--e) }
 .hdr-icon:hover { background: rgba(239, 233, 221, .12) }
 .hdr-icon svg { width: 22px; height: 22px }
@@ -341,6 +347,29 @@ a.txt-link.gold { color: var(--gold) }
 [data-hdr-avatar].tem-foto { background: none }
 [data-hdr-avatar] img { display: block; width: 100%; height: 100%; object-fit: cover }
 .hdr-user-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+/* ---------- painel da conta (dropdown do avatar, desktop) ---------- */
+/* Os links moravam em classes utilitárias soltas no JS; virando classe de
+   verdade, o painel do desktop e a lista do drawer passam a ler a MESMA fila
+   (CONTA_LINKS) sem cada um carregar o próprio figurino. */
+.pnl-links { display: grid; gap: 2px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line) }
+.pnl-link { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-radius: 10px; background: none; color: var(--ink); font-family: var(--sans); font-size: 14px; text-align: left; text-decoration: none; cursor: pointer; transition: background .15s var(--e), color .15s var(--e) }
+.pnl-link:hover { background: rgba(27, 22, 17, .05) }
+.pnl-link svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--coral) }
+.pnl-link[aria-current] { color: var(--coral); font-weight: 600; background: rgba(223, 86, 56, .08) }
+.pnl-sair { margin-top: 4px; color: var(--muted) }
+.pnl-sair:hover { color: var(--coral) }
+.pnl-sair svg { color: currentColor }
+
+/* Convite do clube pra quem ainda não assina. É a única linha do painel com
+   peso de botão: quem chega aqui sem plano é justamente quem ainda não viu o
+   que o clube dá, e o item de texto solto que existia antes ("conhecer os
+   planos") se perdia no meio dos outros quatro. */
+.pnl-cta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--coral) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--coral) 28%, var(--line)); color: var(--ink); text-decoration: none; transition: border-color .2s var(--e), background .2s var(--e) }
+.pnl-cta:hover { background: color-mix(in srgb, var(--coral) 16%, var(--card)); border-color: var(--coral) }
+.pnl-cta b { display: block; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--coral) }
+.pnl-cta em { display: block; margin-top: 2px; font-style: normal; font-size: 12.5px; line-height: 1.4; color: var(--muted) }
+.pnl-cta svg { flex: 0 0 auto; color: var(--coral) }
 
 /* header sólido ao rolar (ou já sólido nas páginas internas via .scrolled) */
 .site-header.scrolled { background: color-mix(in srgb, var(--paper) 95%, transparent); backdrop-filter: blur(10px); box-shadow: 0 10px 30px -24px rgba(27, 22, 17, .7); border-bottom: 1px solid var(--line) }
@@ -387,6 +416,31 @@ a.txt-link.gold { color: var(--gold) }
 .menu-mobile .nav-off .menu-ico { opacity: .55 }
 /* No cartão o carimbo fica ao lado do rótulo, mesma tinta, mesma inclinação. */
 .menu-mobile .nav-selo { display: inline-block; transform: rotate(-6deg); font-size: 8px; letter-spacing: .16em; padding: 2.5px 6px; vertical-align: 2px }
+
+/* ---------- cartão da conta no menu mobile ---------- */
+/* O drawer era a versão pobre do painel do desktop: nome, "— pontos" e quatro
+   links. Agora abre com o mesmo cartão (foto, nome, plano, saldo), que também é
+   atalho pro perfil, e fecha com a mesma porta do clube. */
+.menu-mobile .menu-conta-cartao { display: flex; align-items: center; gap: 11px; padding: 10px; margin-bottom: 2px; border-radius: 12px; background: var(--paper-2); color: var(--ink); text-decoration: none }
+.menu-mobile .menu-conta-cartao:active { background: rgba(27, 22, 17, .06) }
+.menu-conta-avatar { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; background: var(--coral); color: #fff; font-family: var(--serif); font-size: 15px }
+.menu-conta-txt { min-width: 0; flex: 1 1 auto }
+.menu-conta-txt b { display: block; font-family: var(--sans); font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.menu-conta-sub { display: block; margin-top: 1px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.menu-conta-arw { width: 16px; height: 16px; flex: 0 0 auto; color: var(--muted) }
+/* Ícone da fila da conta no tom dos da navegação logo acima. O `.text-coral`
+   explícito segue vencendo — é o que o "entrar"/"criar conta" de quem está
+   deslogado usa pra puxar o olho. */
+.menu-mobile .menu-conta-link svg { width: 19px; height: 19px; flex: 0 0 auto; color: var(--muted) }
+.menu-mobile .menu-conta-link svg.text-coral { color: var(--coral) }
+.menu-mobile a[data-menu-link][aria-current] svg { color: var(--coral) }
+.menu-mobile .menu-conta-sair { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 4px; padding: 10px; border: 0; border-radius: 11px; background: none; color: var(--muted); font-family: var(--sans); font-size: 15px; text-align: left; cursor: pointer }
+.menu-mobile .menu-conta-sair:active { background: rgba(27, 22, 17, .05) }
+.menu-mobile .menu-conta-sair svg { width: 19px; height: 19px; flex: 0 0 auto }
+.menu-mobile .menu-conta-cta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 2px; padding: 11px 12px; border-radius: 12px; background: color-mix(in srgb, var(--coral) 10%, var(--paper)); border: 1px solid color-mix(in srgb, var(--coral) 28%, var(--line)); color: var(--ink); text-decoration: none }
+.menu-mobile .menu-conta-cta b { display: block; font-size: 14px; font-weight: 600; color: var(--coral) }
+.menu-mobile .menu-conta-cta em { display: block; margin-top: 1px; font-style: normal; font-size: 12px; line-height: 1.35; color: var(--muted) }
+.menu-mobile .menu-conta-cta svg { width: 17px; height: 17px; flex: 0 0 auto; color: var(--coral) }
 
 /* CTA "passa aqui?" no rodapé do menu (o botão dourado do header some no mobile) */
 .menu-mobile .menu-cta { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; padding: 13px 16px; background: var(--gold); color: #231a0c; border-radius: 10px; font-family: var(--sans); font-weight: 700; text-transform: uppercase; letter-spacing: .14em; font-size: 12px; text-decoration: none }
@@ -1051,6 +1105,27 @@ a.txt-link.gold { color: var(--gold) }
 .cnav-chip { flex: 0 0 auto; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--muted); font-family: var(--sans); font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: color .15s var(--e), background .15s var(--e), border-color .15s var(--e) }
 .cnav-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--acc, var(--coral)) 35%, var(--line)) }
 .cnav-chip.on { background: color-mix(in srgb, var(--acc, var(--coral)) 12%, var(--card)); border-color: color-mix(in srgb, var(--acc, var(--coral)) 45%, var(--line)); color: var(--acc-ink, var(--coral)); font-weight: 600 }
+/* O mesmo chip serve de link (tirinha da conta) e de botão (cardápio/índice do
+   perfil): quando é <a>, tira o sublinhado e alinha o ícone com o rótulo. */
+a.cnav-chip { display: inline-flex; align-items: center; gap: 7px; text-decoration: none }
+.cnav-chip svg { width: 15px; height: 15px; flex: 0 0 auto }
+
+/* tirinha entre as páginas da área logada (renderContaNav). Mesmo desenho da do
+   cardápio, e pelo mesmo motivo: as quatro páginas de /conta/ não se falavam. */
+.conta-nav { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line) }
+.conta-nav[hidden] { display: none }
+
+/* índice das seções do /conta/perfil: mais leve que a tirinha da conta (não
+   gruda, não tem faixa), pra não competir com ela nem virar duas barras. */
+.pf-indice { margin: -6px 0 2px }
+.pf-indice[hidden] { display: none }
+.pf-indice .cnav-chip { font-size: 13px; padding: 6px 12px }
+.pf-indice-lbl { flex: 0 0 auto; align-self: center; margin-right: 2px; font-family: var(--sans); text-transform: uppercase; letter-spacing: .14em; font-size: 9.5px; font-weight: 700; color: var(--muted) }
+/* As seções levam tabindex="-1" só pra o foco POUSAR nelas quando o índice (ou a
+   âncora #assinatura) leva alguém até ali — o mesmo motivo do alvo do skip link,
+   e a mesma decisão dele: o pulo já é a pista, o contorno em volta de um cartão
+   inteiro só assusta. */
+.pf [data-section]:focus, .pf [data-section]:focus-visible { outline: none }
 
 /* ---------- cores por seção do cardápio ----------
    Cada seção do /cardapio carrega uma classe .acc-* que só define as duas
@@ -1453,6 +1528,15 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .pf-prog-hint { font-size: 14px; line-height: 1.3; color: var(--muted); margin: 0 }
 .pf-prog-track { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--line) 78%, var(--ink)); overflow: hidden }
 .pf-prog-bar { height: 100%; border-radius: 999px; background: var(--coral); transition: width .3s var(--e) }
+/* "falta contar": os buracos do perfil viram chips que levam ao campo. A barra
+   sozinha dava a nota e escondia a prova. */
+.pf-prog-faltam { display: flex; align-items: center; flex-wrap: wrap; gap: 7px }
+.pf-prog-faltam[hidden] { display: none }
+.pf-prog-lbl { font-family: var(--sans); text-transform: uppercase; letter-spacing: .14em; font-size: 9.5px; font-weight: 700; color: var(--muted) }
+.pf-prog-chip { padding: 5px 11px; border: 1px dashed color-mix(in srgb, var(--coral) 40%, var(--line)); border-radius: 999px; background: var(--card); color: var(--ink); font-family: var(--sans); font-size: 13px; cursor: pointer; transition: border-color .15s var(--e), background .15s var(--e) }
+.pf-prog-chip:hover { border-style: solid; border-color: var(--coral); background: color-mix(in srgb, var(--coral) 8%, var(--card)) }
+.pf-prog-mais { font-size: 12.5px; color: var(--muted) }
+.pf-prog-pronto { font-size: 13.5px; color: var(--olive); margin: 0 }
 
 /* ---------- seção (usa .card do app; isto só ajusta o miolo) ---------- */
 .pf-sec { display: flex; flex-direction: column; gap: 20px; border-radius: 16px }
@@ -1465,8 +1549,18 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
    um chip laranja no canto inferior direito que abre um painel flutuante com o
    campo do código. O chip/painel se posicionam relativos ao .pf-stat-plano. */
 .pf-stat-plano { position: relative; padding-bottom: 58px }
-.pf-presente-chip { position: absolute; right: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 6px; background: var(--coral); color: #fff; border: 0; border-radius: 999px; padding: 8px 15px; font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .02em; cursor: pointer; box-shadow: 0 3px 10px rgba(223, 86, 56, .3); transition: background .2s var(--e), transform .2s var(--e) }
-.pf-presente-chip:hover { background: var(--coral-2); transform: translateY(-1px) }
+/* O "tem um presente?" era o botão mais forte da célula: coral sólido com
+   sombra, ao lado de um "ver os planos" em texto miúdo. Quem não tem plano quase
+   sempre chega aqui SEM presente nenhum — a ação principal dessa célula é
+   conhecer o clube, e ela estava perdendo em peso pro caso raro. O resgate vira
+   um chip discreto (segue a um toque, no mesmo lugar) e o "ver os planos" ganha
+   cara de botão logo abaixo do estado do plano. */
+.pf-presente-chip { position: absolute; right: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 6px; background: var(--card); color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: 7px 13px; font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: .02em; cursor: pointer; transition: color .2s var(--e), border-color .2s var(--e) }
+.pf-presente-chip:hover { color: var(--coral); border-color: var(--coral); border-style: solid }
+/* CTA do clube na célula "teu plano" (só aparece pra quem ainda não assina). */
+.pf-stat .pf-plano-cta { display: inline-flex; align-items: center; gap: 7px; margin-top: 4px; padding: 9px 16px; border-radius: 999px; background: var(--coral); color: #fff; font-family: var(--sans); font-size: 13px; font-weight: 600; text-decoration: none; box-shadow: 0 3px 10px rgba(223, 86, 56, .28); transition: background .2s var(--e), transform .2s var(--e) }
+.pf-stat .pf-plano-cta:hover { background: var(--coral-2); transform: translateY(-1px); text-decoration: none }
+.pf-stat .pf-plano-cta svg { width: 15px; height: 15px }
 .pf-presente-pop { position: absolute; right: 12px; top: calc(100% - 6px); z-index: 30; width: min(320px, 84vw); display: flex; flex-direction: column; gap: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: 0 16px 44px rgba(45, 30, 20, .2) }
 .pf-presente-pop[hidden] { display: none }
 .pf-presente-sub { font-size: 14px; line-height: 1.5; color: var(--muted); margin: 0 }
