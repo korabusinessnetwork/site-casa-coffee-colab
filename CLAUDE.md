@@ -1290,7 +1290,10 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   a tela sem trocar nada) e `admin_minhas_permissoes` segue devolvendo `console:true` pro
   master travado, senão ele não alcançaria o formulário de troca. Mais a RPC
   `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. **Falta:** aplicar
-  + rodar `npm run criar-adm-master --resetar-senha` pra sortear uma senha nova.
+  + trocar a senha do master. O caminho curto é entrar no console e usar a tela de troca
+  obrigatória (a migration já arma a trava sozinha, no backfill); só quem perdeu a senha
+  precisa do script, e aí é `npm run criar-adm-master -- --resetar-senha` (o `--` solto é
+  obrigatório, senão o npm engole a flag e o script não reseta nada).
 - **`0033_perfil_publico_trava` — PENDENTE (aplicar DEPOIS da 0024).** Trigger
   `prevent_perfil_publico_tamper` (mesmo desenho do `prevent_points_tamper`, com GUC
   `casa.trusted_perfil`): `profiles.perfil_publico` e `profiles.handle` param de ser
