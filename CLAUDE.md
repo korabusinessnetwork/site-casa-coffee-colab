@@ -85,7 +85,13 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - **Endereço:** R. Victor Hugo Kunz, 411 — Hamburgo Velho, Novo Hamburgo/RS
 - **E-mail:** casacoffeecolab@gmail.com
 - **Telefone:** (51) 99360-5262
-- **Horário:** Seg a sáb 8h–19h · dom 15h–19h
+- **Horário:** Seg a sáb 8h às 19h · dom 15h às 19h. No rodapé isso é uma **coluna
+  própria** ("horário de funcionamento"), dia a dia, montada do array
+  `MARCA.contato.horarios` (`{ diaSemana, dia, horas }`, `diaSemana` no índice do
+  `Date.getDay()`). A linha de **hoje** vem marcada em dourado, pelo relógio de quem
+  visita, com um `.sr-only` " , hoje" pra quem ouve a página. Mudou o horário da casa,
+  muda no array e vale em toda página. (O `/o-casa` tem a própria cópia do horário no
+  HTML, na seção "Passa aqui?" — essa não vem do `MARCA`.)
 
 Redes (placeholders por enquanto): Instagram, Spotify. **Sem Facebook** — a casa não tem
 perfil por lá, e link morto no rodapé é promessa que não se cumpre. Fonte única no

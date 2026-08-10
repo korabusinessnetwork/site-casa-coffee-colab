@@ -156,7 +156,19 @@ const MARCA = {
     // O telefone do rodapé abre o WhatsApp já com a conversa começada.
     whatsappNumero: '5551993605262',
     whatsappMensagem: 'Oii, gente do casa!! Quero saber mais sobre vocês!!',
-    horario: 'Seg a sáb 8h–19h · dom 15h–19h',
+    // Fonte única do horário: o rodapé monta a coluna "horário de funcionamento"
+    // daqui, dia a dia. `diaSemana` é o índice do Date.getDay() (0 = domingo),
+    // que é como o rodapé sabe qual linha é a de hoje. Mudou o horário da casa?
+    // muda aqui e vale em toda página.
+    horarios: [
+      { diaSemana: 1, dia: 'segunda', horas: '8h às 19h' },
+      { diaSemana: 2, dia: 'terça', horas: '8h às 19h' },
+      { diaSemana: 3, dia: 'quarta', horas: '8h às 19h' },
+      { diaSemana: 4, dia: 'quinta', horas: '8h às 19h' },
+      { diaSemana: 5, dia: 'sexta', horas: '8h às 19h' },
+      { diaSemana: 6, dia: 'sábado', horas: '8h às 19h' },
+      { diaSemana: 0, dia: 'domingo', horas: '15h às 19h' },
+    ],
   },
   // Fonte única das redes (rodapé e o link do "som do Casa" na home). O Facebook
   // saiu daqui: a casa não tem perfil por lá, e link morto no rodapé é promessa
@@ -2315,6 +2327,18 @@ function renderFooter() {
     .map((r) => `<a href="${r.href}" aria-label="${r.nome}">${r.nome}</a>`)
     .join('');
 
+  // O dia de hoje sai do relógio de quem visita (é o "hoje" dela que importa).
+  const hoje = new Date().getDay();
+  const linhasHorario = contato.horarios
+    .map((h) => {
+      const eHoje = h.diaSemana === hoje;
+      // O "hoje" é dito na cor, que leitor de tela não enxerga — daí o texto
+      // escondido, pra quem ouve o rodapé receber a mesma informação.
+      const marca = eHoje ? '<span class="sr-only">, hoje</span>' : '';
+      return `<div class="ft-hr${eHoje ? ' hoje' : ''}"><dt>${h.dia}${marca}</dt><dd>${h.horas}</dd></div>`;
+    })
+    .join('');
+
   slot.innerHTML = `
     <footer class="foot">
       <div class="wrap">
@@ -2378,8 +2402,16 @@ function renderFooter() {
               ><i data-lucide="message-circle" aria-hidden="true"></i
               ><span>${contato.telefone}, chama no WhatsApp</span></a
             >
-            <p>${contato.horario}</p>
           </address>
+        </div>
+
+        <!-- Horário de funcionamento — dia a dia, do MARCA.contato.horarios.
+             Fica ao lado do endereço porque as duas respondem a mesma pergunta:
+             onde e quando passar aqui. A linha de hoje vem marcada, senão a
+             pessoa tem que caçar o dia dela numa lista de sete. -->
+        <div>
+          <p class="ft-label">Horário de funcionamento</p>
+          <dl class="ft-horarios">${linhasHorario}</dl>
         </div>
 
         <!-- Redes -->
