@@ -1061,10 +1061,6 @@ a.txt-link.gold { color: var(--gold) }
 .sec-cardapio { border-top: 3px solid var(--acc, var(--line)) }
 .sec-cardapio .icon-badge { border: 1px solid color-mix(in srgb, var(--acc, var(--line)) 55%, transparent) }
 
-/* as quatro bolinhas na abertura (o mesmo alfabeto de cores das seções) */
-.cardapio-dots { display: flex; gap: 7px; margin-top: 20px }
-.cardapio-dots span { width: 9px; height: 9px; border-radius: 50%; display: block }
-
 /* a faixa de quatro cores que fecha o cardápio, antes da nota */
 .cardapio-faixa { display: flex; height: 3px }
 .cardapio-faixa span { flex: 1 }
