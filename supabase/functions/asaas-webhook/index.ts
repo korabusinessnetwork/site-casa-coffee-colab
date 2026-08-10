@@ -286,6 +286,9 @@ async function finalizeStoreOrder(checkout: any, alvo: 'pago' | 'cancelado'): Pr
     return;
   }
 
+  // Pedido já estornado não volta pra 'pago' num reenvio do CHECKOUT_PAID (o
+  // dinheiro foi devolvido; o evento antigo não desfaz isso).
+  if (order.status === 'estornado') return;
   // Nunca cancela/mexe num pedido que já foi pago.
   if (order.status === 'pago' && alvo === 'cancelado') return;
   // Só cancela pedidos ainda pendentes.
@@ -718,16 +721,22 @@ async function handleSubscriptionPaymentFailure(payment: any): Promise<void> {
   if (userId) await getEffectiveSubscription(userId);
 }
 
-// ESTORNO DE PONTOS — quando um pagamento de assinatura é estornado (refund) ou vira
-// chargeback, os pontos que ele creditou precisam voltar; senão dá pra pagar → ganhar
-// pontos → resgatar recompensa → pedir chargeback e ficar com tudo. Lança um delta
-// NEGATIVO no ledger (o cache do saldo pode ir a negativo — é o correto: a pessoa
-// "deve" pontos, e resgates só voltam a passar quando o saldo cobre de novo). Só
-// estorna o que foi DE FATO creditado (busca o crédito original pelo payment.id);
-// nada creditado (não-assinante, valor 0, evento fora de assinatura) → no-op. Loja
-// credita por order.id, não por payment.id, então este lookup NÃO toca pontos de
-// loja. Idempotente por (ref_type='estorno', ref_id=payment.id): REFUNDED e
-// CHARGEBACK do MESMO pagamento estornam UMA vez só.
+// ESTORNO DE PONTOS — quando um pagamento é estornado (refund) ou vira chargeback,
+// os pontos que ele creditou precisam voltar; senão dá pra pagar → ganhar pontos →
+// resgatar recompensa → pedir chargeback e ficar com tudo. Lança um delta NEGATIVO
+// no ledger (o cache do saldo pode ir a negativo — é o correto: a pessoa "deve"
+// pontos, e resgates só voltam a passar quando o saldo cobre de novo). Só estorna o
+// que foi DE FATO creditado; nada creditado (não-assinante, valor 0) → no-op.
+//
+// Os dois fluxos creditam com chaves diferentes, então são dois caminhos:
+//   • ASSINATURA — crédito em (ref_type='subscription', ref_id=payment.id), então o
+//     próprio id do pagamento acha. Estorno em (ref_type='estorno', ref_id=payment.id).
+//   • LOJA — crédito em (ref_type='order', ref_id=order.id): o id do pagamento não
+//     aparece em lugar nenhum do crédito. A ponte é o `payment.checkoutSession`, que
+//     é o `orders.asaas_checkout_id` gravado na criação do checkout. Estorno em
+//     (ref_type='estorno_order', ref_id=order.id) — ref_type distinto do crédito pra
+//     conviver com ele no UNIQUE (ref_type, ref_id).
+// Idempotente nos dois: REFUNDED e CHARGEBACK do MESMO pagamento estornam uma vez só.
 async function reversePointsForPayment(payment: any): Promise<void> {
   const paymentId = idOf(payment);
   if (!paymentId) return;
@@ -740,17 +749,73 @@ async function reversePointsForPayment(payment: any): Promise<void> {
     .gt('delta', 0)
     .maybeSingle();
   if (selErr) throw selErr;
-  if (!credito || !(Number(credito.delta) > 0)) return; // nada creditado → nada a estornar
+
+  if (credito && Number(credito.delta) > 0) {
+    const { error: insErr } = await supabaseAdmin.from('points_ledger').insert({
+      user_id: credito.user_id,
+      delta: -Number(credito.delta),
+      motivo: 'estorno da assinatura',
+      descricao: 'estorno da assinatura',
+      ref_type: 'estorno',
+      ref_id: paymentId,
+    });
+    // 23505 = já estornado (segundo evento do mesmo pagamento) → idempotente, ok.
+    if (insErr && insErr.code !== '23505') throw insErr;
+    return;
+  }
+
+  // Não era assinatura: pode ser uma compra na loja.
+  await reverseStoreOrderForPayment(payment);
+}
+
+// ESTORNO DA LOJA — devolve os pontos da compra E tira o pedido da fila. Sem a
+// segunda parte o pedido seguiria 'pago' pra quem separa e entrega, com o dinheiro
+// já devolvido. Carimba também o `asaas_payment_id` (que até aqui nunca era
+// gravado), pra o pedido guardar de qual pagamento ele veio.
+async function reverseStoreOrderForPayment(payment: any): Promise<void> {
+  const checkoutSession = typeof payment?.checkoutSession === 'string' ? payment.checkoutSession : null;
+  if (!checkoutSession) return; // cobrança avulsa fora do nosso checkout → nada a fazer
+
+  const { data: order, error: orderErr } = await supabaseAdmin
+    .from('orders')
+    .select('id, user_id, status')
+    .eq('asaas_checkout_id', checkoutSession)
+    .maybeSingle();
+  if (orderErr) throw orderErr;
+  if (!order) return; // checkout de assinatura/presente, ou pedido de outro fluxo
+
+  if (order.status !== 'estornado') {
+    const { error } = await supabaseAdmin
+      .from('orders')
+      .update({
+        status: 'estornado',
+        asaas_payment_id: idOf(payment),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', order.id);
+    if (error) throw error;
+  }
+
+  if (!order.user_id) return;
+
+  const { data: credito, error: selErr } = await supabaseAdmin
+    .from('points_ledger')
+    .select('user_id, delta')
+    .eq('ref_type', 'order')
+    .eq('ref_id', order.id)
+    .gt('delta', 0)
+    .maybeSingle();
+  if (selErr) throw selErr;
+  if (!credito || !(Number(credito.delta) > 0)) return; // não pontuou → nada a estornar
 
   const { error: insErr } = await supabaseAdmin.from('points_ledger').insert({
     user_id: credito.user_id,
     delta: -Number(credito.delta),
-    motivo: 'estorno da assinatura',
-    descricao: 'estorno da assinatura',
-    ref_type: 'estorno',
-    ref_id: paymentId,
+    motivo: 'estorno da compra',
+    descricao: 'estorno da compra',
+    ref_type: 'estorno_order',
+    ref_id: order.id,
   });
-  // 23505 = já estornado (segundo evento do mesmo pagamento) → idempotente, ok.
   if (insErr && insErr.code !== '23505') throw insErr;
 }
 

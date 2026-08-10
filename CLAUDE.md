@@ -87,7 +87,9 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - **Telefone:** (51) 99360-5262
 - **Horário:** Seg a sáb 8h–19h · dom 15h–19h
 
-Redes (placeholders por enquanto): Instagram, Facebook, Spotify.
+Redes (placeholders por enquanto): Instagram, Spotify. **Sem Facebook** — a casa não tem
+perfil por lá, e link morto no rodapé é promessa que não se cumpre. Fonte única no
+`MARCA.redes` (`app.js`), que serve o rodapé e o link do "som do Casa" na home.
 
 ---
 
@@ -242,9 +244,15 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   `renderTabbar` consulta a NAV pelo href, então religar vale pros quatro lugares de uma
   vez). A página continua no ar — dá pra abrir digitando `/loja`. Pra religar o link, é
   só tirar o `semLink`.
-- **Cardápio e Planos** usam preços fictícios com nota no rodapé ("* valores ilustrativos" /
-  "* valores fictícios, a definir"). Botão **"assinar"** (`initPlanosPage`) chama a
-  `create-checkout-session` e leva pro Checkout hospedado do Asaas.
+- **Cardápio** usa preços de tom com a nota "* valores ilustrativos" no rodapé da página.
+  Os **Planos** e o **/presentear** mostram os preços **sem ressalva** (a nota "* valores
+  fictícios, a definir" saiu dos dois a pedido: dizer que o preço é fictício na hora de
+  assinar, ou de dar de presente, derruba a compra). Botão
+  **"assinar"** (`initPlanosPage`) chama a `create-checkout-session` e leva pro Checkout
+  hospedado do Asaas.
+- **Âncora `#planos`** na seção dos cards do `planos.html`: quem chega de outra página já
+  decidido cai direto na escolha, sem reler a abertura. É o destino do botão "assina um
+  plano" do **Mural do Casa** (`/o-casa`), nos dois estados do CTA (deslogado e sem plano).
 - **Cardápio, atalhos entre as seções** (`initCardapioNav`): a página é longa e de puro
   scroll, então uma tirinha de chips (`[data-cardapio-nav]`) gruda no topo da janela
   (`position: sticky; top: 0` — o header do site **rola junto com a página**, o sticky dele
@@ -454,6 +462,18 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
     linha tem `scheduled_downgrade_to`, o handler troca o `tier_slug` pro plano leve
     **antes** de creditar os pontos (pra já valer o multiplicador novo) e limpa a coluna
     no mesmo update — idempotente, o reenvio do evento não desce duas vezes.
+  - **estorno e chargeback** (`PAYMENT_REFUNDED`/`PAYMENT_CHARGEBACK_REQUESTED`): devolve os
+    pontos que aquele pagamento creditou, senão dá pra pagar, ganhar pontos, resgatar a
+    recompensa e pedir chargeback ficando com tudo. O delta negativo pode deixar o saldo
+    **negativo** de propósito (a pessoa "deve" pontos; resgate só volta a passar quando o
+    saldo cobre). Os dois fluxos creditam com chaves diferentes, então são dois caminhos:
+    **assinatura** acha o crédito por `ref_id=payment.id` e estorna em `ref_type='estorno'`;
+    **loja** acha o pedido pela ponte `payment.checkoutSession` = `orders.asaas_checkout_id`
+    (o crédito da loja é por `order.id`, o id do pagamento não aparece nele), estorna em
+    `ref_type='estorno_order'` / `ref_id=order.id` **e marca o pedido `'estornado'`** (0035),
+    pra ele sair da fila de separar e entregar. Carimba o `asaas_payment_id` no pedido, que
+    até então nunca era gravado. Idempotente nos dois; `CHECKOUT_PAID` reenviado **não**
+    ressuscita pedido estornado.
 - **Migration `0011_asaas`**: `profiles.asaas_customer_id`; `subscriptions.asaas_customer_id`
   + `asaas_subscription_id` (UNIQUE); `orders.asaas_checkout_id` (UNIQUE) + `asaas_payment_id`;
   tabela `asaas_events(id text pk, event, processed_at)` com RLS (SELECT só do owner).
@@ -706,7 +726,19 @@ desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mura
   handle não existe/fechou. `/conta/perfil` ganhou a seção **"meu cantinho"**
   (`[data-cantinho]`): toggle liga/desliga (`definir_perfil_publico`), mostra o link + copiar.
   Tudo tolerante à migration pendente (seção some, página cai no vazio).
-- **Falta:** aplicar a `0024` + subir o front. Nenhum secret novo.
+- **A `0033_perfil_publico_trava` é obrigatória junto:** a RPC é a porta com a régua
+  (exige plano, gera handle livre), mas não era a única — a `profiles_update_self` (0002)
+  libera UPDATE da **linha inteira** e RLS não restringe coluna, então um PATCH direto
+  ligava `perfil_publico` e escolhia `handle` sem nunca ter assinado, e handle é unique
+  (dava pra tomar de vez o nome da casa). A 0033 põe uma trigger nas duas colunas, no mesmo
+  desenho do `prevent_points_tamper`, e reserva um punhado de handles.
+- **A `0036` fecha a régua na leitura:** ligar o cantinho sempre exigiu plano, mas a
+  `perfil_publico(handle)` só olhava a flag, então quem assinava, ligava e depois saía do
+  plano ficava no ar pra sempre. Agora a leitura pública também pede `tier_slug`. Quem fica
+  sem plano **some da vitrine e volta sozinho** ao reassinar: a flag e o handle continuam
+  guardados, nada é apagado nem reciclado. O `/conta/perfil` conta isso na cara ("teu
+  cantinho tá guardado") em vez de mostrar um link que abriria no estado vazio.
+- **Falta:** aplicar a `0024`, a `0033` **e a `0036`** + subir o front. Nenhum secret novo.
 
 ---
 
@@ -980,14 +1012,22 @@ de quem só está de passagem deixar contato.
   > entrega** nos termos e atualizar a **data** de "última atualização".
 - **Lista de espera** (`initListaEspera`, campinho no rodapé): quem não vai criar conta
   hoje deixa só o e-mail ("avisa quando a loja abrir de vez"). Grava na tabela
-  `lista_espera` (**migration 0031, PENDENTE**), que é **insert-only pelo client**: existe
-  policy de INSERT (anon e authenticated) e **nenhuma de select** — nem quem está logado lê
-  a lista; quem lê é o console, pela RPC `admin_lista_espera()` (`tem_permissao('relatorios')`),
-  na aba **"lista de espera"** (`viewListaEspera`, ícone `mail`). O insert vai com
-  `ignoreDuplicates` (ON CONFLICT DO NOTHING), então repetir o e-mail responde igual à
-  primeira vez e o formulário não vira sonda de "quem já está na lista". Sem `supabase`
-  configurado o campo nem aparece; com a migration pendente, a mensagem é honesta (não
-  finge que guardou) e oferece o e-mail da casa.
+  `lista_espera` (**migrations 0031 + 0034, PENDENTES**), que o client **não toca
+  direto**: nem lê (nenhuma policy de select) nem escreve (a 0034 tira a policy de
+  INSERT). Quem escreve é a RPC `entrar_na_lista_espera(email, origem)`, quem lê é o
+  console, pela `admin_lista_espera()` (`tem_permissao('relatorios')`), na aba **"lista
+  de espera"** (`viewListaEspera`, ícone `mail`). O `on conflict do nothing` mora
+  **dentro** da RPC e a resposta é a mesma pra e-mail novo e repetido, então o
+  formulário não vira sonda de "quem já está na lista".
+  > **Por que não é mais INSERT direto:** antes quem garantia a resposta igual era o
+  > `ignoreDuplicates` do `app.js`, que é só um header do client. Chamando a tabela
+  > sem ele, o PostgREST devolvia 409 (`23505`) pra e-mail já cadastrado e 201 pra
+  > novo — com a anon key, sem conta nenhuma, dava pra varrer uma lista de endereços
+  > e descobrir quem tinha se inscrito. Promessa de privacidade não pode depender de
+  > como o client resolve pedir.
+
+  Sem `supabase` configurado o campo nem aparece; com as migrations pendentes, a
+  mensagem é honesta (não finge que guardou) e oferece o e-mail da casa.
 
 ---
 
@@ -1056,12 +1096,22 @@ de quem só está de passagem deixar contato.
 - `npm run avatares-orfaos` — varre o bucket `avatares` do Storage e lista as fotos
   que ninguém usa. Ver "Fotos órfãs no Storage" abaixo.
 - `npm run criar-adm-master` — cria a conta do adm master do console (login `casa`,
-  e-mail interno `casa@casacoffeecolab.com.br`, senha inicial `casa1234`,
-  `role='owner'` + `master=true`). Precisa da **service_role no ambiente** (mesmo
-  esquema do comando acima) e da migration `0017_admin` aplicada. Idempotente: se a
-  conta já existe, não duplica nem mexe na senha — `--resetar-senha` repõe a inicial
+  e-mail interno `casa@casacoffeecolab.com.br`, `role='owner'` + `master=true`).
+  Precisa da **service_role no ambiente** (mesmo esquema do comando acima) e das
+  migrations `0017_admin` e `0032_senha_inicial_master` aplicadas. Idempotente: se a
+  conta já existe, não duplica nem mexe na senha — `--resetar-senha` sorteia outra
   (o e-mail é interno, então "esqueci a senha" não chega em lugar nenhum) e volta a
   exigir a troca no primeiro acesso.
+  > **A senha inicial é SORTEADA e aparece uma vez só, no terminal.** Não existe
+  > mais senha padrão: uma senha combinada no repo era porta aberta pra conta mais
+  > poderosa do sistema (a URL do projeto e a anon key estão no bundle público, como
+  > têm que estar, então dava pra logar no endpoint do Auth e receber um JWT de owner
+  > sem passar por tela nenhuma). Enquanto essa senha não for trocada de verdade, o
+  > **banco** não reconhece privilégio nenhum da conta: `is_owner`, `is_staff`,
+  > `is_gerente_or_owner`, `tem_permissao` e `pode_entrar_no_console` respondem falso
+  > (0032), então nem o console nem o PostgREST entregam nada. A trava compara o
+  > **hash** da senha inicial com o de agora, não um carimbo — só a troca real
+  > destrava, e destrava sozinha.
 
 ### Fotos órfãs no Storage (`scripts/avatares-orfaos.mjs`)
 
@@ -1140,7 +1190,9 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `mural_notes` (recado curto ≤240, `autor_nome` snapshot, `status` aprovado|oculto) com
   RLS — **leitura pública** dos `aprovado` (o `/o-casa` é aberto; autor vê os próprios,
   staff vê tudo), **escrita só via Edge Function** (deny-by-default pro client), autor
-  apaga o próprio recado, staff modera (ocultar/apagar). Function **nova** `postar-mural`
+  apaga o próprio recado, staff modera (ocultar/apagar) — **"modera" vira verdade só com a
+  `0036`**, que barra o staff de reescrever `texto`/`autor_nome`/`user_id`; a policy daqui,
+  sozinha, libera a linha inteira. Function **nova** `postar-mural`
   (**já deployada em 03/ago/2026**): exige JWT, valida **assinante vigente** via
   `getEffectiveSubscription` (perk exclusivo de assinante, igual aos pontos), sanitiza o
   texto, anti-flood 30s, grava via service_role. Front: seção no `/o-casa` (post-its na
@@ -1234,7 +1286,52 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `tem_permissao('relatorios')`). Front: campinho no rodapé (`initListaEspera`, insert com
   `ignoreDuplicates`) + aba "lista de espera" no console. **Falta:** aplicar + subir o
   front. Nenhum secret novo; nenhuma Edge Function. Ver "Privacidade, termos e a lista de
-  espera" acima.
+  espera" acima. **A 0034 revoga a policy de INSERT desta migration** e troca o insert
+  direto por RPC — aplicar as duas.
+- **`0032_senha_inicial_master` — PENDENTE (aplicar no SQL Editor).** Fecha o buraco de a
+  senha inicial do adm master só ser cobrada na tela: coluna `profiles.senha_inicial_hash`
+  (backfill pro master que ainda não trocou), função `senha_inicial_pendente()` e o mesmo
+  `and not senha_inicial_pendente()` acrescentado a `is_owner`, `is_gerente_or_owner`,
+  `is_staff`, `tem_permissao` e `pode_entrar_no_console` — enquanto a senha for a inicial,
+  a conta não tem privilégio em lugar nenhum (nem RLS, nem `admin_*`). `admin_senha_alterada`
+  passa a **conferir** que o hash mudou antes de carimbar (era por aí que dava pra desarmar
+  a tela sem trocar nada) e `admin_minhas_permissoes` segue devolvendo `console:true` pro
+  master travado, senão ele não alcançaria o formulário de troca. Mais a RPC
+  `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. **Falta:** aplicar
+  + trocar a senha do master. O caminho curto é entrar no console e usar a tela de troca
+  obrigatória (a migration já arma a trava sozinha, no backfill); só quem perdeu a senha
+  precisa do script, e aí é `npm run criar-adm-master -- --resetar-senha` (o `--` solto é
+  obrigatório, senão o npm engole a flag e o script não reseta nada).
+- **`0033_perfil_publico_trava` — PENDENTE (aplicar DEPOIS da 0024).** Trigger
+  `prevent_perfil_publico_tamper` (mesmo desenho do `prevent_points_tamper`, com GUC
+  `casa.trusted_perfil`): `profiles.perfil_publico` e `profiles.handle` param de ser
+  graváveis por PATCH direto — a `profiles_update_self` libera a linha inteira e RLS não
+  restringe coluna, então dava pra publicar um cantinho **sem plano** e tomar qualquer
+  handle livre. A `definir_perfil_publico` volta a ser a única porta (acende a GUC) e passa
+  a recusar handles reservados (`casa`, `contato`, `equipe`…), pra ninguém virar
+  `/gente/casa`. **Falta:** aplicar + subir o front.
+- **`0034_lista_espera_rpc` — PENDENTE (aplicar DEPOIS da 0031).** Tira a policy de INSERT
+  da `lista_espera` e põe a RPC `entrar_na_lista_espera(email, origem)` (SECURITY DEFINER,
+  granted a `anon`+`authenticated`) com o `on conflict do nothing` por dentro e **resposta
+  constante**. Sem isso o formulário respondia 409 pra e-mail já cadastrado e 201 pra novo,
+  virando sonda de quem está na lista pra qualquer um com a anon key. **Falta:** aplicar +
+  subir o front.
+- **`0035_orders_estornado` — PENDENTE (aplicar no SQL Editor).** Acrescenta `'estornado'`
+  ao CHECK de `orders.status`. É o estado que faltava pro webhook marcar a compra devolvida:
+  `'cancelado'` é o pedido que nunca foi pago, e usar ele apagaria a diferença no histórico.
+  **Falta:** aplicar + re-deploy do `asaas-webhook`.
+- **`0036_mural_e_cantinho_estritos` — PENDENTE (aplicar DEPOIS da 0020 e da 0024).** Os
+  dois apertos que a auditoria apontou e que ficaram de fora da leva 0032–0035 por mexerem
+  em comportamento, não em falha alcançável pelo cliente:
+  **(a) mural** — a `mural_update_staff` (0020) libera UPDATE da linha inteira pra quem é
+  `is_staff()`, e RLS não restringe coluna, então o staff podia **reescrever** `texto`,
+  `autor_nome` e `user_id`, não só ocultar: dava pra pôr na parede uma frase que a pessoa
+  não escreveu, assinada com o nome dela. Trigger `prevent_mural_content_tamper` barra as
+  três colunas vindas de sessão logada; mexer no `status` (moderar) segue liberado e a
+  `postar-mural` não é afetada (escreve com service_role, `auth.uid()` nulo). Nenhuma tela
+  do console modera mural hoje, então não quebra fluxo nenhum.
+  **(b) cantinho** — a `perfil_publico(handle)` passa a exigir `tier_slug`, a mesma régua
+  que a `definir_perfil_publico` usa pra deixar ligar. Ver "Meu cantinho" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
