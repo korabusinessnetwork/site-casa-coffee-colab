@@ -1169,11 +1169,11 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
 - **Banco em dia (10/ago/2026):** o humano aplicou **toda a leva `0017` → `0036`** no SQL
-  Editor, então **não há migration pendente**. O front correspondente está na `main`.
-  Sobrou fora do SQL: **trocar de verdade a senha do adm master** (a `0032` arma a trava,
-  mas quem destrava é a troca) e o **re-deploy do `asaas-webhook`** pra ele passar a usar
-  o status `'estornado'` da `0035`. Pra conferir o banco a qualquer momento, rodar
-  `scripts/check-migrations.sql` no SQL Editor.
+  Editor, então **não há migration pendente**. O front correspondente está na `main` e o
+  `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
+  `0035`). Sobrou fora do SQL uma coisa só: **trocar de verdade a senha do adm master** (a
+  `0032` arma a trava, mas quem destrava é a troca). Pra conferir o banco a qualquer
+  momento, rodar `scripts/check-migrations.sql` no SQL Editor.
 - **`0015_avatar` — APLICADA em 29/jul/2026.** Bucket `avatares` no Storage (público, limite de **3 MB**, só `image/jpeg|png|webp`), coluna `profiles.avatar_url` e as policies de `storage.objects` (leitura pública; escrita/troca/apagar só na pasta `{auth.uid()}/`). É o que faz a foto de perfil subir.
 - **`0016_sessoes` — APLICADA em 29/jul/2026.** Funções `minhas_sessoes()`, `encerrar_sessao(uuid)`
   e `encerrar_outras_sessoes()` (SECURITY DEFINER, `search_path` fixo, `revoke` de `anon`/`public`,
@@ -1329,7 +1329,8 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - **`0035_orders_estornado` — APLICADA em 10/ago/2026.** Acrescenta `'estornado'`
   ao CHECK de `orders.status`. É o estado que faltava pro webhook marcar a compra devolvida:
   `'cancelado'` é o pedido que nunca foi pago, e usar ele apagaria a diferença no histórico.
-  **Falta o re-deploy do `asaas-webhook`**, que é quem marca o pedido como `'estornado'`.
+  O `asaas-webhook`, que é quem marca o pedido como `'estornado'`, foi **re-deployado em
+  10/ago/2026** (`npx supabase functions deploy asaas-webhook --no-verify-jwt`).
 - **`0036_mural_e_cantinho_estritos` — APLICADA em 10/ago/2026.** Os
   dois apertos que a auditoria apontou e que ficaram de fora da leva 0032–0035 por mexerem
   em comportamento, não em falha alcançável pelo cliente:
