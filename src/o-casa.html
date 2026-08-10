@@ -312,6 +312,21 @@
             ></iframe>
           </div>
           <p class="tour-dica reveal">Arrasta pra girar o salão e olha de onde tu quiser 💛</p>
+          <!-- Saída de emergência do tour, o que o mapa aqui de cima já tem com o
+               "traçar rota"/"abrir no Waze": se o iframe do Google não carregar
+               (script de terceiro bloqueado, conexão ruim, navegador apertado), o
+               giro continua a um toque, na aba do Google mesmo. O `pano` é a
+               mesma foto esférica do embed; o `viewpoint` é a porta do Casa, pra
+               cair no lugar certo caso o id da foto mude um dia. -->
+          <p class="tour-saida reveal">
+            <a
+              class="btn ghost"
+              href="https://www.google.com/maps/@?api=1&amp;map_action=pano&amp;pano=CAoSHENJQUJJaENCYnVEVTZvdkZsaVB4R2QtZWpIeVQ.&amp;viewpoint=-29.67740861095189,-51.11932670302948&amp;heading=95"
+              target="_blank"
+              rel="noopener noreferrer"
+              >o tour não abriu? dá a volta no Google Maps</a
+            >
+          </p>
         </div>
       </section>
 
@@ -424,6 +439,7 @@
       @media (min-width: 900px) { .tour-wrap { aspect-ratio: 21 / 9 } }
       .tour-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block }
       .tour-dica { margin-top: 14px; text-align: center; color: var(--ink-2); font-size: 14px }
+      .tour-saida { margin-top: 10px; text-align: center }
       /* .row nasce como linha de extrato (rótulo numa ponta, valor na outra). Aqui é
          ícone + texto: o texto encosta no ícone e as duas linhas dividem a mesma margem. */
       .duo-info .row { justify-content: flex-start }

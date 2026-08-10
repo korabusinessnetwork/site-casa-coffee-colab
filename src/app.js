@@ -564,6 +564,8 @@ function renderHeader() {
   const slot = document.getElementById('site-header');
   if (!slot) return;
 
+  renderSkipLink();
+
   const ativo = activeNavHref();
 
   // Nav editorial (uppercase/letter-spacing vêm do CSS .mainnav a). aria-current
@@ -2210,6 +2212,34 @@ async function initNotificacoes() {
   pintar();
 }
 
+// --- Pular pro conteúdo (skip link) --------------------------------------------
+// Quem navega por teclado ou leitor de tela cai no primeiro foco da página e, sem
+// este atalho, teria que passar pela navegação inteira (menu + auth + sino +
+// carrinho) A CADA página nova. O link fica fora da tela até receber foco.
+//
+// O alvo é achado aqui em vez de exigir um id em cada .html: a maioria das
+// páginas tem <main>, mas a área logada (conta/) começa direto numa <section>
+// depois do header. tabindex="-1" deixa o foco POUSAR ali sem colocar o bloco na
+// ordem do Tab. Entra como primeiro filho do <body> — antes até da tarja de
+// recado, que é injetada dentro do slot do header e tem o seu próprio botão.
+function renderSkipLink() {
+  if (document.querySelector('[data-skip-link]')) return; // injeta uma vez só
+
+  const alvo = document.querySelector('main, #site-header ~ section');
+  if (!alvo) return;
+
+  if (!alvo.id) alvo.id = 'conteudo';
+  alvo.setAttribute('tabindex', '-1');
+  alvo.setAttribute('data-skip-alvo', ''); // o CSS tira o anel de foco do bloco inteiro
+
+  const link = document.createElement('a');
+  link.className = 'skip-link';
+  link.setAttribute('data-skip-link', '');
+  link.href = `#${alvo.id}`;
+  link.textContent = 'pular pro conteúdo';
+  document.body.insertBefore(link, document.body.firstChild);
+}
+
 // --- Footer --------------------------------------------------------------------
 function renderFooter() {
   const slot = document.getElementById('site-footer');
@@ -2239,6 +2269,34 @@ function renderFooter() {
             <img src="/logo-casa-coffee-colab.png" alt="" width="365" height="156" class="brand-logo" />
           </a>
           <p class="decor">${MARCA.bio}</p>
+
+          <!-- Lista de espera: quem só está de passagem e ainda não quer criar
+               conta deixa só o e-mail. Guarda direto na tabela lista_espera
+               (0031, insert-only pelo RLS) via initListaEspera. Sem supabase
+               configurado o campo nem aparece — não adianta pedir e-mail que a
+               gente não tem onde guardar. -->
+          ${
+            supabase
+              ? `<form class="ft-espera" data-lista-espera novalidate>
+                   <label class="ft-label" for="ft-espera-email">Avisa quando a loja abrir de vez</label>
+                   <div class="ft-espera-linha">
+                     <input
+                       id="ft-espera-email"
+                       type="email"
+                       name="email"
+                       inputmode="email"
+                       autocomplete="email"
+                       maxlength="160"
+                       placeholder="teu e-mail"
+                       data-lista-espera-email
+                       required
+                     />
+                     <button type="submit" class="ft-espera-btn" data-lista-espera-btn>me avisa</button>
+                   </div>
+                   <p class="ft-espera-msg" data-lista-espera-msg role="status" aria-live="polite" hidden></p>
+                 </form>`
+              : ''
+          }
         </div>
 
         <!-- Navegação -->
@@ -2253,11 +2311,16 @@ function renderFooter() {
           <address>
             <p>${contato.endereco}</p>
             <a href="mailto:${contato.email}">${contato.email}</a>
+            <!-- O telefone sempre abriu o WhatsApp, mas nada na tela dizia isso.
+                 Com o rótulo do lado, quem quer resposta rápida não precisa
+                 abrir o app de e-mail nem achar o link lá na /colab. -->
             <a
+              class="ft-whats"
               href="https://wa.me/${contato.whatsappNumero}?text=${encodeURIComponent(contato.whatsappMensagem)}"
               target="_blank"
               rel="noopener"
-              >${contato.telefone}</a
+              ><i data-lucide="message-circle" aria-hidden="true"></i
+              ><span>${contato.telefone}, chama no WhatsApp</span></a
             >
             <p>${contato.horario}</p>
           </address>
@@ -2273,11 +2336,73 @@ function renderFooter() {
       <div class="bottom">
         <div class="wrap">
           <p>© ${new Date().getFullYear()} Casa Coffee Colab · Novo Hamburgo/RS</p>
+          <!-- Privacidade e termos moram aqui, no lugar onde todo mundo procura,
+               e em toda página (o rodapé é injetado pelo app.js). -->
+          <nav class="ft-legal" aria-label="Rodapé, documentos">
+            <a href="/privacidade">privacidade</a>
+            <a href="/termos">termos de uso</a>
+          </nav>
           <p>Feito com afeto ☕</p>
         </div>
       </div>
     </footer>
   `;
+}
+
+// --- Lista de espera (campinho de e-mail no rodapé) ----------------------------
+// Quem só está de passagem não vai criar conta hoje, mas deixa um e-mail se a
+// gente pedir direito. Grava na tabela `lista_espera` (0031), que é insert-only
+// pelo RLS: o client escreve e não lê — quem lê é o console.
+//
+// `ignoreDuplicates` faz o INSERT virar ON CONFLICT DO NOTHING, então repetir o
+// e-mail responde igual à primeira vez: sem erro na cara da pessoa e sem dar pra
+// usar o formulário pra descobrir quem já está na lista.
+function initListaEspera() {
+  const form = document.querySelector('[data-lista-espera]');
+  if (!form || !supabase) return;
+
+  const input = form.querySelector('[data-lista-espera-email]');
+  const botao = form.querySelector('[data-lista-espera-btn]');
+  const msgEl = form.querySelector('[data-lista-espera-msg]');
+
+  const dizer = (texto, erro = false) => {
+    msgEl.textContent = texto;
+    msgEl.classList.toggle('erro', erro);
+    msgEl.hidden = false;
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = (input.value || '').trim().toLocaleLowerCase('pt-BR');
+    if (!EMAIL_RE.test(email) || email.length > 160) {
+      dizer('esse e-mail parece incompleto, dá uma conferida?', true);
+      input.focus();
+      return;
+    }
+
+    botao.disabled = true;
+    msgEl.hidden = true;
+    try {
+      const { error } = await supabase
+        .from('lista_espera')
+        .upsert({ email, origem: window.location.pathname.slice(0, 120) }, {
+          onConflict: 'email',
+          ignoreDuplicates: true,
+        });
+      // 23505 = e-mail repetido. Pra quem está do outro lado da tela é a mesma
+      // coisa que ter entrado agora: já está na lista.
+      if (error && error.code !== '23505') throw error;
+      form.reset();
+      dizer('anotado 💛 a gente te avisa quando abrir.');
+    } catch (err) {
+      // Migration 0031 ainda não aplicada, sem rede, o que for: nada de fingir
+      // que guardou. O e-mail da casa continua sendo uma saída.
+      console.warn('lista de espera:', err?.message || err);
+      dizer('não consegui guardar teu e-mail agora, tenta de novo ou escreve pra casacoffeecolab@gmail.com', true);
+    } finally {
+      botao.disabled = false;
+    }
+  });
 }
 
 // --- Tab bar (mobile) ----------------------------------------------------------
@@ -2329,6 +2454,7 @@ function setupHeroCarousel() {
   const slides = Array.from(hero.querySelectorAll('[data-hero-slide]'));
   const skip = hero.querySelector('[data-hero-skip]');
   const prev = hero.querySelector('[data-hero-prev]');
+  const dotsWrap = hero.querySelector('[data-hero-dots]');
   if (!slides.length) return;
 
   // Um slide só não é carrossel: nada pra pular nem pra voltar, nada pra agendar.
@@ -2336,6 +2462,7 @@ function setupHeroCarousel() {
     slides[0].classList.add('is-on');
     if (skip) skip.hidden = true;
     if (prev) prev.hidden = true;
+    if (dotsWrap) dotsWrap.hidden = true;
     return;
   }
 
@@ -2355,6 +2482,7 @@ function setupHeroCarousel() {
       if (v) v.pause();
     }
     slides[atual].classList.add('is-on');
+    pintarDots();
     agendar();
   };
 
@@ -2392,6 +2520,28 @@ function setupHeroCarousel() {
   if (skip) skip.addEventListener('click', () => mostrar(atual + 1));
   if (prev) prev.addEventListener('click', () => mostrar(atual - 1));
 
+  // Bolinhas de posição. O hero troca de imagem sozinho e, sem elas, ninguém
+  // sabe quantas existem nem em qual está — só que "mudou". Montadas aqui (e não
+  // no HTML) porque a conta é a de slides que a página tem; clicar leva direto.
+  const dots = dotsWrap
+    ? slides.map((_, i) => {
+        const dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'hero-dot';
+        dot.setAttribute('aria-label', `Ver a imagem ${i + 1} de ${slides.length}`);
+        dot.addEventListener('click', () => mostrar(i));
+        dotsWrap.appendChild(dot);
+        return dot;
+      })
+    : [];
+
+  function pintarDots() {
+    dots.forEach((dot, i) => {
+      if (i === atual) dot.setAttribute('aria-current', 'true');
+      else dot.removeAttribute('aria-current');
+    });
+  }
+
   // Aba escondida não gasta bateria tocando vídeo pra ninguém.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -2404,6 +2554,7 @@ function setupHeroCarousel() {
   });
 
   slides[atual].classList.add('is-on');
+  pintarDots();
   agendar();
 }
 
@@ -7664,6 +7815,7 @@ export function initSite() {
   renderHeader();
   renderAvisoBar(); // tarja "recado da casa" no topo (só se houver um vigente)
   renderFooter();
+  initListaEspera(); // campinho "avisa quando a loja abrir" do rodapé (migration 0031)
   renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)
   initIndicacao(); // capta ?indica= e registra o vínculo quando logado (todas as páginas)

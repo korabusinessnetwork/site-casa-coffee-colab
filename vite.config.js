@@ -82,6 +82,8 @@ export default defineConfig({
         presentear: resolve(root, 'presentear.html'),
         gente: resolve(root, 'gente.html'),
         colab: resolve(root, 'colab.html'),
+        privacidade: resolve(root, 'privacidade.html'),
+        termos: resolve(root, 'termos.html'),
         cadastro: resolve(root, 'cadastro.html'),
         login: resolve(root, 'login.html'),
         authConfirmado: resolve(root, 'auth-confirmado.html'),

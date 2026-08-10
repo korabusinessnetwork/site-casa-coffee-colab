@@ -121,6 +121,14 @@
 
             <button type="submit" class="btn solid block lg">Criar minha conta</button>
 
+            <!-- O aceite mora aqui porque é aqui que a pessoa entrega os dados
+                 dela. Os dois documentos também ficam no rodapé de toda página. -->
+            <p class="auth-legal">
+              criando conta tu concorda com os
+              <a href="/termos" class="form-link">termos de uso</a> e com a
+              <a href="/privacidade" class="form-link">política de privacidade</a>.
+            </p>
+
             <!-- "ou / continuar com o Google" — injetado pelo initGoogleAuth (app.js).
                  É o mesmo botão do login: pro Supabase, entrar e criar conta com o
                  Google são o mesmo caminho (a conta nasce na primeira vez). -->
@@ -166,6 +174,8 @@
       .auth-confirm .lede strong { color: var(--ink) }
       .auth-confirm .btn { margin-top: 22px }
       .auth-foot { margin-top: 4px; text-align: center; font-size: 13.5px; color: var(--muted) }
+      .auth-legal { margin-top: 12px; text-align: center; font-size: 12.5px; line-height: 1.7; color: var(--muted) }
+      .auth-legal .form-link { font-size: inherit }
     </style>
 
     <script type="module" src="/app.js"></script>
