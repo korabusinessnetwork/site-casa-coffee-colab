@@ -245,8 +245,9 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   vez). A página continua no ar — dá pra abrir digitando `/loja`. Pra religar o link, é
   só tirar o `semLink`.
 - **Cardápio** usa preços de tom com a nota "* valores ilustrativos" no rodapé da página.
-  Os **Planos** mostram os preços **sem ressalva** (a nota "* valores fictícios, a definir"
-  saiu a pedido: dizer que o preço é fictício na hora de assinar derruba a compra). Botão
+  Os **Planos** e o **/presentear** mostram os preços **sem ressalva** (a nota "* valores
+  fictícios, a definir" saiu dos dois a pedido: dizer que o preço é fictício na hora de
+  assinar, ou de dar de presente, derruba a compra). Botão
   **"assinar"** (`initPlanosPage`) chama a `create-checkout-session` e leva pro Checkout
   hospedado do Asaas.
 - **Âncora `#planos`** na seção dos cards do `planos.html`: quem chega de outra página já
