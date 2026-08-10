@@ -244,10 +244,10 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   `renderTabbar` consulta a NAV pelo href, então religar vale pros quatro lugares de uma
   vez). A página continua no ar — dá pra abrir digitando `/loja`. Pra religar o link, é
   só tirar o `semLink`.
-- **Cardápio** usa preços de tom com a nota "* valores ilustrativos" no rodapé da página.
-  Os **Planos** e o **/presentear** mostram os preços **sem ressalva** (a nota "* valores
-  fictícios, a definir" saiu dos dois a pedido: dizer que o preço é fictício na hora de
-  assinar, ou de dar de presente, derruba a compra). Botão
+- **Cardápio**, **Planos** e **/presentear** mostram os preços **sem ressalva**. A nota
+  "* valores ilustrativos" saiu do cardápio, e a "* valores fictícios, a definir" saiu dos
+  planos e do presentear, as três a pedido: dizer que o preço não é bem aquele, na hora de
+  escolher o que pedir, de assinar ou de dar de presente, derruba a compra. Botão
   **"assinar"** (`initPlanosPage`) chama a `create-checkout-session` e leva pro Checkout
   hospedado do Asaas.
 - **Âncora `#planos`** na seção dos cards do `planos.html`: quem chega de outra página já
