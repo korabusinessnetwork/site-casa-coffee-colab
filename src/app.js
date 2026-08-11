@@ -62,6 +62,19 @@ import {
   BellRing,
   Ruler,
   Search,
+  // ícones das seções do /cardapio (uma por seção do cardápio físico)
+  Sandwich,
+  EggFried,
+  Donut,
+  Croissant,
+  Wheat,
+  CakeSlice,
+  Milk,
+  Snowflake,
+  Leaf,
+  GlassWater,
+  Citrus,
+  Wine,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -120,6 +133,18 @@ const LUCIDE_ICONS = {
   BellRing,
   Ruler,
   Search,
+  Sandwich,
+  EggFried,
+  Donut,
+  Croissant,
+  Wheat,
+  CakeSlice,
+  Milk,
+  Snowflake,
+  Leaf,
+  GlassWater,
+  Citrus,
+  Wine,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });

@@ -220,7 +220,7 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 |---------------|---------------------|--------------------|--------------------------------------------------------------------|
 | Home          | `home.html`         | `/home`            | hero + carrosséis + teasers (loja/planos) + playlists              |
 | O Casa        | `o-casa.html`       | `/o-casa`          | sobre: história, DNA, Mural do Casa (seção escura), localização (mapa + "como chegar"), tour 360 |
-| Cardápio      | `cardapio.html`     | `/cardapio`        | menu literário (lista por seção) + tirinha de atalhos entre as seções — informativo, **sem carrinho** |
+| Cardápio      | `cardapio.html`     | `/cardapio`        | as 16 seções do cardápio impresso + tirinha de atalhos entre elas — informativo, **sem carrinho** |
 | Loja          | `loja.html`         | `/loja`            | catálogo + busca + ordenação + filtro por categoria (aceita `?categoria=`) |
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=`, trilha de migalhas + relacionados (conta como "Loja" na nav) |
 | Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
@@ -271,6 +271,20 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   escolher o que pedir, de assinar ou de dar de presente, derruba a compra. Botão
   **"assinar"** (`initPlanosPage`) chama a `create-checkout-session` e leva pro Checkout
   hospedado do Asaas.
+- **O `/cardapio` é o cardápio impresso, item por item** (itens e preços reais, passados
+  pelo humano em 11/ago/2026). As **16 seções e a ordem delas são as do papel**: primeiro a
+  página da comida, coluna da esquerda inteira e depois a da direita (Clássicos do Casa,
+  Brunch, Bagel, Adicionais, Croissant, Sanduíches, Toasts, Confeitaria), depois a página
+  das bebidas do mesmo jeito (Métodos, Puristas, Elaborados, Cafés gelados, Matcha, Chás,
+  Juices e sodas, Alcoólicos). Cada seção é uma `<section aria-labelledby>` com uma
+  `.menu-list`, que é o contrato de que a `initCardapioNav` e a `initCardapioFavoritos`
+  vivem — **seção nova no papel vira seção nova aqui e os chips se montam sozinhos**.
+  Duas adaptações do impresso, de propósito: os **três preços do leite** (integral, zero
+  lactose, vegetal) viram `R$ 14 / 16 / 18` com a ordem explicada numa `.sec-nota` da
+  seção, em vez de repetir em cada linha; e os **Adicionais** viram grade
+  (`.menu-list.adicionais`), porque no papel são duas colunas de itens curtos. Os recados
+  do rodapé do impresso (taxa de serviço opcional de 10%, nada de comida de fora, o combinado
+  de quem usa a casa como cenário) fecham a página em `.cardapio-recados`.
 - **Âncora `#planos`** na seção dos cards do `planos.html`: quem chega de outra página já
   decidido cai direto na escolha, sem reler a abertura. É o destino do botão "assina um
   plano" do **Mural do Casa** (`/o-casa`), nos dois estados do CTA (deslogado e sem plano).
