@@ -5706,7 +5706,14 @@ async function initPerfilPage() {
           </label>
           <label class="field pf-wide" for="pf-email">
             <span class="lbl">e-mail</span>
-            <input id="pf-email" name="email" type="email" value="${email}" readonly />
+            <!-- Cadeado: este campo não se edita junto com os outros (trocar de
+                 e-mail passa por confirmar o endereço novo, no painel abaixo), e
+                 só o fundo acinzentado não contava isso — quem tentava digitar
+                 aqui só descobria quando nada acontecia. -->
+            <span class="pf-travado">
+              <input id="pf-email" name="email" type="email" value="${email}" readonly />
+              <i data-lucide="lock" aria-hidden="true"></i>
+            </span>
             <button type="button" class="pf-inline-link" data-trocar-email>trocar e-mail</button>
           </label>
         </div>

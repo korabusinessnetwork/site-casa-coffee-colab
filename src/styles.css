@@ -1570,6 +1570,11 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .pf-grid.addr { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) }
 .pf-wide { grid-column: span 2 }
 .pf-grid .field input[readonly] { background: var(--paper-2); color: var(--muted) }
+/* Campo com cadeado (hoje o e-mail): o ícone mora dentro da caixa, encostado na
+   direita, e o input abre espaço pra ele não sentar em cima do texto. */
+.pf-travado { position: relative; display: block }
+.pf-travado input { padding-right: 42px }
+.pf-travado svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none }
 .pf-grid .field input[data-uf] { text-transform: uppercase }
 .pf-grid .field a { font-size: 13px; color: var(--coral); text-decoration: none; text-underline-offset: 3px; justify-self: start }
 .pf-grid .field a:hover { text-decoration: underline }
