@@ -941,31 +941,6 @@
         </div>
       </section>
 
-      <!-- ===================================================================
-           Os recadinhos que fecham o cardápio impresso.
-           =================================================================== -->
-      <section class="section tight" aria-label="Recados da casa">
-        <div class="wrap">
-          <div class="cardapio-recados reveal">
-            <p>
-              A casa cobra taxa de serviço de 10%, acrescentada de forma opcional
-              à tua conta. Esse valor vai integralmente pra nossa equipe de
-              atendimento, que cuida de ti com todo carinho.
-            </p>
-            <p>
-              O consumo de comida ou bebida que não veio da gente não é permitido
-              aqui dentro.
-            </p>
-            <p>
-              Pra quem quer usar o Casa como cenário: a gente não cobra taxa de
-              locação, adora fazer parte dos teus registros. A gente pede só um
-              consumo mínimo de R$ 50,00 por hora e cuidado com quem está por
-              aqui durante a visita.
-            </p>
-          </div>
-        </div>
-      </section>
-
       <!-- fecha o cardápio com as quatro cores, na ordem das seções -->
       <div class="cardapio-faixa" aria-hidden="true">
         <span style="background: var(--gold)"></span>
@@ -987,8 +962,6 @@
       /* Adicionais: no impresso são duas colunas de itens curtos. Vira grade e
          volta pra uma coluna sozinha quando não cabe. */
       .menu-list.adicionais { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); column-gap: 36px }
-      .cardapio-recados { max-width: 70ch; display: grid; gap: 12px }
-      .cardapio-recados p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--muted) }
     </style>
 
     <script type="module" src="/app.js"></script>

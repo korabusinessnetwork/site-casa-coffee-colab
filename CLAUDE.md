@@ -285,8 +285,9 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   lactose, vegetal) viram `R$ 14 / 16 / 18` com a ordem explicada numa `.sec-nota` da
   seção, em vez de repetir em cada linha; e os **Adicionais** viram grade
   (`.menu-list.adicionais`), porque no papel são duas colunas de itens curtos. Os recados
-  do rodapé do impresso (taxa de serviço opcional de 10%, nada de comida de fora, o combinado
-  de quem usa a casa como cenário) fecham a página em `.cardapio-recados`.
+  do rodapé do impresso (taxa de serviço, comida de fora, uso da casa como cenário)
+  **não vão pro site**, a pedido: no papel eles são o combinado de quem já sentou; na
+  página, fecham a leitura com uma lista de regras.
 - **Âncora `#planos`** na seção dos cards do `planos.html`: quem chega de outra página já
   decidido cai direto na escolha, sem reler a abertura. É o destino do botão "assina um
   plano" do **Mural do Casa** (`/o-casa`), nos dois estados do CTA (deslogado e sem plano).
