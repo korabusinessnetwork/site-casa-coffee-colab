@@ -281,11 +281,12 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   que só rola atrapalhavam a fila. Cada seção é uma `<section aria-labelledby>` com uma
   `.menu-list`, que é o contrato de que a `initCardapioNav` e a `initCardapioFavoritos`
   vivem — **seção nova no papel vira seção nova aqui e os chips se montam sozinhos**.
-  Duas adaptações do impresso, de propósito: os **três preços do leite** viram
-  `R$ 14 / 16 / 18` com a régua (`.mi-leite`) logo abaixo do preço, item a item, dizendo
-  qual é qual (integral, zero lactose, vegetal) — a nota de seção não servia, porque nem
-  toda seção com três preços tinha uma e quem chega por um chip não passa por ela; e os
-  **Adicionais** viram grade
+  Duas adaptações do impresso, de propósito: os **três preços do leite** viram uma
+  gradezinha de 3 colunas (`.mi-precos`), com cada valor **em cima do leite dele**
+  (integral, zero lactose, vegetal) — as duas linhas são do mesmo grid, então preço e
+  rótulo nunca saem do prumo, e no celular a grade desce pra baixo do nome do item em vez
+  de espremer as colunas. Nota de seção não servia: nem toda seção com três preços tinha
+  uma, e quem chega por um chip cai direto na lista. E os **Adicionais** viram grade
   (`.menu-list.adicionais`), porque no papel são duas colunas de itens curtos. Os recados
   do rodapé do impresso (taxa de serviço, comida de fora, uso da casa como cenário)
   **não vão pro site**, a pedido: no papel eles são o combinado de quem já sentou; na
