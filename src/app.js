@@ -4658,7 +4658,7 @@ async function renderUserPanel(panel) {
   let faltamTxt;
   if (!planoNome && saldo <= 0) {
     percent = 0;
-    faltamTxt = 'no clube, cada real que tu gasta aqui vira ponto';
+    faltamTxt = 'no clube, cada real que tu gasta aqui, vira pontos';
   } else if (!rewards.length) {
     percent = 0;
     faltamTxt = 'junta pontos e troca por agrados quando quiser';
