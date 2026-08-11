@@ -1102,6 +1102,25 @@ a.txt-link.gold { color: var(--gold) }
 .cardapio-nav[hidden] { display: none }
 .cnav-chips { display: flex; gap: 8px; padding: 10px 0; overflow-x: auto; scrollbar-width: none }
 .cnav-chips::-webkit-scrollbar { display: none }
+/* A tirinha do cardápio tem 16 chips, uma por seção do impresso, e isso não cabe
+   numa linha em tela nenhuma. Onde sobra largura (>=1024px) eles QUEBRAM LINHA:
+   as 16 seções aparecem inteiras e nenhum chip fica cortado no meio pela borda
+   do container. */
+@media (min-width: 1024px) {
+  .cardapio-nav .cnav-chips { flex-wrap: wrap; overflow-x: visible }
+}
+/* Mais estreito que isso, a fila continua rolando na horizontal (6 fileiras de
+   chip comeriam a tela do celular), mas de ponta a ponta: o .wrap solta a
+   largura e o degradê das pontas mostra que tem mais coisa pra rolar, no lugar
+   de um chip serrado por uma borda reta. */
+@media (max-width: 1023.98px) {
+  .cardapio-nav > .wrap { max-width: none; padding: 0 }
+  .cardapio-nav .cnav-chips {
+    padding-left: 22px; padding-right: 22px; scroll-padding-inline: 22px;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+  }
+}
 .cnav-chip { flex: 0 0 auto; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--muted); font-family: var(--sans); font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: color .15s var(--e), background .15s var(--e), border-color .15s var(--e) }
 .cnav-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--acc, var(--coral)) 35%, var(--line)) }
 .cnav-chip.on { background: color-mix(in srgb, var(--acc, var(--coral)) 12%, var(--card)); border-color: color-mix(in srgb, var(--acc, var(--coral)) 45%, var(--line)); color: var(--acc-ink, var(--coral)); font-weight: 600 }
