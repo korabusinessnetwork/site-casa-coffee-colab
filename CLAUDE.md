@@ -302,14 +302,14 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   do HTML (as que têm `aria-labelledby` + `.menu-list`), então seção nova no cardápio já
   aparece na tirinha sem tocar no JS. Rola sozinha no mobile pra manter o chip ativo à
   vista; respeita `prefers-reduced-motion`.
-  > **São 16 chips, um por seção, e isso não cabe numa linha em tela nenhuma.** De
-  > **1024px pra cima eles quebram linha** (duas fileiras, as 16 seções à vista, nenhum
-  > chip serrado pela borda do container). **Abaixo disso a fila rola na horizontal**, de
-  > ponta a ponta da tela (o `.wrap` solta a largura) e com as pontas em degradê
-  > (`mask-image`), que é o aviso de "tem mais coisa pra rolar" — quebrar linha no celular
-  > daria cinco ou seis fileiras grudadas no topo, comendo a tela. O deslocamento do clique
-  > e o do scroll-spy saem do `nav.getBoundingClientRect().height` medido na hora, então a
-  > tirinha mais alta do desktop não tapa o título da seção.
+  > **São 16 chips, um por seção, e isso não cabe numa linha em tela nenhuma.** A tirinha
+  > é **uma fila só que rola na horizontal, em toda largura**: nada de quebrar linha (no
+  > celular virariam cinco fileiras grudadas no topo, comendo a tela) e nada de parar na
+  > coluna do conteúdo — o `.wrap` solta a largura (`max-width: none; padding: 0`) e a
+  > faixa vai de ponta a ponta da tela, com o respiro das pontas acompanhando o do `.wrap`
+  > (40px, 22px abaixo de 640) pra o primeiro chip nascer alinhado com o texto da página.
+  > As pontas terminam em **degradê** (`mask-image`), que é o aviso de "tem mais pra
+  > rolar" no lugar de um chip serrado por uma borda reta.
 - **Colab** reutiliza o `setupCarousel` via `data-carousel="cards"` (mesmo contrato da home).
 
 ---
