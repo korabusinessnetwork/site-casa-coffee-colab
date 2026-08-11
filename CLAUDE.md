@@ -274,9 +274,11 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
 - **O `/cardapio` é o cardápio impresso, item por item** (itens e preços reais, passados
   pelo humano em 11/ago/2026). As **16 seções e a ordem delas são as do papel**: primeiro a
   página da comida, coluna da esquerda inteira e depois a da direita (Clássicos do Casa,
-  Brunch, Bagel, Adicionais, Croissant, Sanduíches, Toasts, Confeitaria), depois a página
-  das bebidas do mesmo jeito (Métodos, Puristas, Elaborados, Cafés gelados, Matcha, Chás,
-  Juices e sodas, Alcoólicos). Cada seção é uma `<section aria-labelledby>` com uma
+  Brunch, Bagel, Croissant, Sanduíches, Toasts, Confeitaria), depois a página das bebidas
+  do mesmo jeito (Métodos, Puristas, Elaborados, Cafés gelados, Matcha, Chás, Juices e
+  sodas, Alcoólicos), e os **Adicionais fechando a página** — no papel eles vêm no meio da
+  comida, como quadro lateral, mas não são um prato, são o que se soma a um, e numa página
+  que só rola atrapalhavam a fila. Cada seção é uma `<section aria-labelledby>` com uma
   `.menu-list`, que é o contrato de que a `initCardapioNav` e a `initCardapioFavoritos`
   vivem — **seção nova no papel vira seção nova aqui e os chips se montam sozinhos**.
   Duas adaptações do impresso, de propósito: os **três preços do leite** (integral, zero
