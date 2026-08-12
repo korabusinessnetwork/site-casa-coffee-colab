@@ -3831,7 +3831,16 @@ function initPlanosPage() {
         body: { tier_slug: tier },
       });
       if (error || !data?.url) {
-        avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
+        // Mesmo caso do presentear: o motivo em português vem no corpo não-2xx,
+        // guardado pelo supabase-js em error.context.
+        let motivo = '';
+        try {
+          const corpo = await error?.context?.json?.();
+          if (corpo?.error) motivo = String(corpo.error);
+        } catch {
+          /* corpo não-JSON: fica no recado genérico */
+        }
+        avisar(motivo || 'não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
         return;
       }
       window.location.href = data.url; // Checkout hospedado do Asaas
@@ -4063,7 +4072,18 @@ function initPresentearPage() {
         body: { gift_tier: tier, mensagem: msgEl?.value?.trim() || '' },
       });
       if (error || !data?.url) {
-        avisar('não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
+        // A function responde o motivo em português ("plano indisponível", "não
+        // deu pra iniciar o presente agora"), e o supabase-js guarda a resposta
+        // não-2xx crua em error.context. Sem ler dali, todo problema virava o
+        // mesmo "tenta de novo" e ninguém, nem a gente, descobria o que houve.
+        let motivo = '';
+        try {
+          const corpo = await error?.context?.json?.();
+          if (corpo?.error) motivo = String(corpo.error);
+        } catch {
+          /* corpo não-JSON (502, timeout): fica no recado genérico */
+        }
+        avisar(motivo || 'não deu pra abrir o pagamento agora. tenta de novo daqui a pouco? 💛');
         return;
       }
       window.location.href = data.url; // Checkout hospedado do Asaas
@@ -5340,6 +5360,186 @@ function quandoCurto(iso) {
   return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${hora}`;
 }
 
+// --- "baixar meus dados": documento pra ler, não arquivo pra programador ------
+// A LGPD dá direito à cópia dos dados, e a gente entregava um .json: quem pediu
+// abria um arquivo cheio de chaves e vírgulas e não conseguia ler a própria vida
+// ali. Agora sai uma FOLHA formatada, que o navegador salva em PDF pelo "salvar
+// como PDF" da caixa de impressão (em toda plataforma, sem biblioteca nenhuma no
+// bundle e sem mandar dado pessoal pra lugar nenhum: a folha é montada aqui, no
+// aparelho da pessoa).
+//
+// Abre numa aba pra a pessoa LER antes de salvar; se o navegador bloquear a aba
+// (bloqueador de pop-up), cai num iframe escondido e chama a impressão direto.
+function abrirMeusDadosPdf({ conta, perfil, assinaturas, pontos }) {
+  const p = perfil || {};
+  const esc = (v) => escapeHtml(v ?? '');
+  const vazio = '<span class="vazio">não preenchido</span>';
+  const val = (v) => (v === null || v === undefined || String(v).trim() === '' ? vazio : esc(v));
+  const dia = (iso) => {
+    if (!iso) return vazio;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? vazio : esc(d.toLocaleDateString('pt-BR'));
+  };
+  // Data pura (aniversário vem 'YYYY-MM-DD'): monta na mão pra não escorregar de
+  // fuso e mostrar o dia anterior.
+  const diaSimples = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : vazio;
+  };
+
+  const linha = (rot, valor) => `<div class="ln"><dt>${rot}</dt><dd>${valor}</dd></div>`;
+  // O banco guarda o valor curto ('media', 'manha'); a folha mostra o mesmo
+  // rótulo que a pessoa escolheu na tela ("média", "de manhã cedo").
+  const rotulo = (lista, valor) => {
+    if (!valor) return vazio;
+    const achado = lista.find((o) => o.valor === valor);
+    return esc(achado ? achado.rotulo : valor);
+  };
+
+  const endereco = [p.end_rua, p.end_numero, p.end_complemento, p.end_bairro, p.end_cidade, p.end_uf]
+    .filter((x) => x && String(x).trim())
+    .join(', ');
+
+  const linhasPlano = (assinaturas || []).length
+    ? assinaturas
+        .map(
+          (a) => `<tr>
+            <td>${val(a.tier_slug)}</td>
+            <td>${val(a.status)}</td>
+            <td>${dia(a.created_at)}</td>
+            <td>${dia(a.current_period_end)}</td>
+          </tr>`,
+        )
+        .join('')
+    : '<tr><td colspan="4">nenhum plano por aqui até agora.</td></tr>';
+
+  const saldo = (pontos || []).reduce((soma, l) => soma + Number(l.delta || 0), 0);
+  const linhasPontos = (pontos || []).length
+    ? [...pontos]
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+        .map(
+          (l) => `<tr>
+            <td>${dia(l.created_at)}</td>
+            <td>${val(l.motivo)}</td>
+            <td class="num">${Number(l.delta) > 0 ? '+' : ''}${esc(Number(l.delta).toLocaleString('pt-BR'))}</td>
+          </tr>`,
+        )
+        .join('')
+    : '<tr><td colspan="3">nenhum ponto no extrato ainda.</td></tr>';
+
+  const doc = `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8" />
+<title>Meus dados, Casa Coffee Colab</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm }
+  * { box-sizing: border-box }
+  body { margin: 0; background: #f3eee3; color: #1b1611;
+         font-family: 'Sora', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12px; line-height: 1.6 }
+  .folha { max-width: 760px; margin: 0 auto; padding: 32px 28px 48px }
+  .marca { font-family: Georgia, 'Times New Roman', serif; font-size: 22px; letter-spacing: .18em; text-transform: uppercase; margin: 0 }
+  .sub { color: #7c7160; margin: 4px 0 0 }
+  h1 { font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 500; margin: 26px 0 2px }
+  h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-weight: 500; margin: 26px 0 8px;
+       border-bottom: 1px solid #ddd2bf; padding-bottom: 5px }
+  dl { margin: 0 }
+  .ln { display: flex; gap: 14px; padding: 5px 0; border-bottom: 1px dotted #ddd2bf }
+  .ln dt { flex: 0 0 200px; color: #7c7160 }
+  .ln dd { margin: 0; flex: 1 }
+  .vazio { color: #a99c88; font-style: italic }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd2bf; vertical-align: top }
+  th { color: #7c7160; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .08em }
+  td.num, th.num { text-align: right; white-space: nowrap }
+  .saldo { font-family: Georgia, serif; font-size: 18px; color: #df5638; margin: 10px 0 0 }
+  .rodape { margin-top: 30px; padding-top: 12px; border-top: 1px solid #ddd2bf; color: #7c7160; font-size: 11px }
+  .acao { position: sticky; top: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 12px 0 }
+  .acao button { font: inherit; font-weight: 600; padding: 9px 16px; border-radius: 999px; border: 0;
+                 background: #df5638; color: #fff; cursor: pointer }
+  @media print { .acao { display: none } body { background: #fff } .folha { padding: 0; max-width: none } }
+</style></head>
+<body>
+  <div class="folha">
+    <div class="acao"><button type="button" onclick="window.print()">salvar em PDF</button></div>
+
+    <p class="marca">Casa Coffee Colab</p>
+    <p class="sub">R. Victor Hugo Kunz, 411, Hamburgo Velho, Novo Hamburgo/RS · casacoffeecolab@gmail.com</p>
+
+    <h1>Os teus dados</h1>
+    <p class="sub">
+      é a cópia do que a gente guarda sobre ti, montada no teu aparelho em
+      ${esc(new Date().toLocaleDateString('pt-BR'))} às ${esc(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }))}.
+    </p>
+
+    <h2>Tua conta</h2>
+    <dl>
+      ${linha('nome', val(p.nome || p.full_name))}
+      ${linha('como te chamar', val(p.apelido))}
+      ${linha('e-mail', val(conta?.email))}
+      ${linha('telefone', val(p.telefone))}
+      ${linha('aniversário', p.nascimento ? esc(diaSimples(p.nascimento)) : vazio)}
+      ${linha('na casa desde', dia(p.created_at))}
+      ${linha('identificador da conta', val(conta?.id))}
+    </dl>
+
+    <h2>Teu café</h2>
+    <dl>
+      ${linha('método', rotulo(CAFE_METODOS, p.cafe_metodo))}
+      ${linha('torra', rotulo(CAFE_TORRAS, p.cafe_torra))}
+      ${linha('leite', rotulo(CAFE_LEITES, p.cafe_leite))}
+      ${linha('restrições', val(p.cafe_restricoes))}
+      ${linha('quando tu passa', rotulo(CAFE_HORARIOS, p.cafe_horario))}
+    </dl>
+
+    <h2>Onde a gente te entrega</h2>
+    <dl>
+      ${linha('endereço', endereco ? esc(endereco) : vazio)}
+      ${linha('cep', val(p.end_cep))}
+    </dl>
+
+    <h2>Teu plano</h2>
+    <table>
+      <thead><tr><th>plano</th><th>situação</th><th>começou em</th><th>vale até</th></tr></thead>
+      <tbody>${linhasPlano}</tbody>
+    </table>
+
+    <h2>Teus pontos</h2>
+    <p class="saldo">${esc(saldo.toLocaleString('pt-BR'))} pontos</p>
+    <table>
+      <thead><tr><th>quando</th><th>de onde veio</th><th class="num">pontos</th></tr></thead>
+      <tbody>${linhasPontos}</tbody>
+    </table>
+
+    <p class="rodape">
+      Casa Coffee Colab Ltda, CNPJ 58.138.120/0001-30. Documento gerado por ti, no teu
+      navegador, a partir da tua própria conta. Pra corrigir ou apagar qualquer coisa daqui,
+      é só falar com a gente ou usar a tua conta no site.
+    </p>
+  </div>
+</body></html>`;
+
+  const aba = window.open('', '_blank');
+  if (aba && aba.document) {
+    aba.document.open();
+    aba.document.write(doc);
+    aba.document.close();
+    return;
+  }
+
+  // Pop-up bloqueado: imprime de dentro da própria página, sem abrir nada.
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0';
+  document.body.appendChild(frame);
+  frame.contentDocument.open();
+  frame.contentDocument.write(doc);
+  frame.contentDocument.close();
+  frame.onload = () => {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 1000);
+  };
+}
+
 async function initPerfilPage() {
   const root = document.querySelector('[data-perfil-root]');
   if (!root) return;
@@ -5964,7 +6164,7 @@ async function initPerfilPage() {
             <p class="hidden text-sm" data-sessoes-msg aria-live="polite"></p>
           </div>
           <button type="button" class="pf-link" data-acao="dados">
-            <span>baixar meus dados</span><span class="arw" aria-hidden="true">→</span>
+            <span>baixar meus dados em PDF</span><span class="arw" aria-hidden="true">→</span>
           </button>
           <button type="button" class="pf-link danger" data-acao="excluir">
             <span>excluir minha conta</span><span class="arw" aria-hidden="true">→</span>
@@ -6873,6 +7073,15 @@ async function initPerfilPage() {
       (emailVerificado ? 1 : 0);
     const pct = Math.round((feitos / total) * 100);
     if (progPct) progPct.textContent = `${pct}%`;
+
+    // Perfil 100% preenchido: a barra inteira sai da tela. Ela existe pra pedir o
+    // que falta, e quando não falta nada vira só um troféu ocupando o topo da
+    // página, com jeito de aviso pendente que não dá pra resolver. O texto acima
+    // é atualizado ANTES de esconder, pra ela reaparecer coerente se a pessoa
+    // apagar um campo depois.
+    const secaoProg = progPct?.closest('.pf-prog');
+    if (secaoProg) secaoProg.hidden = pct >= 100;
+    if (pct >= 100) return;
     if (progBar) {
       progBar.style.width = `${pct}%`;
       progBar.closest('[role="progressbar"]')?.setAttribute('aria-valuenow', String(pct));
@@ -6886,7 +7095,12 @@ async function initPerfilPage() {
       ...gruposVazios.map((g) => ({ rotulo: g.rotulo, alvo: g.grupo, tipo: 'grupo' })),
     ];
     if (!pendentes.length) {
-      progFaltam.innerHTML = `<p class="pf-prog-pronto">tá tudo preenchido, obrigado 💛</p>`;
+      // Chegou aqui com a barra ainda visível: os campos estão todos preenchidos
+      // e o que segura os 100% é a confirmação do e-mail. Dizer "tá tudo
+      // preenchido" ao lado de uma barra em 94% seria a página se contradizendo.
+      progFaltam.innerHTML = emailVerificado
+        ? `<p class="pf-prog-pronto">tá tudo preenchido, obrigado 💛</p>`
+        : `<p class="pf-prog-pronto">falta só confirmar teu e-mail, o link tá na tua caixa de entrada.</p>`;
       progFaltam.hidden = false;
       return;
     }
@@ -7368,24 +7582,15 @@ async function initPerfilPage() {
             supabase.from('subscriptions').select('*').eq('user_id', session.user.id),
             supabase.from('points_ledger').select('*').eq('user_id', session.user.id),
           ]);
-          const pacote = {
-            exportado_em: new Date().toISOString(),
+          abrirMeusDadosPdf({
             conta: { id: session.user.id, email: session.user.email },
             perfil: p.data || null,
             assinaturas: s.data || [],
             pontos: l.data || [],
-          };
-          const url = URL.createObjectURL(
-            new Blob([JSON.stringify(pacote, null, 2)], { type: 'application/json' }),
-          );
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'casa-coffee-colab-meus-dados.json';
-          a.click();
-          URL.revokeObjectURL(url);
-          toast('teus dados foram pro teu aparelho');
+          });
+          toast('teus dados abriram numa aba, é só salvar em PDF');
         } catch {
-          dizerConta('não deu pra montar o arquivo agora.', 'text-coral');
+          dizerConta('não deu pra montar o documento agora.', 'text-coral');
         } finally {
           btn.disabled = false;
         }
@@ -7533,7 +7738,7 @@ async function initPontosPage() {
 
         return `
           <article class="flex flex-col card">
-            <p class="lbl">${tipo}</p>
+            <p class="lbl pt-rw-tipo">${tipo}</p>
             <h3 class="mt-1 flex-1 font-titulo text-lg leading-tight">${nome}</h3>
             <p class="mt-3 font-titulo text-xl text-coral">${custo.toLocaleString('pt-BR')} <span class="text-sm font-normal text-muted">pontos</span></p>
             ${botao}

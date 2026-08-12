@@ -527,6 +527,13 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   + `asaas_subscription_id` (UNIQUE); `orders.asaas_checkout_id` (UNIQUE) + `asaas_payment_id`;
   tabela `asaas_events(id text pk, event, processed_at)` com RLS (SELECT só do owner).
   Idempotente; não mexe em nada anterior (as colunas `stripe_*` ficam intactas, sem uso).
+- **Erro do checkout na tela**: quando a `create-checkout-session` recusa (plano
+  indisponível, assinatura vigente, presente que não deu pra criar), o motivo vem em
+  português no corpo **não-2xx**, que o supabase-js guarda em `error.context`. O
+  `/presentear` e o "assinar" dos `/planos` liam só `error` e mostravam sempre o mesmo
+  "tenta de novo daqui a pouco", escondendo a causa de quem usa e da gente. Agora os dois
+  leem `await error.context.json()` e mostram o recado da function (o genérico fica de
+  reserva pra corpo não-JSON, tipo 502).
 - **Front**: o drawer "finalizar compra" chama a function da loja (deslogado → login e
   volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier; `checkout-
   sucesso.html` limpa o carrinho e — na loja — sonda `points_ledger` por `?ref=` pra mostrar
@@ -612,6 +619,10 @@ só LÊ (RLS: cada um lê o próprio ledger).
   `checkout-sucesso` sonda o ledger pelo `?ref=` (id da order) e mostra "+X pontos 💛" —
   na assinatura não sonda, porque o `ref_id` é o `payment.id`, que o client não conhece.
   Tom acolhedor, ZERO cara de cassino.
+- **Alinhamento dos cards de recompensa:** o rótulo do tipo ("cupom de desconto",
+  "parceiro local") quebra em uma ou duas linhas conforme o texto, e isso empurrava o
+  título de cada card pra uma altura diferente. O `.pt-rw-tipo` reserva as duas linhas
+  (`min-height: 3.2em`), então os quatro títulos, preços e botões nascem no mesmo prumo.
 - **"Quase lá" (o carimbo digital):** um cartão de foco no topo da `/conta/pontos`, logo abaixo
   do saldo, no espírito do cartão de carimbo de cafeteria. Aponta o **próximo mimo fora de
   alcance** (a recompensa mais barata que o saldo ainda não cobre, do `rewards_catalog` já
@@ -998,6 +1009,11 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
   `.notif-item-corpo` com tag/nome/sub). No **mobile** o painel é `position: fixed` com o
   `top` medido do header ao abrir (respeita a tarja de recado). Mecânica de abrir/fechar
   (clique-fora/Esc/scale-opacity) reusa o padrão do painel do usuário.
+- **Alinhamento na barra:** o alvo de toque do `.hdr-icon` é 38px, mas o desenho tem
+  24px, e essa folga somava ao `gap: 16px` da `.header-right`: o sino ficava a 26px do
+  avatar (que tem 2px de folga), parecendo fora da fila. A caixa recua com
+  `margin-inline: -5px`, então o dedo continua com os 38px e o espaço que se VÊ é o mesmo
+  dos vizinhos.
 - **Quando o sino aparece:** **logado, sempre** — mesmo sem aviso nenhum. Ele é montado e
   fica clicável ANTES de as cinco fontes responderem (senão a barra pulava quando as
   consultas voltassem), e sem nada pendente fica sem badge, com o painel dizendo "por aqui
@@ -1057,6 +1073,19 @@ do site que dizia "meu perfil" enquanto a página dizia "teus dados".
   pontuar é exclusivo de assinante, então aquela conta nunca ia andar. No lugar,
   contam de onde vêm os pontos e abrem a porta dos planos. Resgatar **não** exige
   plano, então quem tem saldo segue vendo a barrinha normal.
+- **Barra "perfil completo" some aos 100%:** ela existe pra pedir o que falta; com tudo
+  preenchido virava um troféu no topo da página com cara de aviso pendente que não dá pra
+  resolver. A `.pf-prog` recebe `hidden` quando a conta bate 100% (o texto é atualizado
+  antes, pra ela voltar coerente se a pessoa apagar um campo). Com os campos todos cheios
+  e só o **e-mail por confirmar**, o recado deixa de ser "tá tudo preenchido" e passa a
+  dizer que falta confirmar o e-mail, senão a página se contradizia com a barra em 94%.
+- **"baixar meus dados" sai em PDF, não em JSON:** o direito à cópia dos dados (LGPD) era
+  atendido com um `.json` que ninguém que não é programador consegue ler. Agora a
+  `abrirMeusDadosPdf` monta uma **folha formatada** (conta, café, endereço, plano e extrato
+  de pontos, com os rótulos que a pessoa escolheu na tela, não o valor cru do banco) numa
+  aba nova, com um botão "salvar em PDF" que chama a impressão do navegador. **Sem
+  biblioteca no bundle e sem mandar dado pessoal pra lugar nenhum**: a folha é montada no
+  aparelho da pessoa. Pop-up bloqueado cai num iframe escondido que imprime direto.
 - **`/conta/perfil`:** a "gerenciar assinatura" **nasce no template** logo depois da
   linha de resumo (era movida por JS depois do render), com `id="assinatura"` — é o
   destino do "tua assinatura" do menu, e a `initPerfilPage` faz o pulo na mão,
