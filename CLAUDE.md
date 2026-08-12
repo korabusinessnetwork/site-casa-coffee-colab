@@ -1281,7 +1281,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **Banco em dia (10/ago/2026):** o humano aplicou **toda a leva `0017` → `0036`** no SQL
+- **Banco em dia (12/ago/2026):** o humano aplicou **toda a leva `0017` → `0037`** no SQL
   Editor, então **não há migration pendente**. O front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). Sobrou fora do SQL uma coisa só: **trocar de verdade a senha do adm master** (a
@@ -1456,12 +1456,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   do console modera mural hoje, então não quebra fluxo nenhum.
   **(b) cantinho** — a `perfil_publico(handle)` passa a exigir `tier_slug`, a mesma régua
   que a `definir_perfil_publico` usa pra deixar ligar. Ver "Meu cantinho" acima.
-- **`0037_dicas_sem_travessao` — PENDENTE (aplicar no SQL Editor).** Cinco das nove
+- **`0037_dicas_sem_travessao` — APLICADA em 12/ago/2026.** Cinco das nove
   **dicas** de conquista semeadas pela `0010` nasceram antes da regra de tom de voz que
   proíbe travessão em texto visível, e o `—` aparecia no card bloqueado da
   `/conta/conquistas` e no tooltip dos emblemas do painel. Este arquivo troca por vírgula.
-  Só texto: nenhuma coluna, policy, função ou permissão muda. **Falta:** aplicar (o front
-  não muda, a dica vem do banco).
+  Só texto: nenhuma coluna, policy, função ou permissão muda; o front não precisou mudar,
+  porque a dica vem do banco.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
