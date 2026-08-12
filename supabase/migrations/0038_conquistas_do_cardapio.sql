@@ -148,9 +148,8 @@ on conflict (slug) do update set
 -- `slugify` que o `cardapio_favoritos` (0027) já usa: sem acento, minúsculo,
 -- espaço vira hífen. Quatro nomes se repetem entre seções ("Clássico" no bagel e
 -- no croissant, "Presunto + queijo" no croissant e no sanduíche, "Carne de
--- panela" no sanduíche e nos adicionais), então esses vão qualificados pelo
--- título da seção (`bagel-classico`, `croissant-classico`,
--- `sanduiches-carne-de-panela`), exatamente como o front os deriva. Quando
+-- panela" no sanduíche e nos adicionais), então esses vão qualificados
+-- (`bagel-classico`, `croissant-classico`, `sanduiche-carne-de-panela`). Quando
 -- o PDV entrar, vai precisar de um de-para entre o código dele e estes slugs.
 -- -----------------------------------------------------------------------------
 update public.achievements set criterios = '{"type":"menu_item","itens":["pao-de-queijo"]}'::jsonb
@@ -183,7 +182,7 @@ update public.achievements set criterios = '{"type":"menu_item","itens":["salmon
  where slug = 'cardapio-croissant-salmon';
 update public.achievements set criterios = '{"type":"menu_item","itens":["croque-madame"]}'::jsonb
  where slug = 'cardapio-croque-madame';
-update public.achievements set criterios = '{"type":"menu_item","itens":["sanduiches-carne-de-panela"]}'::jsonb
+update public.achievements set criterios = '{"type":"menu_item","itens":["sanduiche-carne-de-panela"]}'::jsonb
  where slug = 'cardapio-carne-de-panela';
 update public.achievements set criterios = '{"type":"menu_item","itens":["parma-pesto"]}'::jsonb
  where slug = 'cardapio-parma-pesto';
