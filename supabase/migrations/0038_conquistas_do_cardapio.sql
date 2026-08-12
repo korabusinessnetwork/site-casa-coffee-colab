@@ -7,20 +7,19 @@
 -- pelos três métodos de café. Uma por item ou combinação real do impresso, nas
 -- 16 seções, na ordem do cardápio.
 --
--- ATENÇÃO, O DESBLOQUEIO É MANUAL (`criterios = '{"type":"manual"}'`):
---   O `check_achievements` (0009) só sabe avaliar o que o banco enxerga, e o que
---   o banco enxerga de compra é a LOJA (`orders` + `order_items` de produtos:
---   vestuário, acessórios, café em grão). O `/cardapio` é informativo, sem
---   carrinho e sem SKU por item, então "tomou um matcha" não existe como dado
---   hoje. É o mesmo caso das três conquistas que a 0009 já deixou em `manual`
---   ("que-seja-doce", "mesa-comprida", "colab-de-vizinho").
---   Enquanto não houver de onde tirar o dado, estas 50 aparecem como cartão
---   BLOQUEADO com a dica, e ninguém as ganha sozinho. Pra elas passarem a
---   desbloquear, falta uma destas duas pontas (nenhuma faz parte desta migration):
---     (a) o PDV mandar o que foi consumido (a `pos_webhook_events` da 0004 e o
---         `POS_WEBHOOK_SECRET` já estão reservados pra isso); ou
---     (b) uma tela no console pra o staff carimbar no balcão, que é como o
---         brunch de aniversário (0025) já funciona.
+-- ATENÇÃO, ELAS SÓ DESBLOQUEIAM QUANDO A FRENTE DE CAIXA ENTRAR:
+--   O `check_achievements` (0009) só avalia o que o banco enxerga, e de consumo
+--   ele só enxerga a LOJA (`orders` + `order_items` de produto: vestuário,
+--   acessórios, café em grão). O `/cardapio` é informativo, sem carrinho e sem
+--   SKU por item, então "tomou um matcha" ainda não existe como dado.
+--   O caminho já está definido: o PDV vai mandar o consumo por webhook (a
+--   `pos_webhook_events` da 0004 e o `POS_WEBHOOK_SECRET` estão reservados pra
+--   isso desde a Fase 3). Por isso os critérios aqui embaixo já vêm ESCRITOS no
+--   formato que esse webhook vai alimentar, em vez de um `manual` genérico: no
+--   dia D não se reescreve conquista nenhuma, só se ensina a função a ler três
+--   tipos novos.
+--   Até lá as 50 aparecem como cartão BLOQUEADO com a dica do que pedir, e o
+--   placar da /conta/conquistas passa de "x/9" pra "x/59".
 --
 -- Só conteúdo: nenhuma coluna, policy, função ou permissão muda aqui. O front
 -- também não precisa de nada, os cards se montam da tabela (a única mudança lá é
@@ -118,13 +117,132 @@ on conflict (slug) do update set
   ordem     = excluded.ordem;
 
 -- -----------------------------------------------------------------------------
--- Critérios: todas manuais, pelo motivo explicado no cabeçalho. `manual` é um
--- tipo que o check_achievements conhece e ignora de propósito, então elas nunca
--- desbloqueiam sozinhas nem quebram a avaliação das outras.
+-- CRITÉRIOS: já escritos no formato que o PDV vai alimentar.
+--
+-- Hoje o `check_achievements` (0009) não conhece estes três tipos, e o `case`
+-- dele manda tipo desconhecido pro mesmo lugar que manda `manual`: não
+-- desbloqueia, não estoura, não atrapalha a avaliação das outras conquistas.
+-- Ou seja, aplicar isto agora é seguro e não muda comportamento nenhum.
+--
+-- Quando a frente de caixa começar a mandar o consumo, o trabalho vira: gravar
+-- o que veio (a `pos_webhook_events` da 0004 já está reservada pro evento cru) e
+-- ensinar o `check_achievements` a ler estes três tipos. Nenhuma destas 50
+-- linhas precisa ser reescrita.
+--
+--   {"type":"menu_item","itens":[…]}            → consumiu QUALQUER um da lista.
+--   {"type":"menu_item_distintos","itens":[…],
+--    "min":N}                                   → consumiu N itens DIFERENTES da lista.
+--   {"type":"menu_item_combo","grupos":[[…],[…]],
+--    "janela":"mesma_visita"}                   → um item de CADA grupo, na mesma visita.
+--
+-- Os `itens` usam o slug do nome do item no cardápio, pela mesma regra do
+-- `slugify` que o `cardapio_favoritos` (0027) já usa: sem acento, minúsculo,
+-- espaço vira hífen. Quatro nomes se repetem entre seções ("Clássico" no bagel e
+-- no croissant, "Presunto + queijo" no croissant e no sanduíche, "Carne de
+-- panela" no sanduíche e nos adicionais), então esses vão qualificados
+-- (`bagel-classico`, `croissant-classico`, `sanduiche-carne-de-panela`). Quando
+-- o PDV entrar, vai precisar de um de-para entre o código dele e estes slugs.
 -- -----------------------------------------------------------------------------
-update public.achievements
-   set criterios = '{"type":"manual"}'::jsonb
- where slug like 'cardapio-%';
+update public.achievements set criterios = '{"type":"menu_item","itens":["pao-de-queijo"]}'::jsonb
+ where slug = 'cardapio-pao-de-queijo';
+update public.achievements set criterios = '{"type":"menu_item","itens":["misto-quente","queijo-quente"]}'::jsonb
+ where slug = 'cardapio-brioche-na-chapa';
+update public.achievements set criterios = '{"type":"menu_item","itens":["empanadas"]}'::jsonb
+ where slug = 'cardapio-empanada';
+update public.achievements set criterios = '{"type":"menu_item","itens":["crepioca"]}'::jsonb
+ where slug = 'cardapio-crepioca';
+update public.achievements set criterios = '{"type":"menu_item","itens":["tuskany-morning"]}'::jsonb
+ where slug = 'cardapio-tuskany';
+update public.achievements set criterios = '{"type":"menu_item","itens":["avo-brunch"]}'::jsonb
+ where slug = 'cardapio-avo-brunch';
+update public.achievements set criterios = '{"type":"menu_item","itens":["sunny-honey-pancakes"]}'::jsonb
+ where slug = 'cardapio-pancakes';
+update public.achievements set criterios = '{"type":"menu_item","itens":["platter-brunch"]}'::jsonb
+ where slug = 'cardapio-platter';
+update public.achievements set criterios = '{"type":"menu_item","itens":["bagel-classico"]}'::jsonb
+ where slug = 'cardapio-bagel-classico';
+update public.achievements set criterios = '{"type":"menu_item","itens":["salmon-bagel"]}'::jsonb
+ where slug = 'cardapio-bagel-salmon';
+update public.achievements set criterios = '{"type":"menu_item","itens":["american-bagel"]}'::jsonb
+ where slug = 'cardapio-bagel-american';
+update public.achievements set criterios = '{"type":"menu_item","itens":["croissant-classico"]}'::jsonb
+ where slug = 'cardapio-croissant-classico';
+update public.achievements set criterios = '{"type":"menu_item","itens":["parma-brie-rucula"]}'::jsonb
+ where slug = 'cardapio-croissant-parma';
+update public.achievements set criterios = '{"type":"menu_item","itens":["salmon-croissant"]}'::jsonb
+ where slug = 'cardapio-croissant-salmon';
+update public.achievements set criterios = '{"type":"menu_item","itens":["croque-madame"]}'::jsonb
+ where slug = 'cardapio-croque-madame';
+update public.achievements set criterios = '{"type":"menu_item","itens":["sanduiche-carne-de-panela"]}'::jsonb
+ where slug = 'cardapio-carne-de-panela';
+update public.achievements set criterios = '{"type":"menu_item","itens":["parma-pesto"]}'::jsonb
+ where slug = 'cardapio-parma-pesto';
+update public.achievements set criterios = '{"type":"menu_item","itens":["avocado-morning"]}'::jsonb
+ where slug = 'cardapio-avocado-morning';
+update public.achievements set criterios = '{"type":"menu_item","itens":["caprese"]}'::jsonb
+ where slug = 'cardapio-caprese';
+update public.achievements set criterios = '{"type":"menu_item","itens":["funghi-eggs"]}'::jsonb
+ where slug = 'cardapio-funghi-eggs';
+update public.achievements set criterios = '{"type":"menu_item","itens":["fig-parma"]}'::jsonb
+ where slug = 'cardapio-fig-parma';
+update public.achievements set criterios = '{"type":"menu_item","itens":["bolo-gisele"]}'::jsonb
+ where slug = 'cardapio-bolo-gisele';
+update public.achievements set criterios = '{"type":"menu_item","itens":["cheesecolab"]}'::jsonb
+ where slug = 'cardapio-cheesecolab';
+update public.achievements set criterios = '{"type":"menu_item","itens":["cookie-gourmet"]}'::jsonb
+ where slug = 'cardapio-cookie';
+update public.achievements set criterios = '{"type":"menu_item_combo","grupos":[["brownie"],["sorvete"]],"janela":"mesma_visita"}'::jsonb
+ where slug = 'cardapio-brownie-sorvete';
+update public.achievements set criterios = '{"type":"menu_item","itens":["lab-rolls"]}'::jsonb
+ where slug = 'cardapio-lab-rolls';
+update public.achievements set criterios = '{"type":"menu_item_combo","grupos":[["bolo-gisele","petit-lab","cakelab"],["cookie-gourmet"]],"janela":"mesma_visita"}'::jsonb
+ where slug = 'cardapio-bolo-e-cookie';
+update public.achievements set criterios = '{"type":"menu_item","itens":["prensa-francesa"]}'::jsonb
+ where slug = 'cardapio-prensa-francesa';
+update public.achievements set criterios = '{"type":"menu_item","itens":["hario-v60"]}'::jsonb
+ where slug = 'cardapio-hario-v60';
+update public.achievements set criterios = '{"type":"menu_item_distintos","itens":["prensa-francesa","hario-v60","drip-coffee-bunn"],"min":3}'::jsonb
+ where slug = 'cardapio-tres-metodos';
+update public.achievements set criterios = '{"type":"menu_item","itens":["espresso"]}'::jsonb
+ where slug = 'cardapio-espresso';
+update public.achievements set criterios = '{"type":"menu_item","itens":["carioca"]}'::jsonb
+ where slug = 'cardapio-carioca';
+update public.achievements set criterios = '{"type":"menu_item","itens":["latte"]}'::jsonb
+ where slug = 'cardapio-latte';
+update public.achievements set criterios = '{"type":"menu_item","itens":["cappuccino-italiano"]}'::jsonb
+ where slug = 'cardapio-cappuccino';
+update public.achievements set criterios = '{"type":"menu_item","itens":["caramel-macchiato"]}'::jsonb
+ where slug = 'cardapio-caramel-macchiato';
+update public.achievements set criterios = '{"type":"menu_item","itens":["mocha"]}'::jsonb
+ where slug = 'cardapio-mocha';
+update public.achievements set criterios = '{"type":"menu_item","itens":["choco-quente"]}'::jsonb
+ where slug = 'cardapio-choco-quente';
+update public.achievements set criterios = '{"type":"menu_item","itens":["iced-black"]}'::jsonb
+ where slug = 'cardapio-iced-black';
+update public.achievements set criterios = '{"type":"menu_item","itens":["iced-latte"]}'::jsonb
+ where slug = 'cardapio-iced-latte';
+update public.achievements set criterios = '{"type":"menu_item","itens":["coffee-tonic"]}'::jsonb
+ where slug = 'cardapio-coffee-tonic';
+update public.achievements set criterios = '{"type":"menu_item","itens":["orange-coffee"]}'::jsonb
+ where slug = 'cardapio-orange-coffee';
+update public.achievements set criterios = '{"type":"menu_item","itens":["hot-latte-matcha"]}'::jsonb
+ where slug = 'cardapio-hot-latte-matcha';
+update public.achievements set criterios = '{"type":"menu_item","itens":["iced-latte-matcha"]}'::jsonb
+ where slug = 'cardapio-iced-latte-matcha';
+update public.achievements set criterios = '{"type":"menu_item","itens":["strawberry-matcha"]}'::jsonb
+ where slug = 'cardapio-strawberry-matcha';
+update public.achievements set criterios = '{"type":"menu_item_distintos","itens":["hot-latte-matcha","hot-vanilla-matcha","iced-latte-matcha","vanilla-iced-matcha","caramel-iced-matcha","strawberry-matcha","passion-matcha","orange-matcha"],"min":4}'::jsonb
+ where slug = 'cardapio-tour-do-matcha';
+update public.achievements set criterios = '{"type":"menu_item","itens":["blend-tea"]}'::jsonb
+ where slug = 'cardapio-blend-tea';
+update public.achievements set criterios = '{"type":"menu_item","itens":["hibisco-iced-tea","capim-limao-iced-tea"]}'::jsonb
+ where slug = 'cardapio-iced-tea';
+update public.achievements set criterios = '{"type":"menu_item","itens":["suco-verde"]}'::jsonb
+ where slug = 'cardapio-suco-verde';
+update public.achievements set criterios = '{"type":"menu_item","itens":["suco-natural-ou-integral"]}'::jsonb
+ where slug = 'cardapio-suco-do-dia';
+update public.achievements set criterios = '{"type":"menu_item","itens":["vinho-taca-ou-garrafa"]}'::jsonb
+ where slug = 'cardapio-taca-de-vinho';
 
 -- -----------------------------------------------------------------------------
 -- Dicas ("como desbloquear"), no tom da casa: o que pedir no balcão. Aparecem no

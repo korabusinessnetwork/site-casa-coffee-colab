@@ -1465,15 +1465,23 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   porque a dica vem do banco.
 - **`0038_conquistas_do_cardapio` — PENDENTE (aplicar no SQL Editor).** 50 conquistas
   novas, uma por item ou combinação real do cardápio impresso, nas 16 seções e na ordem
-  do papel (o total da `/conta/conquistas` vai de 9 pra 59). **Todas nascem
-  `criterios = 'manual'`**, e isso é o ponto a entender: o `check_achievements` (0009) só
-  avalia o que o banco enxerga, e de compra ele só enxerga a LOJA (`orders`/`order_items`
-  de produto). O `/cardapio` é informativo, sem carrinho e sem SKU por item, então "tomou
-  um matcha" **não existe como dado hoje** e as 50 ficam como cartão bloqueado com a dica.
-  Pra desbloquear, falta uma de duas pontas, nenhuma incluída aqui: **(a)** o PDV mandar o
-  consumo (a `pos_webhook_events` da 0004 e o `POS_WEBHOOK_SECRET` já estão reservados) ou
-  **(b)** uma tela no console pra o staff carimbar no balcão, como o brunch de aniversário
-  (0025) já faz. Só conteúdo: nenhuma coluna, policy, função ou permissão muda. No front,
+  do papel (o total da `/conta/conquistas` vai de 9 pra 59). **Elas só desbloqueiam quando
+  a frente de caixa entrar:** o `check_achievements` (0009) só avalia o que o banco
+  enxerga, e de consumo ele só enxerga a LOJA (`orders`/`order_items` de produto); o
+  `/cardapio` é informativo, sem carrinho e sem SKU por item. Como o PDV vai mandar o
+  consumo por webhook (a `pos_webhook_events` da 0004 e o `POS_WEBHOOK_SECRET` estão
+  reservados desde a Fase 3), **os critérios já vêm escritos no formato que esse webhook
+  vai alimentar**, em vez de um `manual` genérico, em três tipos novos:
+  `menu_item` (consumiu qualquer um da lista), `menu_item_distintos` (N itens diferentes,
+  é o "Tour do Matcha" e o "Passa Café") e `menu_item_combo` (um de cada grupo na mesma
+  visita, é o "bolo e cookie" e o "brownie com sorvete"). O `case` do
+  `check_achievements` manda tipo desconhecido pro mesmo lugar que manda `manual` (não
+  desbloqueia, não estoura), então **aplicar agora é seguro e não muda comportamento**; no
+  dia D não se reescreve conquista nenhuma, só se ensina a função a ler os três tipos. Os
+  `itens` usam o slug do nome do item no cardápio (mesma regra do `slugify` do
+  `cardapio_favoritos`), com os quatro nomes repetidos entre seções qualificados
+  (`bagel-classico`, `croissant-classico`, `sanduiche-carne-de-panela`); o PDV vai precisar
+  de um de-para do código dele pra esses slugs. Só conteúdo: nenhuma coluna, policy, função ou permissão muda. No front,
   a única mudança é cosmética: `ICONES_CONQUISTA` ganhou os ícones do cardápio (croissant,
   cake-slice, leaf, wine…), senão os 50 sairiam todos com o troféu genérico.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
