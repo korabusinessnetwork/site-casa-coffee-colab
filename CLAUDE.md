@@ -1463,6 +1463,19 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `/conta/conquistas` e no tooltip dos emblemas do painel. Este arquivo troca por vírgula.
   Só texto: nenhuma coluna, policy, função ou permissão muda; o front não precisou mudar,
   porque a dica vem do banco.
+- **`0038_conquistas_do_cardapio` — PENDENTE (aplicar no SQL Editor).** 50 conquistas
+  novas, uma por item ou combinação real do cardápio impresso, nas 16 seções e na ordem
+  do papel (o total da `/conta/conquistas` vai de 9 pra 59). **Todas nascem
+  `criterios = 'manual'`**, e isso é o ponto a entender: o `check_achievements` (0009) só
+  avalia o que o banco enxerga, e de compra ele só enxerga a LOJA (`orders`/`order_items`
+  de produto). O `/cardapio` é informativo, sem carrinho e sem SKU por item, então "tomou
+  um matcha" **não existe como dado hoje** e as 50 ficam como cartão bloqueado com a dica.
+  Pra desbloquear, falta uma de duas pontas, nenhuma incluída aqui: **(a)** o PDV mandar o
+  consumo (a `pos_webhook_events` da 0004 e o `POS_WEBHOOK_SECRET` já estão reservados) ou
+  **(b)** uma tela no console pra o staff carimbar no balcão, como o brunch de aniversário
+  (0025) já faz. Só conteúdo: nenhuma coluna, policy, função ou permissão muda. No front,
+  a única mudança é cosmética: `ICONES_CONQUISTA` ganhou os ícones do cardápio (croissant,
+  cake-slice, leaf, wine…), senão os 50 sairiam todos com o troféu genérico.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
