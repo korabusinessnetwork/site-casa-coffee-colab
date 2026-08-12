@@ -1284,9 +1284,9 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - **Banco em dia (12/ago/2026):** o humano aplicou **toda a leva `0017` → `0037`** no SQL
   Editor, então **não há migration pendente**. O front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
-  `0035`). Sobrou fora do SQL uma coisa só: **trocar de verdade a senha do adm master** (a
-  `0032` arma a trava, mas quem destrava é a troca). Pra conferir o banco a qualquer
-  momento, rodar `scripts/check-migrations.sql` no SQL Editor.
+  `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
+  da `0032` está destravada e o console responde. Pra conferir o banco a qualquer momento,
+  rodar `scripts/check-migrations.sql` no SQL Editor.
 - **`0015_avatar` — APLICADA em 29/jul/2026.** Bucket `avatares` no Storage (público, limite de **3 MB**, só `image/jpeg|png|webp`), coluna `profiles.avatar_url` e as policies de `storage.objects` (leitura pública; escrita/troca/apagar só na pasta `{auth.uid()}/`). É o que faz a foto de perfil subir.
 - **`0016_sessoes` — APLICADA em 29/jul/2026.** Funções `minhas_sessoes()`, `encerrar_sessao(uuid)`
   e `encerrar_outras_sessoes()` (SECURITY DEFINER, `search_path` fixo, `revoke` de `anon`/`public`,
@@ -1418,11 +1418,11 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   passa a **conferir** que o hash mudou antes de carimbar (era por aí que dava pra desarmar
   a tela sem trocar nada) e `admin_minhas_permissoes` segue devolvendo `console:true` pro
   master travado, senão ele não alcançaria o formulário de troca. Mais a RPC
-  `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. **Ainda falta
-  trocar a senha do master de verdade** — enquanto ela for a inicial (inclusive a sorteada
-  por um `--resetar-senha`), o banco não reconhece privilégio nenhum da conta. O caminho
-  curto é entrar no console e usar a tela de troca obrigatória (a
-  migration já arma a trava sozinha, no backfill); só quem perdeu a senha precisa do
+  `registrar_senha_inicial(uuid)` (só `service_role`) que o script chama. A **senha do
+  master foi trocada em 12/ago/2026**, então a trava está destravada. Vale lembrar como
+  ela funciona pra próxima vez: enquanto a senha for a inicial (inclusive a sorteada por um
+  `--resetar-senha`), o banco não reconhece privilégio nenhum da conta, e quem destrava é a
+  troca de verdade, pela tela obrigatória do console. Só quem perdeu a senha precisa do
   script, e aí é `npm run criar-adm-master -- --resetar-senha` (o `--` solto é
   obrigatório, senão o npm engole a flag e o script não reseta nada).
 - **`0033_perfil_publico_trava` — APLICADA em 10/ago/2026.** Trigger
