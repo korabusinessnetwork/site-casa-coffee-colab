@@ -4080,6 +4080,9 @@ function initPresentearPage() {
         try {
           const corpo = await error?.context?.json?.();
           if (corpo?.error) motivo = String(corpo.error);
+          // `detalhe` é a recusa crua do gateway (só vem em erro de validação):
+          // sem ela, "não deu pra iniciar o checkout agora" não diz o que houve.
+          if (corpo?.detalhe) motivo = `${motivo} (${String(corpo.detalhe)})`;
         } catch {
           /* corpo não-JSON (502, timeout): fica no recado genérico */
         }

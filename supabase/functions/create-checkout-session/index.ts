@@ -291,7 +291,13 @@ Deno.serve(async (req) => {
           items: [
             {
               name: `Presente · Plano ${tier.nome}`,
-              description: 'um mês do Casa, de presente 💛',
+              // SEM EMOJI aqui. Este era o único payload de checkout do site que
+              // levava um (o 💛), e era o único que o Asaas recusava: o gateway
+              // não aceita caractere de 4 bytes na descrição do item, então todo
+              // presente morria no AsaasError e virava "não deu pra iniciar o
+              // checkout agora" na tela. Os outros três checkouts (assinatura,
+              // loja, upgrade) sempre usaram só texto e "·", e sempre passaram.
+              description: 'um mês do Casa, de presente',
               quantity: 1,
               value: reaisFromCentavos(tier.preco_centavos),
             },
@@ -593,7 +599,20 @@ Deno.serve(async (req) => {
     if (isValidacao) return jsonResponse({ error: msg }, 400);
     if (err instanceof AsaasError) {
       console.error('[create-checkout-session] Asaas', err.status, err.payload);
-      return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 502);
+      // Recusa de VALIDAÇÃO do gateway (4xx): manda junto a descrição que ele
+      // devolveu. Sem isso, todo problema de payload chega na tela como o mesmo
+      // "não deu pra iniciar o checkout agora", e a única forma de saber a causa
+      // é abrir os logs da function — foi assim que o presente ficou quebrado
+      // sem ninguém enxergar o motivo. 5xx do Asaas segue genérico: ali não é
+      // recado pra quem está comprando.
+      const detalhe =
+        err.status < 500
+          ? (err.payload as any)?.errors?.[0]?.description || (err.payload as any)?.errors?.[0]?.code
+          : null;
+      return jsonResponse(
+        { error: 'não deu pra iniciar o checkout agora', ...(detalhe ? { detalhe: String(detalhe) } : {}) },
+        502,
+      );
     }
     console.error('[create-checkout-session]', err);
     return jsonResponse({ error: 'não deu pra iniciar o checkout agora' }, 500);

@@ -533,7 +533,16 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   `/presentear` e o "assinar" dos `/planos` liam só `error` e mostravam sempre o mesmo
   "tenta de novo daqui a pouco", escondendo a causa de quem usa e da gente. Agora os dois
   leem `await error.context.json()` e mostram o recado da function (o genérico fica de
-  reserva pra corpo não-JSON, tipo 502).
+  reserva pra corpo não-JSON, tipo 502). Quando quem recusa é o **Asaas com 4xx**
+  (validação de payload), a function manda junto um `detalhe` com a descrição crua do
+  gateway e a tela mostra entre parênteses; 5xx do Asaas segue genérico, porque ali não é
+  recado pra quem está comprando.
+- **Nada de emoji no que vai pro Asaas.** O `/presentear` nasceu com um 💛 na descrição do
+  item do checkout e era o **único** dos quatro checkouts do site com um caractere de 4
+  bytes ali; o gateway recusava, virava `AsaasError`, e o presente morria em "não deu pra
+  iniciar o checkout agora" desde sempre. Assinatura, loja e upgrade só usaram texto e
+  "·", e por isso nunca quebraram. Emoji no site, à vontade; em `name`/`description` de
+  payload do Asaas, não.
 - **Front**: o drawer "finalizar compra" chama a function da loja (deslogado → login e
   volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier; `checkout-
   sucesso.html` limpa o carrinho e — na loja — sonda `points_ledger` por `?ref=` pra mostrar
