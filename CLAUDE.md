@@ -1456,6 +1456,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   do console modera mural hoje, então não quebra fluxo nenhum.
   **(b) cantinho** — a `perfil_publico(handle)` passa a exigir `tier_slug`, a mesma régua
   que a `definir_perfil_publico` usa pra deixar ligar. Ver "Meu cantinho" acima.
+- **`0037_dicas_sem_travessao` — PENDENTE (aplicar no SQL Editor).** Cinco das nove
+  **dicas** de conquista semeadas pela `0010` nasceram antes da regra de tom de voz que
+  proíbe travessão em texto visível, e o `—` aparecia no card bloqueado da
+  `/conta/conquistas` e no tooltip dos emblemas do painel. Este arquivo troca por vírgula.
+  Só texto: nenhuma coluna, policy, função ou permissão muda. **Falta:** aplicar (o front
+  não muda, a dica vem do banco).
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
