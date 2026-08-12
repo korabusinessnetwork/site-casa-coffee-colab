@@ -1120,9 +1120,10 @@ de quem só está de passagem deixar contato.
   upgrade proporcional, downgrade agendado, presente), loja (arrependimento de 7 dias e
   prazos do CDC), pontos, indicação e Mural. Linkados no **rodapé** (`.ft-legal`, toda
   página) e no `/cadastro`, logo abaixo do botão de criar conta.
-  > **TODO (humano, antes do go-live):** entrar com **razão social e CNPJ** nos dois
-  > arquivos (há comentário `TODO` no lugar exato), fechar o **prazo real de retirada/
-  > entrega** nos termos e atualizar a **data** de "última atualização".
+  > **Razão social e CNPJ já entraram** (Casa Coffee Colab Ltda, 58.138.120/0001-30, em
+  > 12/ago/2026). **TODO (humano, antes do go-live):** fechar o **prazo real de retirada e
+  > entrega** nos termos e atualizar a **data** de "última atualização" nos dois arquivos
+  > (há comentário `TODO` no lugar exato).
 - **Lista de espera** (`initListaEspera`, campinho no rodapé): quem não vai criar conta
   hoje deixa só o e-mail ("avisa quando a loja abrir de vez"). Grava na tabela
   `lista_espera` (**migrations 0031 + 0034**), que o client **não toca

@@ -75,6 +75,7 @@ import {
   GlassWater,
   Citrus,
   Wine,
+  Cookie,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -145,6 +146,7 @@ const LUCIDE_ICONS = {
   GlassWater,
   Citrus,
   Wine,
+  Cookie,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -7741,7 +7743,14 @@ async function initPontosPage() {
 
 // Só aceita nomes de ícone Lucide que a gente registrou (evita <i> vazio e não
 // confia cegamente na string do banco). Fallback gentil pro 'award'.
-const ICONES_CONQUISTA = new Set(['coffee', 'sunrise', 'heart', 'award', 'star', 'sparkles', 'gift']);
+// Ícones que uma conquista pode usar. Os sete primeiros vêm do seed original; o
+// resto entrou com as 50 conquistas do cardápio (0038), pra elas não saírem todas
+// com o mesmo troféu. Nome fora desta lista cai no 'award'.
+const ICONES_CONQUISTA = new Set([
+  'coffee', 'sunrise', 'heart', 'award', 'star', 'sparkles', 'gift',
+  'sandwich', 'egg-fried', 'donut', 'croissant', 'wheat', 'cake-slice', 'cookie',
+  'milk', 'snowflake', 'leaf', 'glass-water', 'citrus', 'wine',
+]);
 function iconeConquista(nome) {
   return ICONES_CONQUISTA.has(nome) ? nome : 'award';
 }
