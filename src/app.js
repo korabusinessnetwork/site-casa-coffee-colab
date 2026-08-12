@@ -1722,13 +1722,30 @@ async function initCardapioFavoritos() {
   const { data: sessData } = await supabase.auth.getSession();
   if (!sessData?.session) return; // corações só pra quem está logado
 
-  // Mapeia slug → { el, nome } (o slug estável vem do nome curado no HTML).
+  // Mapeia slug → { el, nome, secao } (o slug estável vem do nome curado no HTML).
+  // Quatro nomes se repetem entre seções do impresso ("Clássico" no bagel e no
+  // croissant, "Presunto + queijo" no croissant e no sanduíche, "Carne de panela"
+  // no sanduíche e nos adicionais). O slug sai do nome, então eles colidiam e o
+  // segundo item de cada dupla ficava sem coração nenhum. Nome repetido vai
+  // qualificado pela seção (`bagel-classico`, `croissant-classico`), os mesmos
+  // slugs que a 0038 usa nos critérios das conquistas do cardápio.
+  const secaoDe = (li) => {
+    const sec = li.closest('section[aria-labelledby]');
+    const titulo = sec && document.getElementById(sec.getAttribute('aria-labelledby'));
+    return titulo?.textContent.trim() || '';
+  };
+  const brutos = items
+    .map((li) => ({ li, nome: li.querySelector('.mi-name')?.textContent.trim() || '' }))
+    .map((x) => ({ ...x, base: slugify(x.nome) }))
+    .filter((x) => x.nome && x.base);
+  const repetidos = new Set(brutos.map((x) => x.base).filter((s, i, todos) => todos.indexOf(s) !== i));
+
   const porSlug = new Map();
-  for (const li of items) {
-    const nome = li.querySelector('.mi-name')?.textContent.trim() || '';
-    const slug = slugify(nome);
-    if (!nome || !slug || porSlug.has(slug)) continue;
-    porSlug.set(slug, { el: li, nome });
+  for (const { li, nome, base } of brutos) {
+    const secao = repetidos.has(base) ? secaoDe(li) : '';
+    const slug = secao ? `${slugify(secao)}-${base}` : base;
+    if (porSlug.has(slug)) continue;
+    porSlug.set(slug, { el: li, nome, secao });
     li.dataset.item = slug;
   }
   if (!porSlug.size) return;
@@ -1751,7 +1768,12 @@ async function initCardapioFavoritos() {
       return;
     }
     chipsEl.innerHTML = marcados
-      .map(([slug, { nome }]) => `<button type="button" class="cf-chip" data-cf-goto="${escapeHtml(slug)}">${escapeHtml(nome)}</button>`)
+      // Nome repetido entre seções ganha a seção entre parênteses, senão viriam
+      // dois chips idênticos e a pessoa não saberia qual é qual.
+      .map(([slug, { nome, secao }]) => {
+        const rotulo = secao ? `${nome} (${secao.toLowerCase()})` : nome;
+        return `<button type="button" class="cf-chip" data-cf-goto="${escapeHtml(slug)}">${escapeHtml(rotulo)}</button>`;
+      })
       .join('');
     secBlock.hidden = false;
     chipsEl.querySelectorAll('[data-cf-goto]').forEach((b) => {

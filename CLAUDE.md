@@ -882,7 +882,14 @@ o de sempre num toque. De quebra, o Casa vê no console **o que a casa mais ama*
 
 - **Aberto a qualquer pessoa logada** (não é perk de assinante) — quanto mais gente marca,
   mais sinal pra casa. O cardápio é HTML curado, então o item é identificado por um `slug`
-  **derivado do nome** (`slugify`, no client) — nada de tabela de menu.
+  **derivado do nome** (`slugify`, no client) — nada de tabela de menu. **Nome que se
+  repete entre seções vai qualificado pelo título da seção** (`bagel-classico`,
+  `croissant-classico`, `croissant-presunto-queijo`, `sanduiches-presunto-queijo`,
+  `sanduiches-carne-de-panela`, `adicionais-carne-de-panela`): o slug saía só do nome, os
+  seis colidiam de dois em dois e o segundo item de cada dupla ficava **sem coração
+  nenhum** (o `porSlug.has(slug)` pulava). No bloco "teus favoritos", esses chips levam a
+  seção entre parênteses, senão viriam dois idênticos. São os mesmos slugs dos critérios
+  da 0038.
 - **Migration `0027_cardapio_favoritos` (APLICADA em 10/ago/2026):** tabela
   `cardapio_favoritos` (`(user_id, item_slug)` PK, `item_nome` snapshot pro console,
   `user_id` default `auth.uid()`). Favorito é dado **benigno** (não entra na lista de
@@ -1485,8 +1492,9 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   desbloqueia, não estoura), então **aplicar agora é seguro e não muda comportamento**; no
   dia D não se reescreve conquista nenhuma, só se ensina a função a ler os três tipos. Os
   `itens` usam o slug do nome do item no cardápio (mesma regra do `slugify` do
-  `cardapio_favoritos`), com os quatro nomes repetidos entre seções qualificados
-  (`bagel-classico`, `croissant-classico`, `sanduiche-carne-de-panela`); o PDV vai precisar
+  `cardapio_favoritos`), com os quatro nomes repetidos entre seções qualificados pelo
+  título da seção (`bagel-classico`, `croissant-classico`,
+  `sanduiches-carne-de-panela`), do mesmo jeito que o front deriva; o PDV vai precisar
   de um de-para do código dele pra esses slugs. Só conteúdo: nenhuma coluna, policy, função ou permissão muda. No front,
   a única mudança é cosmética: `ICONES_CONQUISTA` ganhou os ícones do cardápio (croissant,
   cake-slice, leaf, wine…), senão os 50 sairiam todos com o troféu genérico.
