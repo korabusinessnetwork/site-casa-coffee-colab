@@ -1465,8 +1465,14 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   porque a dica vem do banco.
 - **`0038_conquistas_do_cardapio` — PENDENTE (aplicar no SQL Editor).** 50 conquistas
   novas, uma por item ou combinação real do cardápio impresso, nas 16 seções e na ordem
-  do papel (o total da `/conta/conquistas` vai de 9 pra 59). **Elas só desbloqueiam quando
-  a frente de caixa entrar:** o `check_achievements` (0009) só avalia o que o banco
+  do papel. **Elas nascem DESLIGADAS (`ativo = false`)**: ficam guardadas no banco e
+  invisíveis no site, pra o placar da `/conta/conquistas` não pular de "x/9" pra "x/59"
+  com 50 cadeados que nada abre. O front filtra por `ativo = true` e o
+  `check_achievements` também, então desligada não aparece nem desbloqueia. Pra acender no
+  dia da integração: `update public.achievements set ativo = true where slug like
+  'cardapio-%';` (o `on conflict` da migration não mexe no `ativo`, então reaplicar o
+  arquivo depois não apaga as 50 da tela). **Elas só desbloqueiam quando a frente de caixa
+  entrar:** o `check_achievements` (0009) só avalia o que o banco
   enxerga, e de consumo ele só enxerga a LOJA (`orders`/`order_items` de produto); o
   `/cardapio` é informativo, sem carrinho e sem SKU por item. Como o PDV vai mandar o
   consumo por webhook (a `pos_webhook_events` da 0004 e o `POS_WEBHOOK_SECRET` estão

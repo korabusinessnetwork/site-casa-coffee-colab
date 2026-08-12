@@ -18,8 +18,15 @@
 --   formato que esse webhook vai alimentar, em vez de um `manual` genérico: no
 --   dia D não se reescreve conquista nenhuma, só se ensina a função a ler três
 --   tipos novos.
---   Até lá as 50 aparecem como cartão BLOQUEADO com a dica do que pedir, e o
---   placar da /conta/conquistas passa de "x/9" pra "x/59".
+--   Por isso elas nascem DESLIGADAS (`ativo = false`): ficam guardadas no banco,
+--   invisíveis no site, e o placar da /conta/conquistas segue "x/9" em vez de
+--   virar "x/59" com 50 cadeados que nada abre. O front já filtra por
+--   `ativo = true` (initConquistasPage) e o check_achievements também só avalia
+--   conquista ativa, então enquanto estiverem desligadas elas não aparecem nem
+--   desbloqueiam.
+--
+--   PRA ACENDER, no dia em que a frente de caixa começar a mandar consumo:
+--     update public.achievements set ativo = true where slug like 'cardapio-%';
 --
 -- Só conteúdo: nenhuma coluna, policy, função ou permissão muda aqui. O front
 -- também não precisa de nada, os cards se montam da tabela (a única mudança lá é
@@ -30,91 +37,93 @@
 -- Idempotente (`on conflict (slug) do update`).
 -- =============================================================================
 
-insert into public.achievements (slug, nome, descricao, icone, ordem) values
+insert into public.achievements (slug, nome, descricao, icone, ordem, ativo) values
   -- ---- Clássicos do Casa -----------------------------------------------------
-  ('cardapio-pao-de-queijo',      'Fornada da Hora',      'quentinho, direto do forno pra tua mão.',                   'sandwich',   10),
-  ('cardapio-brioche-na-chapa',   'Brioche na Chapa',     'manteiga, chapa e queijo derretendo.',                      'sandwich',   11),
-  ('cardapio-empanada',           'Empanada Argentina',   'um pedaço da Argentina no nosso balcão.',                   'sandwich',   12),
+  ('cardapio-pao-de-queijo',      'Fornada da Hora',      'quentinho, direto do forno pra tua mão.',                   'sandwich',   10, false),
+  ('cardapio-brioche-na-chapa',   'Brioche na Chapa',     'manteiga, chapa e queijo derretendo.',                      'sandwich',   11, false),
+  ('cardapio-empanada',           'Empanada Argentina',   'um pedaço da Argentina no nosso balcão.',                   'sandwich',   12, false),
 
   -- ---- Brunch ----------------------------------------------------------------
-  ('cardapio-crepioca',           'Crepioca Completa',    'três recheios, escolhidos do teu jeito.',                   'egg-fried',  13),
-  ('cardapio-tuskany',            'Manhã Toscana',        'búfala e tomate assado, de manhã cedo.',                    'egg-fried',  14),
-  ('cardapio-avo-brunch',         'Avo Brunch',           'avocado e bacon, o clássico do brunch.',                    'egg-fried',  15),
-  ('cardapio-pancakes',           'Panqueca com Mel',     'mel escorrendo na panqueca americana.',                     'egg-fried',  16),
-  ('cardapio-platter',            'Mesa pra Dividir',     'a bandeja que só faz sentido em dupla.',                    'heart',      17),
+  ('cardapio-crepioca',           'Crepioca Completa',    'três recheios, escolhidos do teu jeito.',                   'egg-fried',  13, false),
+  ('cardapio-tuskany',            'Manhã Toscana',        'búfala e tomate assado, de manhã cedo.',                    'egg-fried',  14, false),
+  ('cardapio-avo-brunch',         'Avo Brunch',           'avocado e bacon, o clássico do brunch.',                    'egg-fried',  15, false),
+  ('cardapio-pancakes',           'Panqueca com Mel',     'mel escorrendo na panqueca americana.',                     'egg-fried',  16, false),
+  ('cardapio-platter',            'Mesa pra Dividir',     'a bandeja que só faz sentido em dupla.',                    'heart',      17, false),
 
   -- ---- Bagel -----------------------------------------------------------------
-  ('cardapio-bagel-classico',     'Bagel de Sempre',      'o bagel tostado de todo dia.',                              'donut',      18),
-  ('cardapio-bagel-salmon',       'Bagel de Salmão',      'gravlax com picles de cebola roxa.',                        'donut',      19),
-  ('cardapio-bagel-american',     'Bagel Americano',      'ovos cremosos e bacon no pão americano.',                   'donut',      20),
+  ('cardapio-bagel-classico',     'Bagel de Sempre',      'o bagel tostado de todo dia.',                              'donut',      18, false),
+  ('cardapio-bagel-salmon',       'Bagel de Salmão',      'gravlax com picles de cebola roxa.',                        'donut',      19, false),
+  ('cardapio-bagel-american',     'Bagel Americano',      'ovos cremosos e bacon no pão americano.',                   'donut',      20, false),
 
   -- ---- Croissant -------------------------------------------------------------
-  ('cardapio-croissant-classico', 'Manteiga de Verdade',  'a folhada feita com manteiga de verdade.',                  'croissant',  21),
-  ('cardapio-croissant-parma',    'Parma no Croissant',   'parma, brie e rúcula na folhada.',                          'croissant',  22),
-  ('cardapio-croissant-salmon',   'Croissant de Salmão',  'gravlax e cream cheese dentro do croissant.',               'croissant',  23),
+  ('cardapio-croissant-classico', 'Manteiga de Verdade',  'a folhada feita com manteiga de verdade.',                  'croissant',  21, false),
+  ('cardapio-croissant-parma',    'Parma no Croissant',   'parma, brie e rúcula na folhada.',                          'croissant',  22, false),
+  ('cardapio-croissant-salmon',   'Croissant de Salmão',  'gravlax e cream cheese dentro do croissant.',               'croissant',  23, false),
 
   -- ---- Sanduíches ------------------------------------------------------------
-  ('cardapio-croque-madame',      'Croque Madame',        'bechamel, presunto e ovo frito por cima.',                  'sandwich',   24),
-  ('cardapio-carne-de-panela',    'Carne de Panela',      'carne de panela, gorgonzola e aioli.',                      'sandwich',   25),
-  ('cardapio-parma-pesto',        'Parma com Pesto',      'parma, búfala e pesto na baguete.',                         'sandwich',   26),
+  ('cardapio-croque-madame',      'Croque Madame',        'bechamel, presunto e ovo frito por cima.',                  'sandwich',   24, false),
+  ('cardapio-carne-de-panela',    'Carne de Panela',      'carne de panela, gorgonzola e aioli.',                      'sandwich',   25, false),
+  ('cardapio-parma-pesto',        'Parma com Pesto',      'parma, búfala e pesto na baguete.',                         'sandwich',   26, false),
 
   -- ---- Toasts ----------------------------------------------------------------
-  ('cardapio-avocado-morning',    'Avocado Morning',      'o verde que abre bem o dia.',                               'wheat',      27),
-  ('cardapio-caprese',            'Caprese na Chapa',     'búfala, tomate assado e pesto no levain.',                  'wheat',      28),
-  ('cardapio-funghi-eggs',        'Funghi e Eggs',        'cogumelo salteado com ovos cremosos.',                      'wheat',      29),
-  ('cardapio-fig-parma',          'Figo e Parma',         'o doce do figo com o salgado da parma.',                    'wheat',      30),
+  ('cardapio-avocado-morning',    'Avocado Morning',      'o verde que abre bem o dia.',                               'wheat',      27, false),
+  ('cardapio-caprese',            'Caprese na Chapa',     'búfala, tomate assado e pesto no levain.',                  'wheat',      28, false),
+  ('cardapio-funghi-eggs',        'Funghi e Eggs',        'cogumelo salteado com ovos cremosos.',                      'wheat',      29, false),
+  ('cardapio-fig-parma',          'Figo e Parma',         'o doce do figo com o salgado da parma.',                    'wheat',      30, false),
 
   -- ---- Confeitaria -----------------------------------------------------------
-  ('cardapio-bolo-gisele',        'Bolo Gisele',          'bolo de cenoura com brigadeiro quentinho.',                 'cake-slice', 31),
-  ('cardapio-cheesecolab',        'Cheesecolab',          'a torta basca que some rápido.',                            'cake-slice', 32),
-  ('cardapio-cookie',             'Cookie da Casa',       'o cookie que muda de sabor conforme o dia.',                'cookie',     33),
-  ('cardapio-brownie-sorvete',    'Brownie com Sorvete',  'chocolatudo, com a bola derretendo em cima.',               'cake-slice', 34),
-  ('cardapio-lab-rolls',          'Lab Rolls',            'canela e cobertura, feitas aqui no Casa.',                  'cake-slice', 35),
-  ('cardapio-bolo-e-cookie',      'Doce em Dobro',        'porque escolher um só é difícil.',                          'star',       36),
+  ('cardapio-bolo-gisele',        'Bolo Gisele',          'bolo de cenoura com brigadeiro quentinho.',                 'cake-slice', 31, false),
+  ('cardapio-cheesecolab',        'Cheesecolab',          'a torta basca que some rápido.',                            'cake-slice', 32, false),
+  ('cardapio-cookie',             'Cookie da Casa',       'o cookie que muda de sabor conforme o dia.',                'cookie',     33, false),
+  ('cardapio-brownie-sorvete',    'Brownie com Sorvete',  'chocolatudo, com a bola derretendo em cima.',               'cake-slice', 34, false),
+  ('cardapio-lab-rolls',          'Lab Rolls',            'canela e cobertura, feitas aqui no Casa.',                  'cake-slice', 35, false),
+  ('cardapio-bolo-e-cookie',      'Doce em Dobro',        'porque escolher um só é difícil.',                          'star',       36, false),
 
   -- ---- Métodos ---------------------------------------------------------------
-  ('cardapio-prensa-francesa',    'Prensa Francesa',      'o café que pede tempo pra ficar pronto.',                   'coffee',     37),
-  ('cardapio-hario-v60',          'Hario V60',            'o filtro que deixa o grão falar.',                          'coffee',     38),
-  ('cardapio-tres-metodos',       'Passa Café',           'prensa, V60 e drip, os três da casa.',                      'award',      39),
+  ('cardapio-prensa-francesa',    'Prensa Francesa',      'o café que pede tempo pra ficar pronto.',                   'coffee',     37, false),
+  ('cardapio-hario-v60',          'Hario V60',            'o filtro que deixa o grão falar.',                          'coffee',     38, false),
+  ('cardapio-tres-metodos',       'Passa Café',           'prensa, V60 e drip, os três da casa.',                      'award',      39, false),
 
   -- ---- Puristas --------------------------------------------------------------
-  ('cardapio-espresso',           'Espresso Puro',        'curto, intenso, sem nada por cima.',                        'coffee',     40),
-  ('cardapio-carioca',            'Carioca de Balcão',    'setenta mililitros mais leves.',                            'coffee',     41),
+  ('cardapio-espresso',           'Espresso Puro',        'curto, intenso, sem nada por cima.',                        'coffee',     40, false),
+  ('cardapio-carioca',            'Carioca de Balcão',    'setenta mililitros mais leves.',                            'coffee',     41, false),
 
   -- ---- Elaborados ------------------------------------------------------------
-  ('cardapio-latte',              'Latte de Sempre',      'espresso e leite vaporizado, sem mistério.',                'milk',       42),
-  ('cardapio-cappuccino',         'Cappuccino Italiano',  'no ristretto, do jeito de lá.',                             'milk',       43),
-  ('cardapio-caramel-macchiato',  'Caramel Macchiato',    'caramelo no fundo, leite por cima.',                        'milk',       44),
-  ('cardapio-mocha',              'Mocha',                'café e chocolate 50%, juntos na xícara.',                   'milk',       45),
-  ('cardapio-choco-quente',       'Chocolate Cremoso',    'o cobertor de caneca dos dias frios.',                      'milk',       46),
+  ('cardapio-latte',              'Latte de Sempre',      'espresso e leite vaporizado, sem mistério.',                'milk',       42, false),
+  ('cardapio-cappuccino',         'Cappuccino Italiano',  'no ristretto, do jeito de lá.',                             'milk',       43, false),
+  ('cardapio-caramel-macchiato',  'Caramel Macchiato',    'caramelo no fundo, leite por cima.',                        'milk',       44, false),
+  ('cardapio-mocha',              'Mocha',                'café e chocolate 50%, juntos na xícara.',                   'milk',       45, false),
+  ('cardapio-choco-quente',       'Chocolate Cremoso',    'o cobertor de caneca dos dias frios.',                      'milk',       46, false),
 
   -- ---- Cafés gelados ---------------------------------------------------------
-  ('cardapio-iced-black',         'Iced Black',           'espresso, água e gelo, nada mais.',                         'snowflake',  47),
-  ('cardapio-iced-latte',         'Iced Latte',           'o latte que pede dia de calor.',                            'snowflake',  48),
-  ('cardapio-coffee-tonic',       'Coffee Tonic',         'tônica, laranja e espresso, borbulhando.',                  'snowflake',  49),
-  ('cardapio-orange-coffee',      'Café com Laranja',     'a dupla que ninguém espera e dá certo.',                    'citrus',     50),
+  ('cardapio-iced-black',         'Iced Black',           'espresso, água e gelo, nada mais.',                         'snowflake',  47, false),
+  ('cardapio-iced-latte',         'Iced Latte',           'o latte que pede dia de calor.',                            'snowflake',  48, false),
+  ('cardapio-coffee-tonic',       'Coffee Tonic',         'tônica, laranja e espresso, borbulhando.',                  'snowflake',  49, false),
+  ('cardapio-orange-coffee',      'Café com Laranja',     'a dupla que ninguém espera e dá certo.',                    'citrus',     50, false),
 
   -- ---- Matcha ----------------------------------------------------------------
-  ('cardapio-hot-latte-matcha',   'Hot Latte Matcha',     'matcha Namu com leite vaporizado.',                         'leaf',       51),
-  ('cardapio-iced-latte-matcha',  'Matcha Gelado',        'o verde da casa, agora com gelo.',                          'leaf',       52),
-  ('cardapio-strawberry-matcha',  'Matcha com Morango',   'purê de morango no fundo do copo.',                         'leaf',       53),
-  ('cardapio-tour-do-matcha',     'Tour do Matcha',       'quatro matchas diferentes, um de cada vez.',                'award',      54),
+  ('cardapio-hot-latte-matcha',   'Hot Latte Matcha',     'matcha Namu com leite vaporizado.',                         'leaf',       51, false),
+  ('cardapio-iced-latte-matcha',  'Matcha Gelado',        'o verde da casa, agora com gelo.',                          'leaf',       52, false),
+  ('cardapio-strawberry-matcha',  'Matcha com Morango',   'purê de morango no fundo do copo.',                         'leaf',       53, false),
+  ('cardapio-tour-do-matcha',     'Tour do Matcha',       'quatro matchas diferentes, um de cada vez.',                'award',      54, false),
 
   -- ---- Chás ------------------------------------------------------------------
-  ('cardapio-blend-tea',          'Chá Quentinho',        'o blend de chá que muda com a estação.',                    'glass-water',55),
-  ('cardapio-iced-tea',           'Iced Tea da Casa',     'hibisco ou capim limão, com limão e gelo.',                 'glass-water',56),
+  ('cardapio-blend-tea',          'Chá Quentinho',        'o blend de chá que muda com a estação.',                    'glass-water',55, false),
+  ('cardapio-iced-tea',           'Iced Tea da Casa',     'hibisco ou capim limão, com limão e gelo.',                 'glass-water',56, false),
 
   -- ---- Juices e sodas --------------------------------------------------------
-  ('cardapio-suco-verde',         'Suco Verde',           'couve, abacaxi, limão, maracujá e gengibre.',               'citrus',     57),
-  ('cardapio-suco-do-dia',        'Suco do Dia',          'a fruta que chegou boa na feira.',                          'citrus',     58),
+  ('cardapio-suco-verde',         'Suco Verde',           'couve, abacaxi, limão, maracujá e gengibre.',               'citrus',     57, false),
+  ('cardapio-suco-do-dia',        'Suco do Dia',          'a fruta que chegou boa na feira.',                          'citrus',     58, false),
 
   -- ---- Alcoólicos ------------------------------------------------------------
-  ('cardapio-taca-de-vinho',      'Taça no Fim da Tarde', 'quando o café dá lugar à taça.',                            'wine',       59)
+  ('cardapio-taca-de-vinho',      'Taça no Fim da Tarde', 'quando o café dá lugar à taça.',                            'wine',       59, false)
 on conflict (slug) do update set
   nome      = excluded.nome,
   descricao = excluded.descricao,
   icone     = excluded.icone,
   ordem     = excluded.ordem;
+-- Nota: o `ativo` de propósito NÃO entra no update acima. Rodar este arquivo de
+-- novo depois de acender as 50 não as apagaria da tela sem querer.
 
 -- -----------------------------------------------------------------------------
 -- CRITÉRIOS: já escritos no formato que o PDV vai alimentar.
