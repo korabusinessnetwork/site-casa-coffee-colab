@@ -4513,8 +4513,9 @@ async function aguardarCodigoPresente(wrap, presenteId) {
       espera.hidden = true;
       pronto.classList.remove('hidden');
       codigoEl.textContent = data.codigo; // textContent → sem XSS
-      subEl.textContent =
-        'entrega esse código pra quem tu quiser. a pessoa resgata em "tenho um presente", lá na conta dela, e ganha um mês inteiro do Casa.';
+      subEl.innerHTML =
+        'entrega esse código pra quem tu quiser. a pessoa resgata em "tenho um presente", lá na conta dela, e ganha um mês inteiro do Casa.' +
+        '<br />se perder de vista, ele fica guardado em <a class="form-link" href="/conta/perfil#presentes">os presentes que tu deu</a>, na tua conta.';
       ligarCopiarCodigo(wrap, data.codigo);
       setCopySucesso(
         wrap,
@@ -4537,7 +4538,9 @@ async function aguardarCodigoPresente(wrap, presenteId) {
 
   mostrarDemora(
     'teu pagamento tá confirmado, o código é que tá demorando mais que o normal pra ser gerado. ' +
-      'chama a gente no WhatsApp (51) 99360-5262 dizendo que tu comprou um presente hoje, que a gente te passa o código na hora 💛',
+      'ele vai aparecer sozinho em <a class="form-link" href="/conta/perfil">os presentes que tu deu</a>, na tua conta, ' +
+      'assim que o pagamento terminar de conversar com a gente. se demorar demais, chama a gente no WhatsApp ' +
+      `${MARCA.contato.telefone} que a gente resolve na hora 💛`,
   );
 }
 
@@ -5864,9 +5867,14 @@ async function initPerfilPage() {
   // aplicada no banco, o select falha, `extra` fica null e a página segue de pé
   // com os campos vazios, em vez de derrubar o perfil inteiro.
   let extra = null;
+  // Presentes que ESTA pessoa comprou (0019). Antes o código só existia na tela
+  // de sucesso do checkout: quem fechava a aba não tinha onde reencontrar, e a
+  // única saída era chamar a casa no WhatsApp. A RLS já deixava o comprador ler
+  // a própria linha, então isto é leitura pura, sem migration nova.
+  let presentes = [];
 
   if (supabase) {
-    const [subRes0, tiersRes, extraRes] = await Promise.all([
+    const [subRes0, tiersRes, extraRes, giftRes] = await Promise.all([
       supabase
         .from('subscriptions')
         .select('tier_slug, status, current_period_end, scheduled_downgrade_to, presente_id')
@@ -5877,6 +5885,15 @@ async function initPerfilPage() {
         .maybeSingle(),
       supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo').order('ordem'),
       supabase.from('profiles').select(PERFIL_CAMPOS_EXTRA).eq('id', session.user.id).maybeSingle(),
+      // Só os que já foram pagos: 'pendente' é checkout que nunca fechou (e nem
+      // tem código), 'cancelado' morreu na expiração. Tolerante: sem a 0019 o
+      // select falha, a lista fica vazia e a seção some.
+      supabase
+        .from('gift_subscriptions')
+        .select('id, tier_slug, codigo, status, created_at, resgatado_em')
+        .eq('comprador_id', session.user.id)
+        .in('status', ['pago', 'resgatado'])
+        .order('created_at', { ascending: false }),
     ]);
     // Fallback TOLERANTE: se a migration 0019 (coluna presente_id) ainda não foi
     // aplicada, o select acima falha inteiro — re-tenta SEM presente_id pra o plano
@@ -5895,6 +5912,7 @@ async function initPerfilPage() {
     }
     tiers = Array.isArray(tiersRes.data) ? tiersRes.data : [];
     extra = extraRes.data || null;
+    presentes = Array.isArray(giftRes?.data) ? giftRes.data : [];
     const sub = subRes.data;
     if (sub) {
       subStatus = sub.status;
@@ -6434,6 +6452,56 @@ async function initPerfilPage() {
         <div class="ld-chips" data-ld-chips></div>
       </section>
 
+      <!-- Os presentes que esta pessoa comprou. Só entra no HTML quando existe
+           algum já pago, então quem nunca presenteou não vê seção vazia (e o
+           índice de seções, que filtra as escondidas, também não a lista). -->
+      ${
+        presentes.length
+          ? `<section class="card pf-sec" id="presentes" data-section="presentes" data-meus-presentes tabindex="-1">
+        <div class="pf-head">
+          <h2>os presentes que tu deu</h2>
+          <p>o código fica guardado aqui, então dá pra reencontrar quando quiser entregar.</p>
+        </div>
+        <div class="pf-gifts">
+          ${presentes
+            .map((g) => {
+              const nomeTier = escapeHtml(
+                tiers.find((t) => t.slug === g.tier_slug)?.nome || g.tier_slug || 'plano',
+              );
+              const quando = g.created_at ? dataCurta(g.created_at) : '';
+              const resgatado = g.status === 'resgatado';
+              return `<div class="pf-gift">
+                <div class="pf-gift-topo">
+                  <p class="pf-gift-plano">${nomeTier}</p>
+                  ${
+                    resgatado
+                      ? `<span class="tag green">já resgatado</span>`
+                      : `<span class="tag gold">esperando quem ganha</span>`
+                  }
+                </div>
+                <p class="pf-gift-codigo">${escapeHtml(g.codigo || 'código a caminho')}</p>
+                <div class="pf-gift-rodape">
+                  <span class="pf-gift-meta">${
+                    resgatado
+                      ? `resgatado${g.resgatado_em ? ' em ' + escapeHtml(dataCurta(g.resgatado_em)) : ''}`
+                      : quando
+                        ? `comprado em ${escapeHtml(quando)}`
+                        : ''
+                  }</span>
+                  ${
+                    g.codigo && !resgatado
+                      ? `<button type="button" class="pf-gift-copy" data-gift-copy="${escapeHtml(g.codigo)}">copiar</button>`
+                      : ''
+                  }
+                </div>
+              </div>`;
+            })
+            .join('')}
+        </div>
+      </section>`
+          : ''
+      }
+
       <section data-section="privacidade" tabindex="-1">
         <div class="pf-head">
           <h2>conta e privacidade</h2>
@@ -6483,8 +6551,12 @@ async function initPerfilPage() {
   // O "tua assinatura" do menu aponta pra /conta/perfil#assinatura, e a âncora
   // nativa não pega: a página inteira é montada aqui, depois do guard de auth,
   // então na hora em que o navegador procura o #assinatura ele ainda não existe.
-  if (window.location.hash === '#assinatura') {
-    const alvo = root.querySelector('#assinatura');
+  // Vale pra qualquer #ancora daqui de dentro (hoje #assinatura e #presentes),
+  // não só a da assinatura: quem já paga o pulo na mão paga pra todas.
+  if (window.location.hash.length > 1) {
+    const alvo = root.querySelector(
+      `#${CSS.escape(window.location.hash.slice(1))}`, // escape: o hash vem da URL
+    );
     if (alvo) {
       alvo.scrollIntoView({ block: 'start', behavior: semMovimento() ? 'auto' : 'smooth' });
       alvo.focus({ preventScroll: true });
@@ -7947,6 +8019,24 @@ async function initPerfilPage() {
   // seção [data-desejos-perfil] no DOM. Tolerante à migration. (O "voltou pra
   // vitrine" agora vive no sino do header, não no perfil.)
   initLojaDesejos();
+
+  // "copiar" de cada presente comprado. O código já está no dataset (veio do
+  // banco e passou pelo escapeHtml no render), então aqui é só clipboard.
+  root.querySelectorAll('[data-gift-copy]').forEach((botao) => {
+    botao.addEventListener('click', async () => {
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(botao.dataset.giftCopy);
+        ok = true;
+      } catch {
+        ok = false; // sem clipboard API: o código está logo acima, dá pra selecionar
+      }
+      botao.textContent = ok ? 'copiado 💛' : 'copia daí de cima';
+      setTimeout(() => {
+        botao.textContent = 'copiar';
+      }, 2000);
+    });
+  });
 }
 
 // --- Pontos + Recompensas (área logada) ----------------------------------------

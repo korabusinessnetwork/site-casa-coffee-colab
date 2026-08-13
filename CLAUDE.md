@@ -570,6 +570,21 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   de 5s), no lugar dos 9 segundos de antes. E os atalhos de sair (`[data-sucesso-saidas]`)
   ficam **escondidos enquanto a espera não resolve**: é o jeito gentil de segurar a pessoa
   na tela, sem sequestrar o botão de voltar do navegador.
+- **"os presentes que tu deu" (`/conta/perfil#presentes`) é a rede de segurança disso:**
+  a seção `[data-meus-presentes]` lista os presentes que a pessoa **comprou**, com código,
+  plano, data e se já foi resgatado (mais o "copiar"). Sem ela, o código existia numa tela
+  só e "perdeu, perdeu". **Sem migration nem serviço novo**: a `gift_select_own` da `0019`
+  já deixa o comprador ler a própria linha, então é uma quarta consulta no `Promise.all`
+  que a `initPerfilPage` já fazia, filtrando `status in ('pago','resgatado')` (`pendente`
+  é checkout que nunca fechou e nem tem código). A seção **só entra no HTML quando existe
+  algum presente**, então quem nunca presenteou não vê caixa vazia e o índice de seções
+  também não a lista. Os dois estados da tela de sucesso apontam pra cá. O pulo de âncora
+  do perfil deixou de ser hardcoded no `#assinatura` e passou a valer pra qualquer `#id`
+  da página (a âncora nativa não pega numa página montada depois do guard de auth).
+  > **E-mail do código: adiado a pedido (13/ago/2026).** O site não manda e-mail nenhum
+  > hoje (só os automáticos do Supabase Auth), então mandar o código por e-mail pediria um
+  > provedor novo (Gmail com senha de app, ou Resend com domínio verificado) e um secret
+  > novo. Ficou pra depois; a espera na tela mais a lista no perfil cobrem o caso.
 - **Front**: o drawer "finalizar compra" chama a function da loja (deslogado → login e
   volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier; `checkout-
   sucesso.html` limpa o carrinho e — na loja — sonda `points_ledger` por `?ref=` pra mostrar

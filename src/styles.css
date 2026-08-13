@@ -1603,6 +1603,20 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .pf-head h2 { font-family: var(--serif); font-size: clamp(21px, 3vw, 24px); font-weight: 500; line-height: 1.2; color: var(--ink); margin: 0 }
 .pf-head p { font-size: 15px; line-height: 1.5; color: var(--muted); margin: 0 }
 
+/* "os presentes que tu deu": a lista dos presentes comprados, no /conta/perfil.
+   Existe porque o código do presente nascia e morria na tela de sucesso do
+   checkout — quem fechava a aba não tinha onde reencontrar. Cartãozinho por
+   presente, com o código em destaque (é o que a pessoa vem buscar aqui). */
+.pf-gifts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 18px }
+.pf-gift { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border-radius: 14px; background: var(--paper-2); border: 1px solid var(--line) }
+.pf-gift-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.pf-gift-plano { margin: 0; font-family: var(--serif); font-size: 17px; color: var(--ink) }
+.pf-gift-codigo { margin: 2px 0 0; font-family: var(--sans); font-size: 19px; letter-spacing: .08em; font-weight: 700; color: var(--ink); word-break: break-all }
+.pf-gift-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 2px }
+.pf-gift-meta { font-size: 12.5px; color: var(--muted) }
+.pf-gift-copy { border: 0; background: none; cursor: pointer; padding: 0; font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--coral); text-decoration: underline; text-underline-offset: 3px }
+.pf-gift-copy:hover { color: var(--ink) }
+
 /* "tem um presente?" mora no card do plano, e só quando a pessoa não tem plano:
    um chip laranja no canto inferior direito que abre um painel flutuante com o
    campo do código. O chip/painel se posicionam relativos ao .pf-stat-plano. */
