@@ -76,6 +76,7 @@ import {
   Citrus,
   Wine,
   Cookie,
+  PartyPopper,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -147,6 +148,7 @@ const LUCIDE_ICONS = {
   Citrus,
   Wine,
   Cookie,
+  PartyPopper,
 };
 function renderIcons() {
   createIcons({ icons: LUCIDE_ICONS });
@@ -224,6 +226,11 @@ const NAV = [
   // é o rótulo da porta, não a porta. O nome vive SÓ aqui: mudou nesta linha,
   // mudou nos cinco lugares.
   { rotulo: 'Clube', href: '/planos', icone: 'sparkles' },
+  // Eventos fecha a fila porque é a porta comercial: quem chega aqui já sabe o
+  // que quer ("dá pra fazer meu aniversário aí?") e vai procurar o item pelo
+  // nome, não passear pela barra. Ele encosta no "visite-nos" do header, e os
+  // dois leem como o mesmo convite de vir pra casa.
+  { rotulo: 'Eventos', href: '/eventos', icone: 'party-popper' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
@@ -2547,6 +2554,153 @@ function initListaEspera() {
   });
 }
 
+// --- "faz teu evento aqui" (/eventos) ------------------------------------------
+// O formulário faz DUAS coisas, nessa ordem, e a ordem importa: primeiro grava o
+// pedido no banco (RPC registrar_lead_evento, 0040), depois manda a pessoa pro
+// WhatsApp da casa com a mensagem pronta.
+//
+// Gravar antes é o que faz o pedido sobreviver ao canal: quem preenche e não
+// aperta enviar lá no WhatsApp, quem está num aparelho sem WhatsApp instalado ou
+// quem some no meio da conversa continua aparecendo na aba "eventos" do console.
+//
+// Mas o banco NUNCA barra a pessoa: se a RPC falhar (migration pendente, sem
+// rede, o que for), o WhatsApp abre do mesmo jeito, com um recado honesto de que
+// a gente pode não ter guardado. Perder um lead é ruim; impedir alguém de falar
+// com a casa é pior.
+function initEventosPage() {
+  const form = document.querySelector('[data-evento-form]');
+  if (!form) return;
+
+  const botao = form.querySelector('[data-evento-btn]');
+  const aviso = form.querySelector('[data-evento-aviso]');
+  const conta = form.querySelector('[data-evento-conta]');
+  const campo = (nome) => form.elements[nome];
+
+  // Máscara do telefone, igual à do perfil (o banco guarda o texto formatado).
+  const tel = form.querySelector('[data-mask-tel]');
+  tel?.addEventListener('input', () => {
+    tel.value = mascaraTelefone(tel.value);
+  });
+
+  const mensagemEl = campo('mensagem');
+  const contar = () => {
+    if (conta) conta.textContent = `${(mensagemEl.value || '').length}/600`;
+  };
+  mensagemEl?.addEventListener('input', contar);
+  contar();
+
+  const dizer = (texto, tipo = 'warn') => {
+    aviso.className = `notice ${tipo}`;
+    aviso.innerHTML = texto;
+    aviso.hidden = false;
+  };
+
+  // Data do <input type="date"> vem como AAAA-MM-DD. Formatar na mão evita o
+  // drift de fuso do new Date (o mesmo motivo do dataDiaMes).
+  const dataBonita = (v) => {
+    const p = String(v || '').split('-');
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const nome = (campo('nome').value || '').trim();
+    const contato = (campo('contato').value || '').trim();
+    const tipo = campo('tipo').value;
+    const data = campo('data').value;
+    const pessoasBruto = (campo('pessoas').value || '').trim();
+    const email = (campo('email').value || '').trim();
+    const mensagem = (mensagemEl.value || '').trim();
+
+    if (nome.length < 2) {
+      dizer('só falta teu nome pra gente saber com quem fala 💛', 'warn');
+      campo('nome').focus();
+      return;
+    }
+    if (contato.replace(/\D/g, '').length < 10) {
+      dizer('esse telefone parece incompleto, dá uma conferida?', 'warn');
+      campo('contato').focus();
+      return;
+    }
+    if (email && !EMAIL_RE.test(email)) {
+      dizer('esse e-mail parece incompleto. se preferir, deixa em branco.', 'warn');
+      campo('email').focus();
+      return;
+    }
+    const pessoas = pessoasBruto ? Number(pessoasBruto) : null;
+    if (pessoas !== null && (!Number.isFinite(pessoas) || pessoas < 1 || pessoas > 500)) {
+      dizer('quantas pessoas, mais ou menos? de 1 a 500.', 'warn');
+      campo('pessoas').focus();
+      return;
+    }
+
+    botao.disabled = true;
+    aviso.hidden = true;
+
+    let guardou = false;
+    if (supabase) {
+      try {
+        const { data: r, error } = await supabase.rpc('registrar_lead_evento', {
+          p_nome: nome,
+          p_contato: contato,
+          p_tipo: tipo,
+          p_email: email || null,
+          p_data: data || null,
+          p_pessoas: pessoas,
+          p_mensagem: mensagem || null,
+          p_origem: window.location.pathname.slice(0, 120),
+        });
+        if (error) throw error;
+        if (r && r.ok === false) {
+          dizer(escapeHtml(r.erro || 'faltou alguma coisa aí em cima'), 'warn');
+          botao.disabled = false;
+          return;
+        }
+        guardou = true;
+      } catch (err) {
+        // Migration 0040 pendente, sem rede, o que for: segue pro WhatsApp.
+        console.warn('lead de evento:', err?.message || err);
+      }
+    }
+
+    // A mensagem que já vai escrita na conversa. Uma linha por informação, pra
+    // quem atende no balcão ler de relance sem rolar a tela do celular.
+    const linhas = [
+      'Oi, gente do Casa! Quero fazer um evento aí 🎉',
+      '',
+      `nome: ${nome}`,
+      `tipo: ${tipo}`,
+      data ? `quando: ${dataBonita(data)}` : 'quando: ainda não sei, quero pensar junto',
+      pessoas ? `quantas pessoas: cerca de ${pessoas}` : null,
+      `meu whatsapp: ${contato}`,
+      email ? `meu e-mail: ${email}` : null,
+      mensagem ? '' : null,
+      mensagem ? `o que eu tenho em mente:\n${mensagem}` : null,
+    ].filter((l) => l !== null);
+
+    const numero = MARCA.contato.whatsappNumero;
+    const url = `https://wa.me/${numero}?text=${encodeURIComponent(linhas.join('\n'))}`;
+
+    // Abrir por window.open depois de um await pode cair no bloqueador de pop-up
+    // (o navegador já não vê mais o clique como origem). Por isso o botão fica na
+    // tela de qualquer jeito: se a aba não abrir sozinha, ela está a um toque, e
+    // aí o clique é gesto de gente de novo.
+    const abriu = window.open(url, '_blank', 'noopener,noreferrer');
+    dizer(
+      `<strong>${guardou ? 'anotado 💛' : 'quase lá 💛'}</strong> ` +
+        (abriu
+          ? 'a conversa abriu numa aba nova, é só apertar enviar por lá.'
+          : `<a class="form-link" href="${url}" target="_blank" rel="noopener noreferrer">abre a conversa no WhatsApp</a> e é só apertar enviar.`) +
+        (guardou
+          ? ''
+          : ' (a gente não conseguiu guardar teu pedido aqui no site agora, então esse envio no WhatsApp é o que vale.)'),
+      guardou ? 'ok' : 'warn',
+    );
+    botao.disabled = false;
+  });
+}
+
 // --- Tab bar (mobile) ----------------------------------------------------------
 // Barra fixa inferior que só aparece sob 820px (CSS .tabbar). Injetada uma vez no
 // <body>; espelha os principais destinos e marca o ativo com aria-current.
@@ -2574,11 +2728,19 @@ function renderTabbar() {
   el.className = 'tabbar';
   el.setAttribute('data-tabbar', '');
   el.setAttribute('aria-label', 'Navegação rápida');
+  // Três de cada lado do "C". A entrada dos Eventos deixou a NAV com seis itens,
+  // e seis itens mais o botão do meio só ficam simétricos assim — com cinco, o
+  // "C" saía do centro da tela, que é justamente o lugar de onde ele tira a
+  // força de âncora. O ganho de tabela: "O Casa" ENTRA na tab bar, que até aqui
+  // mostrava quatro dos cinco itens e deixava a página de apresentação da casa
+  // fora da única navegação que o celular tem.
   el.innerHTML = `
+    ${tab('/o-casa', 'heart', 'O Casa')}
     ${tab('/cardapio', 'utensils', 'Cardápio')}
     ${tab('/loja', 'shopping-bag', 'Loja')}
     <a href="${HOME}" class="center" aria-label="Início"${on(HOME)}>C</a>
     ${tab('/planos', 'sparkles', 'Clube')}
+    ${tab('/eventos', 'party-popper', 'Eventos')}
     ${tab('/colab', 'users', 'Colab')}
   `;
   document.body.appendChild(el);
@@ -8466,6 +8628,7 @@ export function initSite() {
   renderAvisoBar(); // tarja "recado da casa" no topo (só se houver um vigente)
   renderFooter();
   initListaEspera(); // campinho "avisa quando a loja abrir" do rodapé (migration 0031)
+  initEventosPage(); // só age se houver [data-evento-form] (a /eventos)
   renderTabbar(); // barra inferior mobile (todas as páginas; CSS some >820px)
   renderContaNav(); // tirinha entre as páginas da conta (só age em /conta/*)
   initAuth(); // header reflete a sessão + reage a login/logout (todas as páginas)

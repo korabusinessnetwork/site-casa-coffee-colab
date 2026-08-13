@@ -225,6 +225,7 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=`, trilha de migalhas + relacionados (conta como "Loja" na nav) |
 | Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
 | Colab         | `colab.html`        | `/colab`           | Residência Gente do Casa; carrossel de colabs; convite (mailto/WhatsApp) |
+| Eventos       | `eventos.html`      | `/eventos`         | "faz teu evento aqui": tipos de evento + formulário que grava o pedido e leva pro WhatsApp |
 | Cadastro      | `cadastro.html`     | `/cadastro`        | criar conta (nome/telefone/e-mail/senha); estado "confirme seu e-mail" |
 | Login         | `login.html`        | `/login`           | entrar (e-mail/senha) + "esqueci a senha" (reset por e-mail)       |
 | Auth OK       | `auth-confirmado.html` | `/auth-confirmado` | retorno do link de confirmação; detecta a sessão na URL         |
@@ -243,10 +244,11 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
 `index.html`, que redireciona pra `/home` e faz o link quebrado **sumir em silêncio**. O
 `404.html` está no `rollupOptions.input` e leva `robots: noindex`.
 
-- **NAV** (array no `app.js`): O Casa, Colab, Cardápio, Loja, Clube — todas apontam pras
+- **NAV** (array no `app.js`): O Casa, Colab, Cardápio, Loja, Clube, Eventos — todas
+  apontam pras
   páginas reais, com href limpo (`/o-casa`). A ordem conta uma frase: quem a gente é
-  (O Casa, Colab), o que a gente serve (Cardápio, Loja), como tu entra (Clube, que fecha
-  a fila encostado no "visite-nos"). **A Home não tem item**: o logo do header já é um
+  (O Casa, Colab), o que a gente serve (Cardápio, Loja), como tu entra (Clube) e como tu
+  usa a casa (Eventos, que fecha a fila encostado no "visite-nos"). **A Home não tem item**: o logo do header já é um
   link pra `/home` (no celular, o "C" do meio da tab bar), então o item repetia o mesmo
   destino na posição mais lida da barra. **`/planos` se chama "Clube"** nos cinco lugares
   (header, menu mobile, rodapé, tab bar e o `aria-current`), a pedido da casa em
@@ -259,6 +261,18 @@ a página de erro do site) em produção, e o middleware `urlsLimpasNoDev()` do
   `aria-current="page"` + `text-terracota font-semibold` (produto → "Loja";
   raiz/`index`/`home` → "Home", que não está na NAV mas alimenta o `aria-current` do logo
   e do "C" da tab bar).
+- **Tab bar do celular: sete lugares** (os seis itens da NAV mais o "C" da home no meio).
+  A entrada dos Eventos deixou a NAV com número par de itens, e par mais o botão do meio
+  não fecha simétrico: com cinco itens o "C" saía do centro da tela, que é de onde ele
+  tira a força de âncora. O sétimo lugar é o **"O Casa"**, que até então não estava na tab
+  bar (ela mostrava quatro dos cinco itens), então a simetria ainda corrigiu a ausência da
+  página de apresentação na única navegação que o celular tem. A barra virou
+  `grid-template-columns: repeat(7, 1fr)` no lugar do `space-around`: com largura livre,
+  "Cardápio" empurrava os vizinhos e a fila saía torta; coluna igual mantém o "C" no meio
+  exato em qualquer largura. O rótulo **não quebra linha** (a barra é baixa demais), ele
+  encolhe: 8.5px de base, 7.5px abaixo de 400px, 7px abaixo de 345px, com ícone e "C"
+  acompanhando. Medido no navegador de 320 a 768px: nada estoura, nada gera scroll lateral
+  e o "C" fica no pixel do meio.
 - **Loja está com selo "em breve" e SEM link** (`semLink: true` na NAV): o item aparece no
   header, no menu mobile e no rodapé como texto morto (`.nav-off`) e na **tab bar do
   mobile** como `.tab-off` (ícone e rótulo apagados, carimbo "em breve" sobre o ícone).
@@ -892,6 +906,52 @@ presença** ("eu vou"), com uma lotação gentil (as `vagas` que a 0004 já prev
   agendar o indefinido). Ícone `calendar-plus`.
 - **No ar:** as duas (`0026` e `0028`) foram aplicadas em 10/ago/2026 e o front está na
   `main`.
+
+---
+
+## Faz teu evento aqui (/eventos) — o pedido vira lead e vai pro WhatsApp
+
+O irmão comercial da agenda, e **não se confunde com ela**: a `/agenda` é dos encontros
+que a **casa** promove; a `/eventos` é de quem quer usar a casa pro evento **dele**
+(aniversário, reunião, workshop, chá, ensaio, lançamento). Até aqui esse pedido só tinha
+um caminho: achar o telefone no rodapé e começar a conversa do zero, sem dizer quando, pra
+quantos nem do quê.
+
+- **A página** (`eventos.html`, no `rollupOptions.input`): abertura, seis cartões de tipo
+  de evento, o formulário e "o que acontece depois". Campos: nome e whatsapp
+  (obrigatórios), tipo (select), data, quantas pessoas, e-mail e um "conta um pouco"
+  (todos opcionais) — pedir pouco é o ponto, o resto se acerta na conversa.
+- **`initEventosPage()` faz duas coisas, nessa ordem, e a ordem importa:** grava o pedido
+  (RPC `registrar_lead_evento`) e **depois** abre o WhatsApp da casa com a mensagem já
+  escrita (`wa.me/<MARCA.contato.whatsappNumero>?text=…`, uma linha por informação).
+  Gravar antes é o que faz o lead **sobreviver ao canal**: quem preenche e não aperta
+  enviar, quem está num aparelho sem WhatsApp ou quem some no meio da conversa continua na
+  fila do console.
+  > **O banco NUNCA barra a pessoa.** Se a RPC falhar (migration pendente, sem rede, o que
+  > for), o WhatsApp abre do mesmo jeito, com um recado honesto de que o pedido pode não
+  > ter sido guardado. Perder um lead é ruim; impedir alguém de falar com a casa é pior.
+  > E o `window.open` depois de um `await` pode cair no bloqueador de pop-up (o navegador
+  > já não vê o clique como origem), então quando ele volta `null` a tela mostra o **link**
+  > da conversa: aí o toque é gesto de gente de novo e abre sempre.
+- **Migration `0040_leads_evento` (PENDENTE, rodar no SQL Editor):** tabela `leads_evento`
+  **deny-by-default** (RLS ligada e **nenhuma policy** — o client não lê nem escreve
+  direto). Diferente da `0031`, que nasceu com policy de INSERT pro client e precisou da
+  `0034` pra tirar; aqui já nasce pela porta certa. Nome e telefone são dado **pessoal**,
+  então isto **não** é da turma dos "benignos" (favoritos, desejos) que o client escreve
+  direto. Três RPCs SECURITY DEFINER: `registrar_lead_evento(...)` (granted a **anon**,
+  porque quem pede evento raramente tem conta; valida tudo no corpo e tem **anti-flood de
+  30s pelo mesmo contato**, senão um endpoint público de escrita vira alvo),
+  `admin_leads_evento(busca, status, limite)` e `admin_lead_evento_status(id, status)`,
+  as duas gated por `tem_permissao('relatorios')` — a mesma porta dos outros relatórios de
+  interesse, então **não precisou de permissão nova** (o whitelist é fechado por CHECK na
+  0017 e permissão nova pediria outra migration).
+- **Console:** aba **"eventos"** (`viewLeadsEventos`, ícone `party-popper`, quem tem
+  `relatorios`) com busca, filtros (a responder / já falei / arquivados) e o telefone como
+  **link de WhatsApp**, pra quem atende abrir a conversa dali mesmo. O botão "já falei" é
+  o que tira da fila: lista de pedidos sem onde riscar o que já foi atendido é pilha que
+  só cresce.
+- **Falta rodar:** `supabase/migrations/0040_leads_evento.sql` no SQL Editor. Sem ela a
+  página funciona e manda pro WhatsApp, só não guarda nada e a aba do console dá erro.
 
 ---
 
@@ -1545,6 +1605,14 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   ("Sanduíches"). Sem ela, o de-para fica com dois nomes pro mesmo prato e a conquista
   nunca abriria quando a frente de caixa entrar. Idempotente (o `where` pula a linha que já
   está certa) e não acende nenhuma das 50 (seguem `ativo = false`).
+- **`0040_leads_evento` — PENDENTE (rodar no SQL Editor).** "Faz teu evento aqui": tabela
+  `leads_evento` **sem policy nenhuma** (RLS ligada = deny-by-default pro client; dado
+  pessoal, então nada de escrita direta) + 3 RPCs SECURITY DEFINER:
+  `registrar_lead_evento(...)` (granted a **anon**, valida no corpo, anti-flood de 30s pelo
+  mesmo contato) e `admin_leads_evento`/`admin_lead_evento_status` (gated por
+  `tem_permissao('relatorios')`, sem permissão nova). Front: página `/eventos` +
+  `initEventosPage` + aba "eventos" no console. Tolerante à migration pendente: a página
+  segue mandando pro WhatsApp, só não guarda. Ver "Faz teu evento aqui" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

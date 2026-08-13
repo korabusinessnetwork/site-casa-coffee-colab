@@ -40,6 +40,9 @@ import {
   Bookmark,
   BellRing,
   Mail,
+  PartyPopper,
+  Archive,
+  RotateCcw,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -71,6 +74,9 @@ const LUCIDE_ICONS = {
   Bookmark,
   BellRing,
   Mail,
+  PartyPopper,
+  Archive,
+  RotateCcw,
 };
 
 function renderIcons() {
@@ -254,6 +260,12 @@ const NAV = [
   // "quem deixou o e-mail" — a lista de espera do rodapé (0031). Também é leitura
   // de interesse, mesma permissão 'relatorios'.
   { id: 'espera', rotulo: 'lista de espera', icone: 'mail', perm: 'relatorios' },
+  // "quem quer fazer evento aqui" — os pedidos da página /eventos (0040). É a
+  // fila comercial da casa, mas continua sendo leitura de interesse: mesma
+  // permissão 'relatorios', sem precisar mexer no whitelist fechado da 0017.
+  // Note que é OUTRA coisa que a aba 'agenda', que é dos encontros que a casa
+  // promove; esta é de quem quer alugar a casa pro evento dele.
+  { id: 'leads', rotulo: 'eventos', icone: 'party-popper', perm: 'relatorios' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -621,6 +633,7 @@ function abrirDoHash() {
     desejos: viewDesejos,
     esperando: viewReposicao,
     espera: viewListaEspera,
+    leads: viewLeadsEventos,
     equipe: viewEquipe,
     recados: viewRecados,
     trilha: viewTrilha,
@@ -2372,6 +2385,162 @@ async function carregarListaEspera(corpo) {
   } catch (e) {
     erroNaTela(corpo, e);
   }
+}
+
+// ===== PEDIDOS DE EVENTO (a /eventos) ===============================
+// Quem preencheu o formulário de "faz teu evento aqui". A conversa acontece no
+// WhatsApp; esta tela é o arquivo, pra nenhum pedido se perder embaixo de trinta
+// mensagens novas. O botão "já falei" é o que tira da fila.
+const filtrosLeads = { status: 'novo', busca: '' };
+
+async function viewLeadsEventos(view) {
+  view.innerHTML =
+    cabecalho(
+      'quem quer fazer evento aqui',
+      'os pedidos que chegaram pela página de eventos, do mais recente pro mais antigo.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-lead" class="sr-only">buscar por nome, telefone ou tipo</label>
+        <input id="busca-lead" type="search" placeholder="nome, telefone, e-mail ou tipo de evento" autocomplete="off" spellcheck="false" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div class="ad-filtros" role="group" aria-label="filtrar pedidos de evento">
+      <button type="button" class="filtro" data-f-status="novo">a responder</button>
+      <button type="button" class="filtro" data-f-status="atendido">já falei</button>
+      <button type="button" class="filtro" data-f-status="arquivado">arquivados</button>
+      <button type="button" class="filtro" data-f-status="">todos</button>
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const form = $('[data-busca]', view);
+  const marcar = () =>
+    $$('[data-f-status]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosLeads.status)),
+    );
+  $$('[data-f-status]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosLeads.status = b.dataset.fStatus || '';
+      marcar();
+      carregarLeadsEventos(corpo);
+    }),
+  );
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosLeads.busca = $('#busca-lead', form).value.trim();
+    carregarLeadsEventos(corpo);
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarLeadsEventos(corpo));
+  marcar();
+  renderIcons();
+  carregarLeadsEventos(corpo);
+}
+
+async function carregarLeadsEventos(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_leads_evento', {
+      p_busca: filtrosLeads.busca || null,
+      p_status: filtrosLeads.status || null,
+    });
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        filtrosLeads.busca ? 'nada com esse termo' : 'nenhum pedido por aqui',
+        filtrosLeads.busca
+          ? 'tenta outro nome ou telefone.'
+          : 'quando alguém preencher o formulário da página de eventos, o pedido aparece aqui.',
+      );
+      return;
+    }
+    corpo.innerHTML = `
+      <p class="lbl" style="margin-bottom: 14px">${formatNumero(linhas.length)} ${linhas.length === 1 ? 'pedido' : 'pedidos'}</p>
+      ${linhas.map(cardLead).join('')}`;
+    ligarAcoesLead(corpo);
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+// A data pretendida vem como DATE (AAAA-MM-DD). Formatar na mão evita o drift de
+// fuso do new Date, que num dia 01 devolveria o dia anterior.
+function dataPretendida(v) {
+  const p = String(v || '').split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
+}
+
+function cardLead(l) {
+  const tag =
+    l.status === 'atendido'
+      ? '<span class="tag">já falei</span>'
+      : l.status === 'arquivado'
+        ? '<span class="tag">arquivado</span>'
+        : '<span class="tag gold">a responder</span>';
+
+  // O telefone vira link de WhatsApp: quem atende abre a conversa daqui mesmo,
+  // sem copiar número na mão. Só dígitos, com o 55 na frente.
+  const digitos = String(l.contato || '').replace(/\D/g, '');
+  const zap = digitos.length >= 10 ? `https://wa.me/55${digitos.slice(-11)}` : null;
+
+  const detalhes = [
+    l.data_pretendida ? `📅 ${dataPretendida(l.data_pretendida)}` : 'sem data ainda',
+    l.pessoas ? `👥 cerca de ${escapeHtml(String(l.pessoas))} pessoas` : null,
+  ].filter(Boolean);
+
+  return `
+    <article class="card ad-card" data-lead="${escapeHtml(l.id)}">
+      <div class="ad-card-topo">
+        <div>
+          <p class="ad-card-nome">${escapeHtml(l.nome || 'sem nome')}</p>
+          <p class="ad-card-meta">${escapeHtml(l.tipo || '')} · ${escapeHtml(detalhes.join(' · '))}</p>
+        </div>
+        <div class="ad-card-tags">${tag}</div>
+      </div>
+      ${l.mensagem ? `<p class="ad-card-texto">${escapeHtml(l.mensagem)}</p>` : ''}
+      <div class="ad-card-rodape">
+        <div class="ad-card-info">
+          <p class="ad-card-meta">
+            ${
+              zap
+                ? `<a class="form-link" href="${zap}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.contato)}</a>`
+                : escapeHtml(l.contato || '')
+            }${l.email ? ' · ' + escapeHtml(l.email) : ''}
+          </p>
+          <p class="ad-card-meta">pediu em ${escapeHtml(formatData(l.created_at))}${
+            l.atendido_em ? ` · atendido em ${escapeHtml(formatData(l.atendido_em))}` : ''
+          }</p>
+        </div>
+        <div class="ad-card-acao">
+          ${
+            l.status === 'novo'
+              ? `<button type="button" class="btn ghost sm" data-lead-status="arquivado"><i data-lucide="archive"></i>arquivar</button>
+                 <button type="button" class="btn solid sm" data-lead-status="atendido"><i data-lucide="check"></i>já falei</button>`
+              : `<button type="button" class="btn ghost sm" data-lead-status="novo"><i data-lucide="rotate-ccw"></i>voltar pra fila</button>`
+          }
+        </div>
+      </div>
+    </article>`;
+}
+
+function ligarAcoesLead(corpo) {
+  $$('[data-lead-status]', corpo).forEach((botao) =>
+    botao.addEventListener('click', async () => {
+      const id = botao.closest('[data-lead]')?.dataset.lead;
+      if (!id) return;
+      botao.disabled = true;
+      try {
+        await rpc('admin_lead_evento_status', { p_id: id, p_status: botao.dataset.leadStatus });
+        toast(botao.dataset.leadStatus === 'novo' ? 'voltou pra fila' : 'anotado 💛');
+        carregarLeadsEventos(corpo);
+      } catch (e) {
+        botao.disabled = false;
+        toast(e?.message || 'não deu pra mudar agora', 'err');
+      }
+    }),
+  );
 }
 
 // ===== TUA CONTA ====================================================
