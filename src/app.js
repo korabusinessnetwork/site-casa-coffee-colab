@@ -6330,7 +6330,7 @@ async function initPerfilPage() {
       <form class="card pf-sec" data-section="entrega" data-endereco-form tabindex="-1" novalidate>
         <div class="pf-head">
           <h2>onde te entregamos</h2>
-          <p>põe o cep que a gente preenche o resto, tu só diz o número e o complemento. dá pra retirar aqui na casa também.</p>
+          <p>põe o cep que a gente preenche o resto pra ti, e tu ajeita o que não bater. dá pra retirar aqui na casa também.</p>
         </div>
         <div class="pf-grid addr">
           <label class="field" for="pf-cep">
@@ -6340,7 +6340,7 @@ async function initPerfilPage() {
           </label>
           <label class="field pf-wide" for="pf-rua">
             <span class="lbl">rua</span>
-            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" data-endereco-campo data-endereco-auto readonly />
+            <input id="pf-rua" name="rua" type="text" value="${val(extra?.end_rua)}" autocomplete="address-line1" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-numero">
             <span class="lbl">número</span>
@@ -6352,15 +6352,15 @@ async function initPerfilPage() {
           </label>
           <label class="field" for="pf-bairro">
             <span class="lbl">bairro</span>
-            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" data-endereco-campo data-endereco-auto readonly />
+            <input id="pf-bairro" name="bairro" type="text" value="${val(extra?.end_bairro)}" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-cidade">
             <span class="lbl">cidade</span>
-            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" data-endereco-campo data-endereco-auto readonly />
+            <input id="pf-cidade" name="cidade" type="text" value="${val(extra?.end_cidade)}" autocomplete="address-level2" data-endereco-campo readonly />
           </label>
           <label class="field" for="pf-uf">
             <span class="lbl">uf</span>
-            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf data-endereco-campo data-endereco-auto readonly />
+            <input id="pf-uf" name="uf" type="text" value="${val(extra?.end_uf)}" placeholder="RS" maxlength="2" autocomplete="address-level1" data-uf data-endereco-campo readonly />
           </label>
         </div>
         <div class="pf-actions">
@@ -7358,12 +7358,13 @@ async function initPerfilPage() {
     ufInput.value = ufInput.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2);
   });
 
-  // Busca do CEP: rua/bairro/cidade/uf vêm do cep e ficam travados (o campo é
-  // `data-endereco-auto`) — a pessoa só digita número e complemento. Serviço
-  // público (ViaCEP); se estiver fora do ar, destrava tudo pra preencher na mão.
+  // Busca do CEP: com os 8 números, preenche rua/bairro/cidade/uf pra pessoa não
+  // digitar de novo. É só atalho — **nenhum campo fica travado**: base de cep
+  // erra, endereço novo demora a entrar, então a pessoa sempre pode ajeitar em
+  // cima (e o que ela escreveu só é sobrescrito se ela trocar o cep). Serviço
+  // público (ViaCEP); fora do ar, é só preencher na mão.
   const cepInput = campo('pf-cep');
   const cepHint = root.querySelector('[data-cep-hint]');
-  const camposAuto = () => root.querySelectorAll('[data-endereco-auto]');
   let cepResolvido = (cepInput?.value || '').replace(/\D/g, '');
   let cepBuscaAtual = 0;
 
@@ -7372,17 +7373,6 @@ async function initPerfilPage() {
     cepHint.textContent = texto || '';
     cepHint.className = erro ? 'hint text-coral' : 'hint';
     cepHint.hidden = !texto;
-  }
-  function travarAuto(travado) {
-    camposAuto().forEach((i) => {
-      i.readOnly = travado;
-    });
-  }
-  function limparAuto() {
-    camposAuto().forEach((i) => {
-      i.value = '';
-    });
-    atualizarProgresso();
   }
 
   async function buscarCep(digitos) {
@@ -7395,43 +7385,36 @@ async function initPerfilPage() {
       d = await r.json();
     } catch {
       if (busca !== cepBuscaAtual) return;
-      // Sem internet ou serviço fora: destrava pra pessoa preencher na mão.
-      travarAuto(false);
       dicaCep('o busca-cep não respondeu, pode preencher na mão');
       return;
     }
     if (busca !== cepBuscaAtual) return;
     if (!d || d.erro) {
-      cepResolvido = '';
-      limparAuto();
-      dicaCep('não achamos esse cep, confere pra gente?', true);
+      // Não apaga o que já está escrito: cep que a base não conhece pode ser
+      // endereço novo, e a pessoa preenche na mão.
+      dicaCep('não achamos esse cep, pode preencher na mão', true);
       return;
     }
     cepResolvido = digitos;
     const preencher = (id, valor) => {
       const el = campo(id);
-      if (el) el.value = valor || '';
+      if (el && valor) el.value = valor;
     };
     preencher('pf-rua', d.logradouro);
     preencher('pf-bairro', d.bairro);
     preencher('pf-cidade', d.localidade);
     preencher('pf-uf', d.uf);
-    // Cep de cidade inteira vem sem rua/bairro: esses dois ficam livres pra digitar.
-    travarAuto(true);
-    const soltos = [];
-    if (!d.logradouro) soltos.push(['pf-rua', 'a rua']);
-    if (!d.bairro) soltos.push(['pf-bairro', 'o bairro']);
-    soltos.forEach(([id]) => {
-      const el = campo(id);
-      if (el) el.readOnly = false;
-    });
     atualizarProgresso();
-    if (soltos.length) {
-      dicaCep(`esse cep vale pra cidade toda, escreve ${soltos.map(([, nome]) => nome).join(' e ')}`);
-      campo(soltos[0][0])?.focus();
+    // Cep de cidade inteira vem sem rua/bairro: aí o começo é escrever a rua.
+    const faltando = [];
+    if (!d.logradouro) faltando.push(['pf-rua', 'a rua']);
+    if (!d.bairro) faltando.push(['pf-bairro', 'o bairro']);
+    if (faltando.length) {
+      dicaCep(`esse cep vale pra cidade toda, escreve ${faltando.map(([, nome]) => nome).join(' e ')}`);
+      campo(faltando[0][0])?.focus();
       return;
     }
-    dicaCep(`${d.logradouro}, ${d.bairro}, agora é só o número`);
+    dicaCep(`${d.logradouro}, ${d.bairro}, é só ajeitar se não bater`);
     campo('pf-numero')?.focus();
   }
 
@@ -7441,13 +7424,7 @@ async function initPerfilPage() {
       buscarCep(digitos);
       return;
     }
-    // Cep incompleto: o endereço de antes não vale mais.
-    cepBuscaAtual += 1;
-    if (cepResolvido) {
-      cepResolvido = '';
-      travarAuto(true);
-      limparAuto();
-    }
+    cepBuscaAtual += 1; // cep incompleto: descarta busca em voo, sem mexer nos campos
     dicaCep(digitos.length ? 'faltam números no cep' : '');
   }
   cepInput?.addEventListener('input', aoMudarCep);
@@ -7749,15 +7726,15 @@ async function initPerfilPage() {
   });
 
   // ── Endereço cadeado: "editar" libera os campos ───────────────────────────
-  // Os campos nascem readonly (fundo apagado = cadeado). "editar" destrava o que
-  // é da pessoa (cep, número, complemento) e habilita o "salvar endereço"; o que
-  // vem do cep (`data-endereco-auto`) segue travado, quem preenche é a busca.
+  // Os campos nascem readonly (fundo apagado = cadeado). "editar" destrava tudo
+  // e habilita o "salvar endereço"; o "editar" apaga porque a edição já está no ar.
+  // Tudo mesmo, inclusive o que o cep preenche: a busca é atalho, não autoridade.
   {
     const formEnd = root.querySelector('[data-endereco-form]');
     const editarBtn = root.querySelector('[data-endereco-editar]');
     const salvarBtn = root.querySelector('[data-endereco-salvar]');
     editarBtn?.addEventListener('click', () => {
-      formEnd?.querySelectorAll('[data-endereco-campo]:not([data-endereco-auto])').forEach((i) => {
+      formEnd?.querySelectorAll('[data-endereco-campo]').forEach((i) => {
         i.readOnly = false;
       });
       if (salvarBtn) salvarBtn.disabled = false;
