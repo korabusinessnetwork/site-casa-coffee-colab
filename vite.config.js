@@ -30,8 +30,16 @@ function urlsLimpasNoDev() {
         }
         if (caminho !== '/' && !extname(caminho)) {
           const arquivo = resolve(root, '.' + caminho + '.html');
+          // Pasta com index.html dentro (é o caso do console: src/admin/index.html).
+          // Sem isto, /admin não achava /admin.html e caía no 404, enquanto
+          // /admin/ funcionava — dois endereços pra mesma porta, um deles morto.
+          // Na Vercel o cleanUrls já resolve os dois; aqui o dev passa a fazer igual.
+          const semBarra = caminho.replace(/\/$/, '');
+          const indice = resolve(root, '.' + semBarra + '/index.html');
           if (existsSync(arquivo)) {
             req.url = caminho + '.html' + (query ? '?' + query : '');
+          } else if (existsSync(indice)) {
+            req.url = semBarra + '/index.html' + (query ? '?' + query : '');
           } else if (aceitaHtml(req) && !caminho.startsWith('/@')) {
             // Endereço que não existe. Sem isto o fallback de SPA do Vite serviria
             // o index.html, que redireciona pra /home — o link quebrado sumiria em

@@ -1284,6 +1284,59 @@ de quem só está de passagem deixar contato.
 
 ---
 
+## O console da equipe (/admin)
+
+Fica em **`/admin`**, com a porta em **`/admin/entrar`** (login `casa` ou o e-mail
+interno; o campo aceita os dois e o `loginParaEmail` traduz). É `noindex` e não é linkado
+de lugar nenhum do site público. Quem decide se a pessoa entra é o **banco**, não a tela:
+`pode_entrar_no_console()` + `tem_permissao(...)` (0017), e enquanto a senha inicial não
+for trocada de verdade a conta não tem privilégio nenhum (0032).
+
+**As 18 abas** (o `perm` de cada uma está no array `NAV` do `admin.js`; `tudo` = owner vê
+todas). Auditadas no navegador em 13/ago/2026, todas renderizando e chamando funções que
+existem no banco:
+
+| Aba | Permissão | O que faz |
+|-----|-----------|-----------|
+| painel | `dashboard` | os números do dia (`admin_dashboard`) |
+| pedidos | `pedidos` | fila da loja + baixa de retirada/entrega |
+| resgates | `resgates` | recompensas resgatadas, baixa em mãos |
+| aniversários | `resgates` | os brunches reservados (0025) |
+| **presentes** | `resgates` | **novo:** os planos dados de presente (0041) |
+| pessoas | `usuarios` | quem já passou por aqui, com plano e pontos |
+| **mural** | `usuarios` | **novo:** moderar a parede do `/o-casa` (0020) |
+| relatórios | `relatorios` | o que vendeu e o que saiu por pontos |
+| favoritos | `relatorios` | ranking do cardápio (0027) |
+| desejos | `relatorios` | ranking da loja (0029) |
+| esperando | `relatorios` | quem espera reposição (0030) |
+| lista de espera | `relatorios` | e-mails do rodapé (0031/0034) |
+| eventos | `relatorios` | pedidos de evento (0040) |
+| equipe | `equipe` | dar e tirar permissões |
+| recados | `avisos` | a tarja no topo do site (0022), **owner-only** |
+| trilha | `trilha` | playlists da home (0023), **owner-only** |
+| agenda | `eventos` | encontros da casa (0026), **owner-only** |
+| tua conta | livre | trocar a própria senha |
+
+- **`mural`** é a única aba que **escreve direto pela RLS**, sem RPC: as policies da `0020`
+  já dão à equipe SELECT de tudo, UPDATE do `status` e DELETE, e a trigger da `0036`
+  impede que qualquer um reescreva `texto`/`autor_nome`/`user_id`. Ou seja, dá pra
+  esconder e apagar, **nunca** pra pôr na parede uma frase que a pessoa não escreveu.
+  "Esconder" é reversível e resolve quase tudo; "apagar" passa por confirmação.
+- **`presentes`** é **só leitura** (RPC `admin_presentes`, 0041). O código do presente é
+  **título ao portador**, então mora na permissão `resgates`, a mesma de quem já entrega
+  recompensa em mãos, e não na mais larga do console. O **bilhete** que o comprador
+  escreveu **não** vem na RPC: é recado de uma pessoa pra outra.
+- **Ainda sem aba** (verificado em 13/ago/2026, ficaram de fora a pedido): assinaturas,
+  conquistas (ligar/desligar), indicações e o extrato bruto de pontos. As três primeiras
+  **não precisariam de migration** (as policies de `subscriptions`, `achievements` e
+  `points_ledger` já liberam staff); indicações precisaria.
+- **`/admin` e `/admin/` abrem os dois.** O middleware do dev só tentava
+  `<caminho>.html`, então `/admin` (sem barra) não achava `admin.html` e caía no 404,
+  enquanto `/admin/` funcionava. Agora ele também tenta `<caminho>/index.html`, que é como
+  a Vercel já servia em produção.
+
+---
+
 ## Acessibilidade
 
 - **"pular pro conteúdo"** (`renderSkipLink`, chamado pelo `renderHeader`, toda página):
@@ -1647,6 +1700,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `initEventosPage` + aba "eventos" no console. O front é tolerante por desenho: se a RPC
   falhar por qualquer motivo, a página segue mandando pro WhatsApp, só não guarda. Ver
   "Faz teu evento aqui" acima.
+- **`0041_admin_presentes` — PENDENTE (rodar no SQL Editor).** A aba "presentes" do
+  console: RPC `admin_presentes(busca, status, limite)` (SECURITY DEFINER, gated por
+  `tem_permissao('resgates')`, sem permissão nova). Existe porque a `gift_select_own` da
+  `0019` só deixa ler quem é parte do presente, então a casa não enxergava o que vendeu.
+  **Não devolve a `mensagem`** (o bilhete é de uma pessoa pra outra). Só leitura: nenhuma
+  tabela, coluna ou policy muda. Sem ela, a aba mostra "sem permissão"; o resto do console
+  segue igual.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

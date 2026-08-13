@@ -43,6 +43,9 @@ import {
   PartyPopper,
   Archive,
   RotateCcw,
+  StickyNote,
+  Undo2,
+  Trash2,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -77,6 +80,9 @@ const LUCIDE_ICONS = {
   PartyPopper,
   Archive,
   RotateCcw,
+  StickyNote,
+  Undo2,
+  Trash2,
 };
 
 function renderIcons() {
@@ -246,7 +252,15 @@ const NAV = [
   // resgates (é uma recompensa entregue em mãos) — reusa a permissão 'resgates',
   // sem permissão nova no whitelist do 0017.
   { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'resgates' },
+  // Presentes vendidos (0041). O código é título ao portador — quem tem o texto
+  // resgata um mês de plano —, então fica na mesma permissão de quem já entrega
+  // recompensa em mãos, não na mais larga do console.
+  { id: 'presentes', rotulo: 'presentes', icone: 'gift', perm: 'resgates' },
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
+  // Moderação do Mural do /o-casa. As policies da 0020 já dão à equipe o direito
+  // de ver tudo, esconder e apagar; faltava a tela. Fica em 'usuarios' porque é
+  // cuidar do que a turma escreve, não relatório.
+  { id: 'mural', rotulo: 'mural', icone: 'sticky-note', perm: 'usuarios' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
   // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
   // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
@@ -627,7 +641,9 @@ function abrirDoHash() {
     pedidos: viewPedidos,
     resgates: viewResgates,
     aniversarios: viewAniversarios,
+    presentes: viewPresentes,
     pessoas: viewPessoas,
+    mural: viewMural,
     relatorios: viewRelatorios,
     favoritos: viewFavoritos,
     desejos: viewDesejos,
@@ -2385,6 +2401,304 @@ async function carregarListaEspera(corpo) {
   } catch (e) {
     erroNaTela(corpo, e);
   }
+}
+
+// ===== PRESENTES (planos dados de presente) =========================
+// Só leitura, e de propósito: quem gera o código é o webhook, quem resgata é a
+// pessoa na própria conta. Aqui a casa só ENXERGA — quantos saíram, quais já
+// foram abertos, e se um código que alguém mostrou no balcão é de verdade.
+// O bilhete que o comprador escreveu não vem na RPC (0041): é recado de uma
+// pessoa pra outra.
+const filtrosPresentes = { status: '', busca: '' };
+
+async function viewPresentes(view) {
+  view.innerHTML =
+    cabecalho(
+      'presentes do Casa',
+      'os planos que alguém comprou pra dar. dá pra conferir se um código é válido e ver o que já foi aberto.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-presente" class="sr-only">buscar por código, comprador ou quem resgatou</label>
+        <input id="busca-presente" type="search" placeholder="código (CASA-XXXXXX), nome ou e-mail" autocomplete="off" spellcheck="false" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div class="ad-filtros" role="group" aria-label="filtrar presentes">
+      <button type="button" class="filtro" data-f-status="pago">esperando quem ganha</button>
+      <button type="button" class="filtro" data-f-status="resgatado">já resgatados</button>
+      <button type="button" class="filtro" data-f-status="pendente">pagamento pendente</button>
+      <button type="button" class="filtro" data-f-status="">todos</button>
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const form = $('[data-busca]', view);
+  const marcar = () =>
+    $$('[data-f-status]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosPresentes.status)),
+    );
+  $$('[data-f-status]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosPresentes.status = b.dataset.fStatus || '';
+      marcar();
+      carregarPresentes(corpo);
+    }),
+  );
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosPresentes.busca = $('#busca-presente', form).value.trim();
+    carregarPresentes(corpo);
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarPresentes(corpo));
+  marcar();
+  renderIcons();
+  carregarPresentes(corpo);
+}
+
+async function carregarPresentes(corpo) {
+  carregando(corpo);
+  try {
+    const linhas = await rpc('admin_presentes', {
+      p_busca: filtrosPresentes.busca || null,
+      p_status: filtrosPresentes.status || null,
+    });
+    if (!linhas || !linhas.length) {
+      corpo.innerHTML = vazio(
+        filtrosPresentes.busca ? 'nada com esse termo' : 'nenhum presente por aqui',
+        filtrosPresentes.busca
+          ? 'confere o código ou tenta pelo nome de quem comprou.'
+          : 'quando alguém der um plano de presente pela /presentear, ele aparece aqui.',
+      );
+      return;
+    }
+
+    // O resumo em cima responde a pergunta que a casa faz primeiro ("quantos
+    // saíram e quantos já foram abertos?") sem precisar contar card na mão.
+    const abertos = linhas.filter((l) => l.status === 'resgatado').length;
+    const esperando = linhas.filter((l) => l.status === 'pago').length;
+
+    corpo.innerHTML = `
+      <div class="ad-stats" style="margin-bottom: 20px">
+        <div class="stat card"><p class="n">${formatNumero(linhas.length)}</p><p class="l">presentes na lista</p></div>
+        <div class="stat card"><p class="n">${formatNumero(esperando)}</p><p class="l">esperando quem ganha</p></div>
+        <div class="stat card"><p class="n">${formatNumero(abertos)}</p><p class="l">já resgatados</p></div>
+      </div>
+      ${linhas.map(cardPresente).join('')}`;
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardPresente(g) {
+  const tag =
+    g.status === 'resgatado'
+      ? '<span class="tag green">resgatado</span>'
+      : g.status === 'pago'
+        ? '<span class="tag gold">esperando quem ganha</span>'
+        : g.status === 'pendente'
+          ? '<span class="tag">pagamento pendente</span>'
+          : '<span class="tag">cancelado</span>';
+
+  return `
+    <article class="card ad-card">
+      <div class="ad-card-topo">
+        <div>
+          <p class="ad-codigo">${escapeHtml(g.codigo || 'sem código ainda')}</p>
+          <p class="ad-card-nome">${escapeHtml(g.tier_nome || g.tier_slug || 'plano')} · ${escapeHtml(formatBRL(g.valor_centavos))}</p>
+        </div>
+        <div class="ad-card-tags">${tag}</div>
+      </div>
+      <div class="ad-card-rodape">
+        <div class="ad-card-info">
+          <p class="ad-card-meta">deu de presente: ${escapeHtml(g.comprador_nome || 'conta apagada')}${
+            g.comprador_email ? ' · ' + escapeHtml(g.comprador_email) : ''
+          }</p>
+          <p class="ad-card-meta">comprado em ${escapeHtml(formatData(g.created_at))}</p>
+          ${
+            g.resgatado_em
+              ? `<p class="ad-card-meta ok"><i data-lucide="check"></i> aberto por ${escapeHtml(
+                  g.resgatado_por_nome || 'alguém',
+                )} em ${escapeHtml(formatData(g.resgatado_em))}</p>`
+              : ''
+          }
+        </div>
+      </div>
+    </article>`;
+}
+
+// ===== MURAL (moderação) ============================================
+// O Mural do /o-casa é uma parede PÚBLICA, e até aqui não existia tela nenhuma
+// pra cuidar dela: um recado ofensivo só saía rodando SQL na mão. As policies da
+// 0020 já davam à equipe o direito de ver tudo, mudar o status e apagar, então
+// esta aba é só a tela que faltava — sem migration, sem RPC nova.
+//
+// Escrita DIRETA pela RLS de propósito: `mural_update_staff` e
+// `mural_delete_own_or_staff` são exatamente o que a moderação precisa, e a
+// trigger da 0036 impede que qualquer um (inclusive a equipe) reescreva
+// `texto`/`autor_nome`/`user_id`. Ou seja: dá pra esconder e apagar, nunca pra
+// pôr na parede uma frase que a pessoa não escreveu.
+const filtrosMural = { status: 'aprovado', busca: '' };
+
+async function viewMural(view) {
+  view.innerHTML =
+    cabecalho(
+      'o mural do Casa',
+      'os recados que a turma deixou na parede do /o-casa. dá pra esconder o que não combina com a casa, e devolver depois.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-mural" class="sr-only">buscar por recado ou autor</label>
+        <input id="busca-mural" type="search" placeholder="um trecho do recado ou o nome de quem escreveu" autocomplete="off" spellcheck="false" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div class="ad-filtros" role="group" aria-label="filtrar recados do mural">
+      <button type="button" class="filtro" data-f-status="aprovado">na parede</button>
+      <button type="button" class="filtro" data-f-status="oculto">escondidos</button>
+      <button type="button" class="filtro" data-f-status="">todos</button>
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const form = $('[data-busca]', view);
+  const marcar = () =>
+    $$('[data-f-status]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosMural.status)),
+    );
+  $$('[data-f-status]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosMural.status = b.dataset.fStatus || '';
+      marcar();
+      carregarMural(corpo);
+    }),
+  );
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosMural.busca = $('#busca-mural', form).value.trim();
+    carregarMural(corpo);
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarMural(corpo));
+  marcar();
+  renderIcons();
+  carregarMural(corpo);
+}
+
+async function carregarMural(corpo) {
+  carregando(corpo);
+  if (!supabase) return erroNaTela(corpo, new Error('o banco ainda não está configurado por aqui'));
+  try {
+    let q = supabase
+      .from('mural_notes')
+      .select('id, autor_nome, texto, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (filtrosMural.status) q = q.eq('status', filtrosMural.status);
+    if (filtrosMural.busca) {
+      // `or` com ilike nos dois campos que a moderação procura. O termo é
+      // sanitizado (vírgula e parêntese quebrariam a sintaxe do PostgREST).
+      const termo = filtrosMural.busca.replace(/[,()]/g, ' ');
+      q = q.or(`texto.ilike.%${termo}%,autor_nome.ilike.%${termo}%`);
+    }
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+
+    if (!data || !data.length) {
+      corpo.innerHTML = vazio(
+        filtrosMural.busca ? 'nada com esse termo' : 'nenhum recado ainda',
+        filtrosMural.busca
+          ? 'tenta outro trecho ou outro nome.'
+          : 'quando a turma começar a escrever no mural do /o-casa, os recados aparecem aqui.',
+      );
+      return;
+    }
+
+    corpo.innerHTML = `
+      <p class="lbl" style="margin-bottom: 14px">${formatNumero(data.length)} ${data.length === 1 ? 'recado' : 'recados'}</p>
+      ${data.map(cardRecadoMural).join('')}`;
+    ligarAcoesMural(corpo);
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardRecadoMural(r) {
+  const oculto = r.status === 'oculto';
+  return `
+    <article class="card ad-card" data-mural="${escapeHtml(r.id)}">
+      <div class="ad-card-topo">
+        <div>
+          <p class="ad-card-nome">${escapeHtml(r.autor_nome || 'alguém do Casa')}</p>
+          <p class="ad-card-meta">escreveu em ${escapeHtml(formatData(r.created_at))}</p>
+        </div>
+        <div class="ad-card-tags">
+          ${oculto ? '<span class="tag">escondido</span>' : '<span class="tag green">na parede</span>'}
+        </div>
+      </div>
+      <p class="ad-card-texto">${escapeHtml(r.texto || '')}</p>
+      <div class="ad-card-rodape">
+        <div class="ad-card-info"></div>
+        <div class="ad-card-acao">
+          <button type="button" class="btn ghost sm" data-mural-apagar><i data-lucide="trash-2"></i>apagar</button>
+          ${
+            oculto
+              ? `<button type="button" class="btn solid sm" data-mural-status="aprovado"><i data-lucide="undo-2"></i>devolver pra parede</button>`
+              : `<button type="button" class="btn ghost sm" data-mural-status="oculto"><i data-lucide="eye-off"></i>esconder</button>`
+          }
+        </div>
+      </div>
+    </article>`;
+}
+
+function ligarAcoesMural(corpo) {
+  const idDo = (botao) => botao.closest('[data-mural]')?.dataset.mural;
+
+  $$('[data-mural-status]', corpo).forEach((botao) =>
+    botao.addEventListener('click', async () => {
+      const id = idDo(botao);
+      if (!id) return;
+      botao.disabled = true;
+      const novo = botao.dataset.muralStatus;
+      const { error } = await supabase.from('mural_notes').update({ status: novo }).eq('id', id);
+      if (error) {
+        botao.disabled = false;
+        toast(error.message || 'não deu pra mudar agora', 'err');
+        return;
+      }
+      toast(novo === 'oculto' ? 'recado escondido' : 'recado de volta na parede 💛');
+      carregarMural(corpo);
+    }),
+  );
+
+  // Apagar é o único caminho sem volta desta tela, então passa por confirmação.
+  // Esconder resolve quase tudo e dá pra desfazer; apagar é pra o que não pode
+  // ficar registrado nem escondido.
+  $$('[data-mural-apagar]', corpo).forEach((botao) =>
+    botao.addEventListener('click', async () => {
+      const id = idDo(botao);
+      if (!id) return;
+      const certeza = await confirmar({
+        titulo: 'apagar este recado de vez?',
+        texto: 'ele some do banco e não tem como voltar. se for só pra tirar da parede, "esconder" resolve e dá pra desfazer.',
+        ok: 'apagar',
+        tom: 'perigo',
+      });
+      if (!certeza) return;
+      botao.disabled = true;
+      const { error } = await supabase.from('mural_notes').delete().eq('id', id);
+      if (error) {
+        botao.disabled = false;
+        toast(error.message || 'não deu pra apagar agora', 'err');
+        return;
+      }
+      toast('recado apagado');
+      carregarMural(corpo);
+    }),
+  );
 }
 
 // ===== PEDIDOS DE EVENTO (a /eventos) ===============================
