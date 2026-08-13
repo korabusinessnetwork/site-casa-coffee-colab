@@ -205,8 +205,8 @@ const MARCA = {
 //             souber a URL entra direto. É só o menu que para de oferecer.
 //
 // A ordem conta uma frase: quem a gente é (O Casa, Colab), o que a gente serve
-// (Cardápio, Loja), como tu entra (Planos). Os Planos fecham a fila porque
-// encostam no "visite-nos" do header, e os dois leem como um convite só.
+// (Cardápio, Loja), como tu entra (Clube). O Clube fecha a fila porque encosta
+// no "visite-nos" do header, e os dois leem como um convite só.
 //
 // A HOME NÃO ESTÁ AQUI de propósito: o logo à esquerda já é um link pra /home
 // (no celular, o "C" do meio da tab bar), então o item repetia o mesmo destino
@@ -217,13 +217,13 @@ const NAV = [
   { rotulo: 'Colab', href: '/colab', icone: 'users' },
   { rotulo: 'Cardápio', href: '/cardapio', icone: 'utensils' },
   { rotulo: 'Loja', href: '/loja', selo: 'em breve', semLink: true, icone: 'shopping-bag' },
-  // "Planos" nos cinco lugares (a tab bar do celular chamava de "Clube": a mesma
-  // porta com dois nomes dependendo do aparelho confunde). Na barra vale mais a
-  // palavra que qualquer pessoa entende de primeira do que a mais bonita: quem já
-  // está decidindo varre a nav atrás de onde ficam os valores. E "Clube" ficava a
-  // dois itens de "Colab", duas palavras com C cheirando a comunidade, sendo uma
-  // delas a assinatura paga.
-  { rotulo: 'Planos', href: '/planos', icone: 'sparkles' },
+  // "Clube" nos cinco lugares (header, menu mobile, rodapé, tab bar e o
+  // aria-current), a pedido da casa: é como o Casa chama a assinatura quando fala
+  // dela em voz alta, e a barra passa a repetir a palavra da casa em vez de uma
+  // que só o site usava. O href e o título da página seguem /planos — quem muda
+  // é o rótulo da porta, não a porta. O nome vive SÓ aqui: mudou nesta linha,
+  // mudou nos cinco lugares.
+  { rotulo: 'Clube', href: '/planos', icone: 'sparkles' },
 ];
 
 // Qual item da NAV corresponde à página atual (pra marcar como ativo).
@@ -2578,7 +2578,7 @@ function renderTabbar() {
     ${tab('/cardapio', 'utensils', 'Cardápio')}
     ${tab('/loja', 'shopping-bag', 'Loja')}
     <a href="${HOME}" class="center" aria-label="Início"${on(HOME)}>C</a>
-    ${tab('/planos', 'sparkles', 'Planos')}
+    ${tab('/planos', 'sparkles', 'Clube')}
     ${tab('/colab', 'users', 'Colab')}
   `;
   document.body.appendChild(el);
