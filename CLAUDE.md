@@ -1293,8 +1293,13 @@ de lugar nenhum do site público. Quem decide se a pessoa entra é o **banco**, 
 for trocada de verdade a conta não tem privilégio nenhum (0032).
 
 **As 18 abas** (o `perm` de cada uma está no array `NAV` do `admin.js`; `tudo` = owner vê
-todas). Auditadas no navegador em 13/ago/2026, todas renderizando e chamando funções que
-existem no banco:
+todas). Todas as 30 funções que o console chama foram rodadas contra um banco de verdade
+em 13/ago/2026, depois da `0042`, e todas respondem:
+
+> **A auditoria anterior (mesma data) foi feita com as respostas do banco simuladas no
+> navegador**, e por isso deu tudo certo enquanto cinco abas estavam quebradas no banco de
+> verdade desde a 0017 (ver `0042` na lista de migrations). Tela que renderiza não é prova
+> de função que responde: pra valer, a função tem que ser **chamada**.
 
 | Aba | Permissão | O que faz |
 |-----|-----------|-----------|
@@ -1475,8 +1480,9 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
 - **Banco em dia (13/ago/2026):** o humano aplicou **toda a leva `0017` → `0041`** no SQL
-  Editor (as `0040` e `0041` em 13/ago), então **não há migration pendente**. A numeração
-  livre pra próxima é a **`0042`**. O front correspondente está na `main` e o
+  Editor (as `0040` e `0041` em 13/ago). A **`0042` está pendente** (conserta o
+  `structure of query does not match function result type` de cinco abas do console). O
+  front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
   da `0032` está destravada e o console responde. Pra conferir o banco a qualquer momento,
@@ -1707,6 +1713,25 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `0019` só deixa ler quem é parte do presente, então a casa não enxergava o que vendeu.
   **Não devolve a `mensagem`** (o bilhete é de uma pessoa pra outra). Só leitura: nenhuma
   tabela, coluna ou policy muda.
+- **`0042_email_do_console` — PENDENTE (rodar no SQL Editor).** Cinco abas do console
+  (**pedidos, resgates, pessoas, equipe e aniversários**) respondiam sempre
+  `structure of query does not match function result type`, com dado ou sem dado.
+  **`auth.users.email` é `character varying(255)` no Supabase, não `text`** — e as seis
+  funções que devolvem esse e-mail (`admin_pedidos`, `admin_resgates`, `admin_usuarios`,
+  `admin_equipe`, `admin_buscar_pessoa` da 0017; `admin_brindes_listar` da 0025) declaravam
+  a coluna como `text` no `returns table`. O `return query` do plpgsql compara os tipos um a
+  um e **exige igualdade exata**: varchar e text são parentes, não são o mesmo tipo, e a
+  função morre **antes de devolver a primeira linha** (por isso o erro aparecia até com a
+  tabela vazia, e por isso essas abas nunca funcionaram desde a 0017). A correção é
+  `u.email::text`, seis vezes; o resto do corpo das funções é idêntico. Nenhuma tabela,
+  coluna, policy ou permissão muda, e o front não precisou mudar.
+  > **Como isto foi verificado, e como verificar da próxima vez:** dá pra rodar as
+  > migrations inteiras num Postgres local antes de aplicar no Supabase, com uns poucos
+  > stubs (`create role anon/authenticated/service_role`, um schema `auth` com a
+  > `users`/`sessions` e `auth.uid()`). Da `0001` à `0042` tudo roda; só a `0015` (bucket do
+  > Storage) e a `0028` (que depende da coluna `avatar_url` criada pela 0015) precisam do
+  > Supabase de verdade. Erro de tipo em `returns table` **não aparece na criação da
+  > função**, só na primeira chamada, então ler o SQL não basta: tem que chamar.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
