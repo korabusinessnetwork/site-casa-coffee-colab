@@ -1335,6 +1335,15 @@ em 13/ago/2026, depois da `0042`, e todas respondem:
   conquistas (ligar/desligar), indicações e o extrato bruto de pontos. As três primeiras
   **não precisariam de migration** (as policies de `subscriptions`, `achievements` e
   `points_ledger` já liberam staff); indicações precisaria.
+- **A barra de abas em tela estreita** (abaixo de 900px a lateral escura vira uma faixa no
+  topo): o `.ad-nav-item` levava `width: 100%` da versão vertical, e em fila horizontal
+  isso dá a **largura inteira da faixa pra cada item**. Os 18 viravam uma fila de 15.654px
+  e **só o "painel" aparecia**, sem nenhum aviso de que havia mais, então quem abria o
+  console no notebook menor ou no celular não alcançava aba nenhuma. Em fila a largura
+  passa a ser a do texto (`width: auto` + `white-space: nowrap`), a ponta ganhou o mesmo
+  degradê da tirinha do `/cardapio` e a aba aberta **se puxa pra dentro da vista**
+  (`scrollIntoView`, respeitando `prefers-reduced-motion`) — sem isso as últimas da fila
+  nasciam fora da tela toda vez.
 - **`/admin` e `/admin/` abrem os dois.** O middleware do dev só tentava
   `<caminho>.html`, então `/admin` (sem barra) não achava `admin.html` e caía no 404,
   enquanto `/admin/` funcionava. Agora ele também tenta `<caminho>/index.html`, que é como

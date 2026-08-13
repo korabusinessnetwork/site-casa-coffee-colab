@@ -1930,9 +1930,17 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
   .ad-shell { grid-template-columns: 1fr }
   .ad-lado { position: static; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 14px; padding: 16px 18px }
   .ad-marca { flex: 0 0 auto }
-  .ad-nav { flex: 1 1 100%; order: 3; flex-direction: row; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none }
+  .ad-nav { flex: 1 1 100%; order: 3; flex-direction: row; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none;
+            /* degradê na ponta: o aviso de que a fila continua (mesmo papel da
+               tirinha do /cardapio). Sem ele o último item some cortado reto. */
+            mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent) }
   .ad-nav::-webkit-scrollbar { display: none }
-  .ad-nav-item { flex: 0 0 auto; padding: 9px 14px; font-size: 14px }
+  /* O `width: 100%` da barra vertical seguia valendo aqui, e em fila horizontal
+     isso dá a LARGURA INTEIRA da faixa PRA CADA item: os 18 viravam uma fila de
+     15 mil pixels e só o "painel" aparecia na tela. Quem navega no notebook
+     menor ou no celular não alcançava aba nenhuma. Em fila, a largura é a do
+     texto. */
+  .ad-nav-item { flex: 0 0 auto; width: auto; padding: 9px 14px; font-size: 14px; white-space: nowrap }
   .ad-quem { flex: 0 0 auto; margin-left: auto; padding-top: 0; border-top: 0; align-items: flex-end }
   .ad-sair { margin-top: 4px }
   .ad-conteudo { padding: 24px 18px 64px }

@@ -631,6 +631,14 @@ function abrirDoHash() {
     botao.classList.toggle('is-active', ativo);
     if (ativo) botao.setAttribute('aria-current', 'page');
     else botao.removeAttribute('aria-current');
+    // Na tela estreita a barra vira uma fila que rola, e a aba aberta pode
+    // nascer fora da vista (as últimas da fila sempre nasceriam). Puxa ela pra
+    // dentro, do mesmo jeito que a tirinha do /cardapio faz com os chips.
+    const fila = ativo ? botao.closest('.ad-nav') : null;
+    if (fila && fila.scrollWidth > fila.clientWidth) {
+      const semMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      botao.scrollIntoView({ inline: 'center', block: 'nearest', behavior: semMovimento ? 'auto' : 'smooth' });
+    }
   });
 
   const view = $('[data-view]');
@@ -2607,11 +2615,21 @@ async function carregarMural(corpo) {
     if (error) throw new Error(error.message);
 
     if (!data || !data.length) {
+      // O vazio precisa dizer QUAL recorte veio vazio. "nenhum recado ainda" com
+      // o filtro "na parede" ligado faz quem procura um recado que existe (mas
+      // está escondido) concluir que ele sumiu do banco.
+      const recorte = { aprovado: 'na parede', oculto: 'escondido' }[filtrosMural.status];
       corpo.innerHTML = vazio(
-        filtrosMural.busca ? 'nada com esse termo' : 'nenhum recado ainda',
+        filtrosMural.busca
+          ? 'nada com esse termo'
+          : recorte
+            ? `nenhum recado ${recorte}`
+            : 'nenhum recado ainda',
         filtrosMural.busca
           ? 'tenta outro trecho ou outro nome.'
-          : 'quando a turma começar a escrever no mural do /o-casa, os recados aparecem aqui.',
+          : recorte
+            ? 'o mural pode ter recados no outro estado, dá uma olhada em "todos".'
+            : 'quando a turma começar a escrever no mural do /o-casa, os recados aparecem aqui.',
       );
       return;
     }
