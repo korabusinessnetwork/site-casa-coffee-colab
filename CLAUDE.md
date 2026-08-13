@@ -917,8 +917,14 @@ que a **casa** promove; a `/eventos` é de quem quer usar a casa pro evento **de
 um caminho: achar o telefone no rodapé e começar a conversa do zero, sem dizer quando, pra
 quantos nem do quê.
 
-- **A página** (`eventos.html`, no `rollupOptions.input`): abertura, seis cartões de tipo
-  de evento, o formulário e "o que acontece depois". Campos: nome e whatsapp
+- **A página** (`eventos.html`, no `rollupOptions.input`): abertura, o carrossel "a casa
+  por dentro", seis cartões de tipo de evento, o formulário e "o que acontece depois".
+  O **carrossel vem logo depois da abertura** de propósito: quem pensa em fazer um evento
+  decide com os olhos, e ler seis cartões de texto antes de ver a casa é pedir fé. Ele
+  reusa o `setupCarousel` pelo `data-carousel="cards"` (mesmo contrato do `/colab`) com as
+  seis fotos reais que já estão no `src/assets/fotos`, e o cartão dele (`.ev-slide`) põe a
+  foto em cima, na largura toda, em vez da faixa lateral estreita do `/colab`, porque aqui
+  a foto é o argumento. Campos do formulário: nome e whatsapp
   (obrigatórios), tipo (select), data, quantas pessoas, e-mail e um "conta um pouco"
   (todos opcionais) — pedir pouco é o ponto, o resto se acerta na conversa.
 - **`initEventosPage()` faz duas coisas, nessa ordem, e a ordem importa:** grava o pedido

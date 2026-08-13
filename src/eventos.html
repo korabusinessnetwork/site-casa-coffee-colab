@@ -54,6 +54,156 @@
       </section>
 
       <!-- ===================================================================
+           CARROSSEL — a casa por dentro. Reutiliza o setupCarousel via
+           data-carousel="cards" (mesmo contrato do /colab): [data-carousel]
+           › [data-carousel-track] › N [data-carousel-slide filhos diretos],
+           mais os opcionais [data-carousel-prev]/[data-carousel-next].
+           Vem logo depois da abertura de propósito: quem pensa em fazer um
+           evento decide com os olhos, e ler seis cartões de texto antes de ver
+           a casa é pedir fé.
+           =================================================================== -->
+      <section data-carousel="cards" class="section" aria-labelledby="ev-casa-title">
+        <div class="wrap">
+          <div class="section-head reveal">
+            <div>
+              <span class="eyebrow green">a casa por dentro</span>
+              <h2 id="ev-casa-title" class="title md" style="margin-top: 10px">
+                Onde o teu evento acontece
+              </h2>
+            </div>
+            <div class="carousel-nav">
+              <button data-carousel-prev type="button" aria-label="Anterior" class="icon-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <button data-carousel-next type="button" aria-label="Próximo" class="icon-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div data-carousel-track class="carousel-track ev-track" aria-label="A casa por dentro">
+          <article class="carousel-slide ev-slide w-[82%] sm:w-[56%] lg:w-[38%]">
+            <div class="ph ph-tan light has-foto">
+              <img
+                src="/fotos/o-casa-fachada.jpg"
+                alt="Fachada do Casa Coffee Colab na Hamburgo Velho, com mesas na calçada e gente sentada conversando"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div class="ev-slide-body">
+              <span class="tag coral">a casa inteira</span>
+              <h3 class="title sm" style="margin-top: 10px">Dentro e na calçada</h3>
+              <p class="ev-slide-txt">
+                dá pra fechar a casa toda ou reservar um canto, com as mesas da
+                calçada entrando na conta no fim da tarde.
+              </p>
+            </div>
+          </article>
+
+          <article class="carousel-slide ev-slide w-[82%] sm:w-[56%] lg:w-[38%]">
+            <div class="ph ph-brunch has-foto">
+              <img
+                src="/fotos/agenda-brunch.jpg"
+                alt="Prato de louça rústica com ovos mexidos, torradas de pão de fermentação natural, tomate assado e muçarela de búfala, servido na mesa do Casa"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div class="ev-slide-body">
+              <span class="tag gold">a mesa posta</span>
+              <h3 class="title sm" style="margin-top: 10px">Brunch pra tua gente</h3>
+              <p class="ev-slide-txt">
+                a comida é feita aqui, no dia. A gente monta o cardápio junto,
+                pelo tanto de gente que vai.
+              </p>
+            </div>
+          </article>
+
+          <article class="carousel-slide ev-slide w-[82%] sm:w-[56%] lg:w-[38%]">
+            <div class="ph ph-dark has-foto">
+              <img
+                src="/fotos/agenda-in-the-flow.jpg"
+                alt="Músico de boné e óculos escuros tocando violino sobre a mesa de discotecagem, na calçada do Casa, sob o letreiro Café e muita coisa boa"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div class="ev-slide-body">
+              <span class="tag coral">som ao vivo</span>
+              <h3 class="title sm" style="margin-top: 10px">Música, se tu quiser</h3>
+              <p class="ev-slide-txt">
+                a casa já recebe música toda semana, então tem estrutura e gente
+                boa pra chamar pro teu dia.
+              </p>
+            </div>
+          </article>
+
+          <article class="carousel-slide ev-slide w-[82%] sm:w-[56%] lg:w-[38%]">
+            <div class="ph ph-drink has-foto">
+              <img
+                src="/fotos/agenda-happy-hour.jpg"
+                alt="Duas amigas sentadas numa mesa do Casa, brindando com taças de espumante e um drink de maracujá com hortelã"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div class="ev-slide-body">
+              <span class="tag gold">o brinde</span>
+              <h3 class="title sm" style="margin-top: 10px">Fim de tarde que vira noite</h3>
+              <p class="ev-slide-txt">
+                drink, espumante e petisco pra comemoração que começa cedo e não
+                tem pressa de acabar.
+              </p>
+            </div>
+          </article>
+
+          <article class="carousel-slide ev-slide w-[82%] sm:w-[56%] lg:w-[38%]">
+            <div class="ph ph-matcha has-foto">
+              <img
+                src="/fotos/agenda-matcha-club.jpg"
+                alt="Matchá sendo despejado de uma jarrinha de metal num copo alto com camadas de leite e maracujá fresco, na mesa de madeira do Casa"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div class="ev-slide-body">
+              <span class="tag coral">o café da tarde</span>
+              <h3 class="title sm" style="margin-top: 10px">Café, matchá e coffee break</h3>
+              <p class="ev-slide-txt">
+                pra workshop e reunião, a pausa é o que segura a turma. Aqui ela
+                sai da máquina direto pra mesa.
+              </p>
+            </div>
+          </article>
+
+          <article class="carousel-slide ev-slide w-[82%] sm:w-[56%] lg:w-[38%]">
+            <div class="ph ph-tan light has-foto">
+              <img
+                src="/fotos/clube-abraco.jpg"
+                alt="Duas amigas se abraçando e rindo dentro do Casa, com um disco de vinil na prateleira ao fundo"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div class="ev-slide-body">
+              <span class="tag gold">o que fica</span>
+              <h3 class="title sm" style="margin-top: 10px">Gente junta, que é o ponto</h3>
+              <p class="ev-slide-txt">
+                no fim das contas é isso que a casa faz melhor. A gente cuida do
+                resto pra tu ficar com a tua gente.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===================================================================
            O que costuma acontecer por aqui
            =================================================================== -->
       <section class="section">
@@ -262,6 +412,25 @@
     <!-- Estilos pontuais desta página -->
     <style>
       .ev-card-txt { margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65 }
+
+      /* Carrossel "a casa por dentro". Diferente do card do /colab, que tem uma
+         faixa estreita de foto na lateral: aqui a foto é o argumento, então ela
+         ocupa a largura toda do cartão, com o texto embaixo. */
+      .ev-slide { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; height: 100% }
+      .ev-slide .ph { aspect-ratio: 4 / 3; width: 100% }
+      .ev-slide-body { padding: 18px 20px 20px; display: flex; flex-direction: column; flex: 1 }
+      /* Sem isto o selo vira uma faixa de ponta a ponta: filho de flex-column
+         estica no eixo transversal por padrão, e o .tag é do tamanho do texto. */
+      .ev-slide-body .tag { align-self: flex-start }
+      .ev-slide-txt { margin-top: 6px; color: var(--ink-2); font-size: 13.5px; line-height: 1.6 }
+      /* O respiro das pontas acompanha o do .wrap (22px no celular, 40px acima
+         de 640), pra o primeiro cartão nascer alinhado com o texto da seção. */
+      .ev-track { gap: 16px; padding: 4px 22px 8px; scroll-padding-left: 22px }
+      @media (min-width: 640px) { .ev-track { padding-left: 40px; padding-right: 40px; scroll-padding-left: 40px } }
+      .carousel-nav { display: none; gap: 8px }
+      @media (min-width: 640px) { .carousel-nav { display: flex } }
+      .carousel-nav button { border: 0; cursor: pointer; transition: background .2s var(--e), color .2s var(--e) }
+      .carousel-nav button:hover { background: color-mix(in srgb, var(--coral) 16%, var(--card)); color: var(--coral) }
       .ev-tipos { --cols: 3 }
       .ev-form-wrap { max-width: 820px; margin: 0 auto }
       .ev-form {
