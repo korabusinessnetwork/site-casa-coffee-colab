@@ -4441,6 +4441,145 @@ async function initMuralPage() {
   });
 }
 
+// Espera o código do presente aparecer e conduz a pessoa enquanto isso.
+//
+// Por que uma função só pra isso: o código nasce no `asaas-webhook`, então entre
+// a pessoa voltar do pagamento e o código existir há um vão de segundos que ela
+// não tem como adivinhar. E, diferente de um pedido da loja (que fica em
+// /conta/pedidos) ou de uma assinatura (que aparece no perfil), o código do
+// presente NÃO tem outra tela no site: quem sai daqui antes da hora fica sem.
+//
+// A espera sonda a `gift_subscriptions` (RLS: o comprador lê a própria linha) por
+// até uns dois minutos, com o intervalo abrindo aos poucos: rápido no começo,
+// que é quando o webhook costuma responder, e mais espaçado depois, pra não
+// martelar o banco à toa.
+async function aguardarCodigoPresente(wrap, presenteId) {
+  const bloco = wrap.querySelector('[data-presente-bloco]');
+  const espera = wrap.querySelector('[data-presente-espera]');
+  const esperaSub = wrap.querySelector('[data-presente-espera-sub]');
+  const pronto = wrap.querySelector('[data-presente-pronto]');
+  const codigoEl = wrap.querySelector('[data-presente-codigo]');
+  const subEl = wrap.querySelector('[data-presente-sub]');
+  const demora = wrap.querySelector('[data-presente-demora]');
+  const saidas = wrap.querySelector('[data-sucesso-saidas]');
+  if (!bloco) return;
+
+  bloco.classList.remove('hidden');
+  // Os atalhos de sair somem enquanto a gente não resolve. É o jeito gentil de
+  // segurar a pessoa aqui: ninguém sequestra o botão de voltar do navegador, só
+  // se para de OFERECER a saída no meio da espera.
+  if (saidas) saidas.hidden = true;
+
+  const encerrar = () => {
+    if (saidas) saidas.hidden = false;
+  };
+  const mostrarDemora = (texto) => {
+    espera.hidden = true;
+    demora.classList.remove('hidden');
+    demora.innerHTML = `<p>${texto}</p>`;
+    encerrar();
+  };
+
+  if (!supabase) {
+    mostrarDemora(
+      'teu pagamento foi confirmado, mas a gente não conseguiu falar com o sistema pra buscar o código agora. chama a gente no WhatsApp que a gente te passa na hora 💛',
+    );
+    return;
+  }
+  const sessao = await getSession();
+  if (!sessao) {
+    mostrarDemora(
+      'teu pagamento foi confirmado. entra na tua conta pra gente conseguir te mostrar o código do presente, ou chama a gente no WhatsApp 💛',
+    );
+    return;
+  }
+
+  // Intervalos em milissegundos. Somados dão ~2 minutos: os 15 primeiros de 2s
+  // cobrem o caso normal, o resto é a rede de segurança pra quando o Asaas
+  // enfileira o evento.
+  const intervalos = [
+    ...Array(15).fill(2000), // 30s
+    ...Array(18).fill(5000), // + 90s
+  ];
+
+  for (let i = 0; i <= intervalos.length; i++) {
+    const { data } = await supabase
+      .from('gift_subscriptions')
+      .select('codigo')
+      .eq('id', presenteId)
+      .maybeSingle();
+
+    if (data?.codigo) {
+      espera.hidden = true;
+      pronto.classList.remove('hidden');
+      codigoEl.textContent = data.codigo; // textContent → sem XSS
+      subEl.textContent =
+        'entrega esse código pra quem tu quiser. a pessoa resgata em "tenho um presente", lá na conta dela, e ganha um mês inteiro do Casa.';
+      ligarCopiarCodigo(wrap, data.codigo);
+      setCopySucesso(
+        wrap,
+        'teu presente tá pronto 💛',
+        'guarda o código aí embaixo. ele é o presente, então não sai daqui sem ele.',
+      );
+      encerrar();
+      return;
+    }
+
+    if (i === intervalos.length) break;
+    // Depois de meio minuto, a espera muda de assunto: silêncio longo demais na
+    // mesma frase parece tela travada.
+    if (i === 15 && esperaSub) {
+      esperaSub.textContent =
+        'tá levando um pouquinho mais que o normal, mas a gente não desistiu. segura mais um instante 💛';
+    }
+    await new Promise((r) => setTimeout(r, intervalos[i]));
+  }
+
+  mostrarDemora(
+    'teu pagamento tá confirmado, o código é que tá demorando mais que o normal pra ser gerado. ' +
+      'chama a gente no WhatsApp (51) 99360-5262 dizendo que tu comprou um presente hoje, que a gente te passa o código na hora 💛',
+  );
+}
+
+// Título/texto da página de sucesso. Existe à parte da closure homônima da
+// initCheckoutSucessoPage porque a espera do presente roda fora dela.
+function setCopySucesso(wrap, titulo, texto) {
+  const t = wrap.querySelector('[data-sucesso-titulo]') ?? wrap.querySelector('h1');
+  const p = wrap.querySelector('[data-sucesso-texto]') ?? wrap.querySelector('p');
+  if (t) t.textContent = titulo;
+  if (p) p.textContent = texto;
+}
+
+function ligarCopiarCodigo(wrap, codigo) {
+  const botao = wrap.querySelector('[data-presente-copiar]');
+  const codigoEl = wrap.querySelector('[data-presente-codigo]');
+  if (!botao) return;
+  botao.addEventListener('click', async () => {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(codigo);
+      ok = true;
+    } catch {
+      // Sem clipboard API (ou sem permissão): seleciona o código, aí basta
+      // segurar o dedo e copiar.
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(codigoEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        ok = document.execCommand?.('copy') || false;
+      } catch {
+        ok = false;
+      }
+    }
+    botao.textContent = ok ? 'copiado 💛' : 'copia daí de cima';
+    setTimeout(() => {
+      botao.textContent = 'copiar o código';
+    }, 2200);
+  });
+}
+
 // Página de sucesso do checkout: compra concluída → esvazia o carrinho local.
 // (A fonte da verdade do pedido é o banco, gravado pelo webhook; o carrinho é só UI.)
 // Também mostra "+X pontos" quando o webhook terminar de creditar (é assíncrono,
@@ -4491,36 +4630,23 @@ async function initCheckoutSucessoPage() {
     return; // pontos da assinatura vêm por payment.id (o client não conhece) → não sonda
   }
 
-  // Presente (?presente=<gift.id>): o comprador pagou um presente. O código é
-  // gerado pelo webhook (assíncrono), então sonda gift_subscriptions (RLS: o
-  // comprador lê o próprio) até o código aparecer e mostra pra ele entregar.
+  // Presente (?presente=<gift.id>): o comprador pagou um presente. O código NÃO
+  // existe ainda neste instante — quem gera é o webhook do Asaas, no
+  // CHECKOUT_PAID, e entre voltar do pagamento e o código existir passam alguns
+  // segundos (às vezes mais, se o Asaas enfileirar o evento).
+  //
+  // Isso importa mais aqui do que em qualquer outro fluxo: o código do presente
+  // NÃO aparece em nenhum outro lugar do site. Quem fecha a aba antes dele
+  // chegar fica sem. Por isso a tela ganhou uma espera com cara de espera
+  // (girinho + recado), os atalhos de sair somem enquanto a gente não resolve, e
+  // a sondagem vai muito além dos 9 segundos de antes.
   const presenteId = params.get('presente');
   if (presenteId) {
     setCopy(
-      'presente a caminho 💛',
-      'teu pagamento tá confirmado. assim que ele termina de conversar com a gente, teu código aparece aqui embaixo pra tu entregar.',
+      'presente pago 💛',
+      'deu tudo certo no pagamento. agora a gente tá preparando o código pra tu entregar.',
     );
-    const slotG = wrap.querySelector('[data-pontos-credito]');
-    if (!slotG || !supabase) return;
-    const sessionG = await getSession();
-    if (!sessionG) return;
-    for (let tentativa = 0; tentativa < 6; tentativa++) {
-      const { data } = await supabase
-        .from('gift_subscriptions')
-        .select('codigo')
-        .eq('id', presenteId)
-        .maybeSingle();
-      if (data?.codigo) {
-        setCopy(
-          'teu presente tá pronto 💛',
-          'entrega o código abaixo pra quem tu quiser — a pessoa resgata em "tenho um presente", lá na conta dela.',
-        );
-        slotG.textContent = `teu código: ${data.codigo}`; // textContent → sem XSS
-        slotG.classList.remove('hidden');
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 1500));
-    }
+    await aguardarCodigoPresente(wrap, presenteId);
     return;
   }
 

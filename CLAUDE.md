@@ -558,6 +558,18 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
   iniciar o checkout agora" desde sempre. Assinatura, loja e upgrade só usaram texto e
   "·", e por isso nunca quebraram. Emoji no site, à vontade; em `name`/`description` de
   payload do Asaas, não.
+- **A espera do código do presente** (`aguardarCodigoPresente`, na `checkout-sucesso`):
+  quando a pessoa volta do pagamento, o código **ainda não existe** — quem gera é o
+  `asaas-webhook` no `CHECKOUT_PAID`, e entre uma coisa e outra passam alguns segundos.
+  Isso pesa mais aqui que em qualquer outro fluxo porque **o código do presente não
+  aparece em nenhuma outra tela do site**: quem fechava a aba antes ficava sem. A tela
+  tem três estados no `[data-presente-bloco]`: **espera** (girinho + "estamos preparando o
+  código do teu presente", com o texto trocando depois de 30s pra não parecer travado),
+  **pronto** (o código grande, botão de copiar e o que fazer com ele) e **demora** (recado
+  com o WhatsApp da casa). A sondagem vai a **~2 minutos** (15 tentativas de 2s e mais 18
+  de 5s), no lugar dos 9 segundos de antes. E os atalhos de sair (`[data-sucesso-saidas]`)
+  ficam **escondidos enquanto a espera não resolve**: é o jeito gentil de segurar a pessoa
+  na tela, sem sequestrar o botão de voltar do navegador.
 - **Front**: o drawer "finalizar compra" chama a function da loja (deslogado → login e
   volta pro carrinho via `?cart=open`); mostra o aviso do desconto do tier; `checkout-
   sucesso.html` limpa o carrinho e — na loja — sonda `points_ledger` por `?ref=` pra mostrar
