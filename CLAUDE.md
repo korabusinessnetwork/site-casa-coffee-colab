@@ -966,7 +966,7 @@ quantos nem do quê.
   > E o `window.open` depois de um `await` pode cair no bloqueador de pop-up (o navegador
   > já não vê o clique como origem), então quando ele volta `null` a tela mostra o **link**
   > da conversa: aí o toque é gesto de gente de novo e abre sempre.
-- **Migration `0040_leads_evento` (PENDENTE, rodar no SQL Editor):** tabela `leads_evento`
+- **Migration `0040_leads_evento` (APLICADA em 13/ago/2026):** tabela `leads_evento`
   **deny-by-default** (RLS ligada e **nenhuma policy** — o client não lê nem escreve
   direto). Diferente da `0031`, que nasceu com policy de INSERT pro client e precisou da
   `0034` pra tirar; aqui já nasce pela porta certa. Nome e telefone são dado **pessoal**,
@@ -983,8 +983,8 @@ quantos nem do quê.
   **link de WhatsApp**, pra quem atende abrir a conversa dali mesmo. O botão "já falei" é
   o que tira da fila: lista de pedidos sem onde riscar o que já foi atendido é pilha que
   só cresce.
-- **Falta rodar:** `supabase/migrations/0040_leads_evento.sql` no SQL Editor. Sem ela a
-  página funciona e manda pro WhatsApp, só não guarda nada e a aba do console dá erro.
+- **No ar:** migration aplicada em 13/ago/2026, front na `main`. Nenhum secret ou Edge
+  Function novo (o formulário fala com o banco pela RPC e com o WhatsApp por link).
 
 ---
 
@@ -1638,14 +1638,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   ("Sanduíches"). Sem ela, o de-para fica com dois nomes pro mesmo prato e a conquista
   nunca abriria quando a frente de caixa entrar. Idempotente (o `where` pula a linha que já
   está certa) e não acende nenhuma das 50 (seguem `ativo = false`).
-- **`0040_leads_evento` — PENDENTE (rodar no SQL Editor).** "Faz teu evento aqui": tabela
+- **`0040_leads_evento` — APLICADA em 13/ago/2026.** "Faz teu evento aqui": tabela
   `leads_evento` **sem policy nenhuma** (RLS ligada = deny-by-default pro client; dado
   pessoal, então nada de escrita direta) + 3 RPCs SECURITY DEFINER:
   `registrar_lead_evento(...)` (granted a **anon**, valida no corpo, anti-flood de 30s pelo
   mesmo contato) e `admin_leads_evento`/`admin_lead_evento_status` (gated por
   `tem_permissao('relatorios')`, sem permissão nova). Front: página `/eventos` +
-  `initEventosPage` + aba "eventos" no console. Tolerante à migration pendente: a página
-  segue mandando pro WhatsApp, só não guarda. Ver "Faz teu evento aqui" acima.
+  `initEventosPage` + aba "eventos" no console. O front é tolerante por desenho: se a RPC
+  falhar por qualquer motivo, a página segue mandando pro WhatsApp, só não guarda. Ver
+  "Faz teu evento aqui" acima.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
