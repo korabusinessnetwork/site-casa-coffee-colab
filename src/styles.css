@@ -1889,35 +1889,165 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .ad-recado-lista { display: flex; flex-direction: column; gap: 14px }
 .ad-trilha-flags { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; align-self: end; padding-bottom: 4px }
 
-/* ---------- pautas (o quadro da equipe) ----------
-   Três colunas de verdade (a fazer / fazendo / feitas), porque o quadro só
-   cumpre o papel dele se der pra ver o dia inteiro de uma vez. Abaixo de 900px
-   a lateral do console já virou faixa e a tela ficou estreita: aí as colunas
-   viram uma embaixo da outra, na ordem em que o trabalho anda. */
-.pauta-quadro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start }
-@media (max-width: 900px) { .pauta-quadro { grid-template-columns: 1fr } }
+/* ---------- pautas (o quadro da casa) ----------
+   Duas visões da mesma coisa: TABELA (grupos com faixa colorida e linhas com
+   célula clicável, que é como um quadro se lê no dia a dia) e QUADRO (as mesmas
+   pautas empilhadas por estado). A tabela é feita de grid, não de <table>, pra
+   poder virar cartão empilhado no celular sem rolagem lateral. */
+
+/* a fila de quadros, em cima de tudo */
+.pauta-quadros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px }
+.pauta-quadro-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font-family: var(--sans); font-size: 13.5px; font-weight: 600; color: var(--ink-2); cursor: pointer; transition: border-color .18s var(--e), color .18s var(--e) }
+.pauta-quadro-chip:hover { border-color: var(--coral) }
+.pauta-quadro-chip.is-atual { border-color: var(--coral); background: color-mix(in srgb, var(--coral) 8%, var(--card)); color: var(--coral) }
+.pauta-chip-n { font-size: 11.5px; font-weight: 700; background: var(--paper-2); color: var(--muted); border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums }
+.pauta-quadro-chip.is-atual .pauta-chip-n { background: color-mix(in srgb, var(--coral) 16%, var(--card)); color: var(--coral) }
+.pauta-quadro-novo { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: 1px dashed var(--line); border-radius: 999px; background: none; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer }
+.pauta-quadro-novo:hover { border-color: var(--coral); color: var(--coral) }
+.pauta-quadro-novo svg, .pauta-visoes svg { width: 15px; height: 15px }
+/* A bolinha de cor reusa o fundo da `.tag` (mesmos seis slugs do banco), então
+   cor nova é uma linha no CSS e nada de hex vindo do banco. */
+.pauta-bolha { width: 10px; height: 10px; padding: 0; border-radius: 999px; flex: 0 0 auto }
+
+.pauta-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px }
+.pauta-busca { flex: 1 1 260px; margin: 0 }
+.pauta-visoes .filtro { display: inline-flex; align-items: center; gap: 7px }
+
+.pauta-topo-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px }
+
+/* ---- visão tabela ---- */
+.pauta-tabela { display: flex; flex-direction: column; gap: 18px }
+.pauta-cabeca, .pauta-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.15fr) 124px 112px 126px 112px;
+  gap: 10px; align-items: center;
+}
+.pauta-cabeca { padding: 0 14px 2px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--muted) }
+.pauta-grupo { display: flex; flex-direction: column; gap: 6px }
+.pauta-grupo-topo { display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 0 }
+.pauta-grupo-abrir { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer }
+.pauta-grupo-abrir:hover { background: var(--paper-2); color: var(--ink) }
+.pauta-grupo-abrir[disabled] { visibility: hidden }
+.pauta-grupo-abrir svg { width: 17px; height: 17px }
+.pauta-grupo-nome { margin: 0 }
+.pauta-grupo-conta { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums }
+.pauta-grupo-acoes { display: inline-flex; gap: 4px; margin-left: auto; opacity: 0; transition: opacity .15s var(--e) }
+.pauta-grupo-topo:hover .pauta-grupo-acoes, .pauta-grupo-acoes:focus-within { opacity: 1 }
+
+.pauta-linha { padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card) }
+.pauta-linha + .pauta-linha { margin-top: -1px }
+.pauta-linha.is-feita .pl-txt { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent) }
+.pl-titulo { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.pauta-abrir-item { flex: 1 1 auto; min-width: 0; border: 0; background: none; padding: 0; text-align: left; font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: var(--ink); cursor: pointer; overflow-wrap: anywhere }
+.pauta-abrir-item:hover .pl-txt { color: var(--coral) }
+.pl-sinais { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; color: var(--muted) }
+.pl-sinais svg { width: 14px; height: 14px }
+.pl-coment { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600 }
+
+/* a célula clicável: é ela que faz o quadro parecer um quadro */
+.pauta-celula { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: none; font-family: var(--sans); font-size: 13px; color: var(--ink-2); cursor: pointer; text-align: left; transition: border-color .15s var(--e), background .15s var(--e) }
+.pauta-celula:hover { border-color: var(--line); background: var(--paper-2) }
+.pauta-celula svg { width: 14px; height: 14px; flex: 0 0 auto }
+.pauta-celula.is-vencido { color: var(--coral); font-weight: 600 }
+/* O chip ocupa a célula inteira, como num quadro de verdade, e NÃO quebra em
+   duas linhas: "quando der" quebrava e desalinhava a linha toda. */
+.pauta-estado, .pauta-urg { justify-content: center; width: 100%; border: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.pauta-estado:hover, .pauta-urg:hover { filter: brightness(.97) }
+.pl-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.pl-fraco { color: var(--muted) }
+.pauta-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 auto; border-radius: 999px; background: color-mix(in srgb, var(--olive) 16%, var(--card)); color: var(--olive); font-family: var(--sans); font-size: 10.5px; font-weight: 700; letter-spacing: .02em }
+.pauta-avatar.is-vazio { background: var(--paper-2); color: var(--muted); font-size: 14px; font-weight: 500 }
+.pl-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 2px }
+.pl-acoes .pauta-ico { padding-inline: 7px; opacity: .45; transition: opacity .15s var(--e) }
+.pauta-linha:hover .pl-acoes .pauta-ico, .pl-acoes .pauta-ico:focus-visible { opacity: 1 }
+
+/* a linha de escrever pauta nova, no pé do grupo */
+.pauta-nova { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted) }
+.pauta-nova:focus-within { border-color: var(--coral); border-style: solid }
+.pauta-nova svg { width: 15px; height: 15px; flex: 0 0 auto }
+.pauta-nova input { flex: 1 1 auto; min-width: 0; border: 0; background: none; padding: 2px 0; font-family: var(--sans); font-size: 14px; color: var(--ink) }
+.pauta-nova input:focus { outline: none }
+
+/* ---- visão quadro (kanban) ---- */
+.pauta-kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start }
 .pauta-col { display: flex; flex-direction: column; gap: 12px; min-width: 0 }
 .pauta-col-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px }
-.pauta-col-nome { margin: 0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--muted) }
 .pauta-col-conta { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--muted); background: var(--paper-2); border-radius: 999px; padding: 2px 9px; font-variant-numeric: tabular-nums }
 .pauta-col-vazia { margin: 0; padding: 18px 16px; border: 1px dashed var(--line); border-radius: 14px; font-size: 13.5px; color: var(--muted); text-align: center }
-
 .pauta-card { display: flex; flex-direction: column; gap: 10px; padding: 16px }
-/* A urgente ganha uma faixa, não uma cor de fundo: o quadro cheio de cartão
+/* A urgente ganha uma faixa, não uma cor de fundo: quadro cheio de cartão
    colorido vira semáforo e ninguém enxerga mais o que é urgente de verdade. */
 .pauta-card.is-urgente { border-left: 3px solid var(--coral) }
-.pauta-titulo { margin: 0; font-family: var(--sans); font-size: 15.5px; font-weight: 650; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
-.pauta-briefing { margin: 0; padding: 11px 13px; border-radius: 10px; background: var(--paper-2); color: var(--ink-2); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere }
+.pauta-titulo { font-family: var(--sans); font-size: 15px; font-weight: 650; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
 .pauta-meta { display: flex; flex-wrap: wrap; gap: 6px 14px }
 .pauta-meta-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere }
+.pauta-meta-item.is-vencido { color: var(--coral); font-weight: 600 }
 .pauta-meta-item svg { width: 14px; height: 14px; flex: 0 0 auto }
 .pauta-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 2px }
-.pauta-acoes .btn { flex: 0 0 auto }
-/* Editar e apagar viram só o ícone e encostam na direita: o cartão tem ~300px e
-   com os três botões escritos a fila quebrava em duas linhas em todo cartão. */
 .pauta-acoes-fim { display: inline-flex; gap: 6px; margin-left: auto }
 .pauta-ico { padding-inline: 10px }
 .pauta-ico svg { margin: 0 }
+
+/* ---- a folhinha de opções (célula clicada) ---- */
+.pauta-escolha-caixa { max-width: 380px }
+.pauta-opcoes { display: flex; flex-direction: column; gap: 4px; margin: 14px 0 }
+.pauta-opcao { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px; background: none; font-family: var(--sans); font-size: 14.5px; color: var(--ink-2); text-align: left; cursor: pointer }
+.pauta-opcao:hover { background: var(--paper-2) }
+.pauta-opcao.is-atual { border-color: var(--coral); color: var(--coral); font-weight: 600 }
+.pauta-opcao svg { width: 16px; height: 16px; margin-left: auto; flex: 0 0 auto }
+.pauta-data-livre { border-top: 1px solid var(--line); padding-top: 14px }
+.pauta-data-linha { display: flex; gap: 8px; margin-top: 6px }
+.pauta-data-linha input { flex: 1 1 auto; min-width: 0 }
+
+/* ---- o painel da pauta ---- */
+.pauta-painel-fundo { position: fixed; inset: 0; z-index: 60; background: rgba(20, 16, 11, .42); display: flex; justify-content: flex-end }
+.pauta-painel { width: min(520px, 100%); height: 100%; overflow-y: auto; background: var(--paper); padding: 22px 24px 40px; display: flex; flex-direction: column; gap: 16px; box-shadow: -18px 0 44px rgba(20, 16, 11, .16) }
+.pauta-painel-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px }
+.pauta-painel-titulo { margin: 0; overflow-wrap: anywhere }
+.pauta-painel-sub { margin: -8px 0 0; font-size: 13px; color: var(--muted) }
+.pauta-painel-campos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card) }
+.pauta-painel-campos p { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); overflow-wrap: anywhere }
+.pauta-conversa { display: flex; flex-direction: column; gap: 10px }
+.pauta-coment { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card) }
+.pauta-coment-quem { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink) }
+.pauta-coment-quando { margin-left: auto; font-size: 12px; font-weight: 400; color: var(--muted) }
+.pauta-coment-txt { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere }
+.pauta-coment-apagar { margin-top: 8px; border: 0; background: none; padding: 0; font-family: var(--sans); font-size: 12px; color: var(--muted); text-decoration: underline; cursor: pointer }
+.pauta-coment-apagar:hover { color: var(--coral) }
+/* Campo e botão LADO A LADO: com o botão embaixo, o teclado do celular tampa
+   justamente o "mandar". */
+.pauta-coment-form { display: flex; gap: 8px; margin-top: 4px }
+.pauta-coment-form input { flex: 1 1 auto; min-width: 0 }
+
+@media (max-width: 1100px) {
+  .pauta-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+}
+@media (max-width: 860px) {
+  /* A tabela vira cartão empilhado: nenhuma tela de café tem largura pra seis
+     colunas, e rolar de lado pra ver o estado da pauta é pior do que não ver. */
+  .pauta-cabeca { display: none }
+  .pauta-linha { grid-template-columns: 1fr auto; gap: 8px 10px; padding: 12px 14px }
+  .pl-titulo { grid-column: 1 / -1 }
+  .pl-pessoa, .pl-estado, .pl-prazo, .pl-urg { grid-column: auto }
+  .pauta-linha { grid-template-areas: 'titulo titulo' 'pessoa estado' 'prazo urg' 'acoes acoes' }
+  .pl-titulo { grid-area: titulo }
+  .pl-pessoa { grid-area: pessoa }
+  .pl-estado { grid-area: estado }
+  .pl-prazo { grid-area: prazo }
+  .pl-urg { grid-area: urg }
+  .pl-acoes { grid-area: acoes; justify-content: flex-start }
+  .pl-acoes .pauta-ico { opacity: 1 }
+  .pauta-grupo-acoes { opacity: 1 }
+  .pauta-kanban { grid-template-columns: 1fr }
+  .pauta-painel-campos { grid-template-columns: 1fr }
+}
+@media (max-width: 640px) {
+  /* A folhinha de opções encosta no rodapé: no celular a mão alcança embaixo,
+     não no meio da tela. `dvh` e não `vh` por causa do teclado virtual. */
+  .pauta-escolha { align-items: flex-end }
+  .pauta-escolha-caixa { max-width: none; width: 100%; border-radius: 18px 18px 0 0; max-height: 82dvh; overflow-y: auto }
+  .pauta-painel { width: 100%; padding: 18px 18px 40px }
+}
 
 /* ---------- tabelas (pessoas e relatórios) ---------- */
 .ad-tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }

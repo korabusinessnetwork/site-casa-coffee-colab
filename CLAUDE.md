@@ -1392,40 +1392,54 @@ respondem:
 O console sabia tudo sobre o que a casa **vende** e nada sobre o que a equipe **combina**.
 O que a turma tinha que fazer no dia vivia em bilhete no balcão e em conversa de grupo,
 que é onde combinado some. A aba **pautas** (`/admin#pautas`, primeira depois do painel,
-porque é por onde o dia começa pra quem trabalha no salão) é o quadro: a casa escreve a
-pauta e o briefing, diz pra quem é e até quando, e quem trabalha move o cartão.
+porque é por onde o dia começa pra quem trabalha no salão) é o quadro da casa.
 
-- **Três colunas**, na ordem em que o trabalho anda: **a fazer**, **fazendo**, **feitas**.
-  Os botões do cartão são a única forma de mover (nada de arrastar: o console é usado no
-  celular no meio do turno, e drag-and-drop em tela pequena erra mais do que acerta).
-  "pegar pra mim" → fazendo; "concluir" → feita; "devolver"/"reabrir" → a fazer.
-- **O cartão** tem título, briefing (quebra de linha preservada), pra quem, prazo,
-  urgência e, quando concluída, quem entregou. **Urgente ganha uma faixa lateral, não um
-  fundo colorido** (quadro cheio de cartão colorido vira semáforo e ninguém enxerga mais o
-  que é urgente de verdade), e prazo vencido vira o selo "passou do prazo". O prazo é
-  `date` puro, formatado na mão (`dataDoPrazo`), porque `new Date('2026-08-20')` lê como
-  UTC e no Brasil voltaria um dia.
-- **Pra quem**: uma pessoa da equipe **ou** ninguém, que quer dizer "pra toda a equipe"
-  (o recado que vale pra casa inteira, tipo "sexta a gente abre 7h"). Só dá pra atribuir a
-  quem entra no console: a RPC recusa pauta pra cliente, e o `select` é montado pela
-  `admin_pautas_equipe`, que pede a permissão do **quadro**, não a de mexer no acesso dos
-  outros.
-- **Migration `0043_pautas` (APLICADA em 17/ago/2026):** tabela `pautas` **deny-by-default** (RLS ligada,
-  nenhuma policy) + 5 RPCs SECURITY DEFINER (`admin_pautas_listar`, `admin_pautas_equipe`,
-  `admin_pauta_salvar`, `admin_pauta_status`, `admin_pauta_remover`). É a **primeira
-  migration a mexer no whitelist fechado de permissões da `0017`**: acrescenta `'pautas'`
-  ao CHECK, e ela aparece na aba equipe como grantável. Precisou ser própria porque é a
-  única permissão que faz sentido dar a quem trabalha no salão e não mexe em caixa nem em
-  cadastro; enfiar a pauta em `relatorios` entregaria junto a lista de e-mails e o que a
-  casa vendeu.
-- **Quem pode o quê:** ver, criar, editar e mover → `tem_permissao('pautas')`. **Apagar →
-  só quem escreveu, ou o adm do Casa**: briefing é combinado escrito, quem escreveu pode
-  voltar atrás e os outros não apagam por cima (quem não pode apagar ainda pode marcar
-  como feita, então nada fica preso). Criar, editar e apagar ficam no `audit_log`.
-- **Editar não mexe no status** de propósito: quem move o cartão é a `admin_pauta_status`,
-  pra "salvar uma correção no briefing" nunca desfazer sem querer o andamento que alguém
-  deu. E ao voltar de "feita" o carimbo de conclusão é **limpo**, senão o quadro contaria
-  como entregue algo que voltou pra fila.
+A `0043` entregou um quadro só, com três colunas fixas e um formulário grande em cima. A
+**`0045`** virou isso num quadro de verdade, no formato que todo mundo já conhece de
+ferramenta de quadro:
+
+- **Vários quadros**, um por canto da casa (salão, cozinha, marketing), cada um com nome e
+  cor, numa fila de chips no topo. Dá pra **arquivar** (some da fila, volta quando quiser)
+  e **apagar** (só vazio: apagar quadro cheio levaria trabalho combinado junto).
+- **Grupos dentro do quadro**, que é a faixa colorida com as linhas embaixo ("essa
+  semana", "quando der"). Grupo **recolhe**, e o recolhido mora no BANCO, não no
+  navegador: a casa fecha "feitas" uma vez e vale pra quem abrir depois.
+- **Visão de tabela** (o padrão) com **célula clicável**: tocar em pra-quem, estado, prazo
+  ou urgência abre uma folhinha de opções e muda ali mesmo. E **visão de quadro**, as
+  mesmas pautas empilhadas por estado, pra quem prefere ler por coluna.
+- **Quatro estados**, com cor: *a fazer* (neutro), *fazendo* (caramelo), **travada**
+  (terracota) e *feita* (verde). O `travada` é o mais informativo num café ("o fornecedor
+  não entregou"): sem ele, a pauta parada fica igual à que ninguém pegou.
+- **Comentários por pauta**: tocar no título abre um painel lateral com o briefing e a
+  conversa. É o que faz o combinado ficar na pauta em vez de sumir no grupo do zap.
+- **Pauta nova nasce na linha "+ pauta" do próprio grupo**, só com o título; o resto se
+  preenche clicando nas células. Formulário grande em cima saiu.
+- **Ordem por botão** (subir/descer), não por arrastar: o console é usado no celular no
+  meio do turno, e arrastar em tela pequena erra mais do que acerta.
+
+**Três decisões que valem conhecer:**
+- **A leitura é `returns jsonb`, não `returns table`.** Foi o `returns table` que derrubou
+  cinco abas da 0017 até a 0042 (varchar declarado como text). Uma leitura composta como a
+  `admin_quadro_abrir`, que devolve quadro + grupos + itens de uma vez, teria uma dúzia de
+  colunas pra errar. Em jsonb essa classe de erro não existe, e vem tudo numa viagem só.
+- **Mudar uma célula NÃO recarrega o quadro:** a linha se reescreve sozinha
+  (`redesenharLinha`). Recarregar faria a tela piscar e devolver o scroll ao topo a cada
+  toque, no aparelho onde o console é usado em pé.
+- **Um listener delegado** no corpo do quadro (`aoTocarNoQuadro`), não um por botão: com
+  célula clicável em toda linha, religar listener a cada render seria caro e frágil.
+
+**Quem pode o quê:** ver, criar, editar, mover e comentar → `tem_permissao('pautas')`.
+**Apagar pauta →** só quem escreveu, ou o adm do Casa. **Apagar comentário →** só quem
+escreveu, ou o adm. Criar, editar e apagar ficam no `audit_log`.
+
+**As seis cores** (`neutro`, `coral`, `gold`, `green`, `olive`, `blue`) são exatamente as
+variantes de `.tag` que já existem no CSS, e o banco só aceita esses seis slugs: cor nunca
+vem do banco como hex, nem vira `style=`.
+
+**O que NÃO foi feito, de propósito:** coluna customizável por quadro (criar uma coluna
+"turno" ou renomear os estados). É a peça mais cara de uma ferramenta dessas, e um café
+não vai mexer nisso; os quatro estados fixos já são os quatro de qualquer quadro. Se um
+dia precisar, o caminho é uma tabela de definição de coluna, não remendo no que existe.
 
 ---
 
@@ -1574,7 +1588,8 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
 - **Banco em dia (17/ago/2026):** o humano aplicou **toda a leva `0017` → `0041`** no SQL
   Editor (as `0040` e `0041` em 13/ago), e a leva `0042` → `0044` em **17/ago/2026**,
-  então **não há migration pendente**. A numeração livre pra próxima é a **`0045`**. O
+  então nada daquela leva ficou pendente. A **`0045`** (o quadro estilo board) está
+  **pendente**. O
   front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
@@ -1841,6 +1856,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   pela RLS, toda tabela que confia em `is_staff()` (pedidos, resgates, brindes), e
   permissão de moderar mural não é permissão de ler o caixa. As policies da `0020` e a
   trigger da `0036` seguem intactas.
+- **`0045_quadros` — PENDENTE (rodar no SQL Editor).** O quadro de pautas vira board:
+  tabelas `pauta_quadros`, `pauta_grupos` e `pauta_updates` (as três deny-by-default), as
+  colunas `quadro_id`/`grupo_id`/`ordem` na `pautas`, o estado `'travada'` entrando no
+  CHECK, e 15 RPCs gated em `tem_permissao('pautas')`. **Faz backfill**: as pautas que já
+  existem caem num quadro "o quadro da casa" com um grupo "o dia a dia", sem perder nada,
+  e só depois disso o `quadro_id` vira NOT NULL. A `admin_pauta_salvar` e a
+  `admin_pautas_listar` da 0043 são **dropadas e recriadas** (a assinatura mudou, e
+  acrescentar parâmetro com default criaria uma sobrecarga que o PostgREST poderia
+  escolher, gravando pauta sem quadro). Leitura em `returns jsonb`, ver "O quadro da casa".
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

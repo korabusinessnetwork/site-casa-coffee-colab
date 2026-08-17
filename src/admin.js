@@ -47,11 +47,18 @@ import {
   Undo2,
   Trash2,
   ClipboardList,
-  Play,
-  Flag,
   UserRound,
   CalendarClock,
   Pencil,
+  Plus,
+  Table2,
+  Columns3,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  AlignLeft,
+  MessageSquare,
+  CircleDot,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -90,11 +97,18 @@ const LUCIDE_ICONS = {
   Undo2,
   Trash2,
   ClipboardList,
-  Play,
-  Flag,
   UserRound,
   CalendarClock,
   Pencil,
+  Plus,
+  Table2,
+  Columns3,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  AlignLeft,
+  MessageSquare,
+  CircleDot,
 };
 
 function renderIcons() {
@@ -653,15 +667,16 @@ function montarShell(raiz) {
 //     de antes, sem nada na tela dizendo por quê.
 // O filtro de STATUS não entra aqui de propósito: ele tem um chip aceso na
 // tela, então ele não mente.
+// No quadro de pautas, o QUADRO ABERTO e o jeito de ver (tabela/quadro) NÃO são
+// zerados: os dois têm um chip aceso na tela dizendo onde a pessoa está, então
+// eles não mentem, e voltar pro quadro onde se estava é o certo.
 function zerarEstadoDasAbas() {
   recadoEditando = null;
   trilhaEditando = null;
   agendaEditando = null;
-  pautaEditando = null;
-  [filtrosPautas, filtrosBrindes, filtrosPresentes, filtrosMural, filtrosLeads].forEach((f) => {
+  [filtrosBrindes, filtrosPresentes, filtrosMural, filtrosLeads, estadoQuadro].forEach((f) => {
     f.busca = '';
   });
-  filtrosPautas.dequem = '';
 }
 
 function abrirDoHash() {
@@ -765,337 +780,950 @@ async function viewPainel(view) {
   }
 }
 
-// ===== PAUTAS (o quadro da equipe) ==================================
-// O console sabia tudo sobre o que a casa vende e nada sobre o que a equipe
-// combina. Aqui a casa escreve a pauta (título + briefing), diz pra quem é e
-// até quando, e quem trabalha move o cartão até "feita". Tudo passa pelas RPCs
-// da 0043 (a tabela é deny-by-default), com a permissão própria 'pautas'.
-const COLUNAS_PAUTA = [
-  { slug: 'aberta', rotulo: 'a fazer', dica: 'ainda ninguém pegou' },
-  { slug: 'fazendo', rotulo: 'fazendo', dica: 'alguém está nessa agora' },
-  { slug: 'feita', rotulo: 'feitas', dica: 'entregue' },
+// ===== PAUTAS (o quadro da casa) ====================================
+// A 0043 entregou um quadro só, com três colunas fixas e um formulário grande
+// em cima. A 0045 trouxe o que faltava pra ele ser um quadro de verdade: vários
+// QUADROS, GRUPOS dentro de cada um, o estado 'travada', comentário por pauta e
+// edição direto na célula.
+//
+// Como isto funciona, e por que assim:
+//   • Uma leitura só (`admin_quadro_abrir`) traz quadro + grupos + itens. Tudo
+//     que a tela mostra sai de `estadoQuadro.dados`, sem segunda viagem.
+//   • UM listener delegado no corpo do quadro, não um por botão. Com célula
+//     clicável em toda linha, religar listener a cada render seria caro e
+//     frágil.
+//   • Mudar uma célula NÃO recarrega o quadro: a linha se reescreve sozinha.
+//     Recarregar faria a tela piscar e devolver o scroll ao topo a cada toque,
+//     no aparelho onde o console é usado no meio do turno.
+//   • Pauta nova nasce na linha "+ pauta" do próprio grupo, só com o título. O
+//     resto se preenche clicando nas células, que é como se usa um quadro.
+
+// As seis cores são exatamente as variantes de `.tag` que já existem no CSS, e
+// o banco só aceita esses seis slugs. Cor do banco nunca vira `style=`.
+const CORES_QUADRO = [
+  { slug: 'coral', rotulo: 'terracota' },
+  { slug: 'gold', rotulo: 'caramelo' },
+  { slug: 'green', rotulo: 'verde' },
+  { slug: 'olive', rotulo: 'oliva' },
+  { slug: 'blue', rotulo: 'azul' },
+  { slug: 'neutro', rotulo: 'sem cor' },
+];
+
+const ESTADOS_PAUTA = [
+  { slug: 'aberta', rotulo: 'a fazer', cor: 'neutro' },
+  { slug: 'fazendo', rotulo: 'fazendo', cor: 'gold' },
+  { slug: 'travada', rotulo: 'travada', cor: 'coral' },
+  { slug: 'feita', rotulo: 'feita', cor: 'green' },
 ];
 
 const PRIORIDADES = [
-  { slug: 'alta', rotulo: 'urgente' },
-  { slug: 'normal', rotulo: 'normal' },
-  { slug: 'baixa', rotulo: 'quando der' },
+  { slug: 'alta', rotulo: 'urgente', cor: 'coral' },
+  { slug: 'normal', rotulo: 'normal', cor: 'olive' },
+  { slug: 'baixa', rotulo: 'quando der', cor: 'neutro' },
 ];
 
-const filtrosPautas = { dequem: '', busca: '' };
-let pautaEditando = null;
+const estadoQuadro = {
+  quadroId: null,
+  visao: 'tabela', // 'tabela' | 'quadro'
+  busca: '',
+  dequem: '',
+  dados: null,
+  quadros: [],
+};
 let equipeDasPautas = [];
 
+const corValida = (c) => (CORES_QUADRO.some((x) => x.slug === c) ? c : 'neutro');
+const acheEstado = (s) => ESTADOS_PAUTA.find((e) => e.slug === s) || ESTADOS_PAUTA[0];
+const achePrioridade = (s) => PRIORIDADES.find((p) => p.slug === s) || PRIORIDADES[1];
+
 // O prazo vem como date puro (YYYY-MM-DD). `new Date` leria isso como UTC e no
-// Brasil voltaria um dia — por isso a data é montada na mão, sem fuso.
+// Brasil voltaria um dia, então a data é montada na mão, sem fuso.
 function dataDoPrazo(iso) {
   if (!iso) return '';
   const [a, m, d] = String(iso).slice(0, 10).split('-');
   return a && m && d ? `${d}/${m}` : '';
 }
 
-function prazoVencido(iso) {
-  if (!iso) return false;
-  const hoje = new Date();
-  const zero = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-  return String(iso).slice(0, 10) < zero;
+function hojeISO() {
+  const h = new Date();
+  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
 }
 
+function maisDias(n) {
+  const h = new Date();
+  h.setDate(h.getDate() + n);
+  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+}
+
+function prazoVencido(iso) {
+  return Boolean(iso) && String(iso).slice(0, 10) < hojeISO();
+}
+
+function iniciais(nome) {
+  const partes = String(nome || '').trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return '?';
+  return (partes[0][0] + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// escolher() — a folhinha de opções que abre ao tocar numa célula.
+// Reusa a casca do `confirmar()` (Esc, clique fora, foco), então ganha de graça
+// o comportamento que aquele modal já tem. Vira folha de rodapé no celular só
+// por media query: uma marcação, dois comportamentos.
+// ---------------------------------------------------------------------------
+function escolher({ titulo, opcoes, atual, rodape = '' }) {
+  return new Promise((resolve) => {
+    const fundo = document.createElement('div');
+    fundo.className = 'ad-modal pauta-escolha';
+    fundo.innerHTML = `
+      <div class="ad-modal-caixa pauta-escolha-caixa" role="dialog" aria-modal="true" aria-label="${escapeHtml(titulo)}">
+        <p class="lbl">${escapeHtml(titulo)}</p>
+        <div class="pauta-opcoes">
+          ${opcoes
+            .map(
+              (o) => `
+            <button type="button" class="pauta-opcao${o.valor === atual ? ' is-atual' : ''}" data-valor="${escapeHtml(String(o.valor ?? ''))}">
+              ${o.cor ? `<span class="pauta-bolha tag ${escapeHtml(corValida(o.cor))}" aria-hidden="true"></span>` : ''}
+              ${o.inicial ? `<span class="pauta-avatar" aria-hidden="true">${escapeHtml(o.inicial)}</span>` : ''}
+              <span>${escapeHtml(o.rotulo)}</span>
+              ${o.valor === atual ? '<i data-lucide="check"></i>' : ''}
+            </button>`,
+            )
+            .join('')}
+        </div>
+        ${rodape}
+        <div class="ad-modal-acoes">
+          <button type="button" class="btn ghost sm" data-fechar>deixa pra lá</button>
+        </div>
+      </div>`;
+
+    const fechar = (resposta) => {
+      document.removeEventListener('keydown', aoTeclar);
+      fundo.remove();
+      resolve(resposta);
+    };
+    const aoTeclar = (e) => {
+      if (e.key === 'Escape') fechar(null);
+    };
+    fundo.addEventListener('click', (e) => {
+      if (e.target === fundo) return fechar(null);
+      const botao = e.target.closest('[data-valor]');
+      if (botao) return fechar(botao.dataset.valor);
+      if (e.target.closest('[data-fechar]')) return fechar(null);
+    });
+    // O campo de data manda o valor por submit, pra o teclado do celular fechar
+    // com "ok" em vez de pedir um toque a mais.
+    fundo.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const campo = $('[data-data-livre]', fundo);
+      if (campo) fechar(campo.value || '');
+    });
+    document.addEventListener('keydown', aoTeclar);
+    document.body.appendChild(fundo);
+    renderIcons();
+    $('.pauta-opcao', fundo)?.focus();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// A tela
+// ---------------------------------------------------------------------------
 async function viewPautas(view) {
   view.innerHTML =
     cabecalho(
       'o quadro da casa',
-      'o que a gente combinou pra hoje. escreve a pauta, diz pra quem é, e quem pega vai movendo até ficar feita.',
+      'o que a gente combinou. cada quadro é um canto da casa, cada grupo é uma fila, e o estado se muda tocando na célula.',
       `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
     ) +
-    `<form class="card ad-form-recado" data-form-pauta novalidate>
-       <input type="hidden" data-p-id />
-       <div class="field">
-         <label for="p-titulo">a pauta</label>
-         <input id="p-titulo" data-p-titulo maxlength="120" placeholder="conferir o estoque de leite vegetal" required />
-       </div>
-       <div class="field">
-         <label for="p-briefing">o briefing (opcional)</label>
-         <textarea id="p-briefing" data-p-briefing rows="3" maxlength="4000"
-           placeholder="o que precisa ser feito, onde, e o que fazer se der ruim."></textarea>
-         <p class="ad-dica">quanto mais claro aqui, menos pergunta no meio do turno.</p>
-       </div>
-       <div class="ad-recado-linha tres">
+    `<div class="pauta-quadros" data-quadros></div>
+     <div class="pauta-barra">
+       <form class="ad-busca pauta-busca" data-busca-pauta>
          <div class="field">
-           <label for="p-quem">pra quem</label>
-           <select id="p-quem" data-p-quem></select>
+           <label for="busca-pauta" class="sr-only">buscar por pauta ou por quem recebeu</label>
+           <input id="busca-pauta" type="search" placeholder="buscar no quadro" autocomplete="off" />
          </div>
-         <div class="field">
-           <label for="p-prazo">até quando (opcional)</label>
-           <input id="p-prazo" data-p-prazo type="date" />
-         </div>
-         <div class="field ad-recado-prio">
-           <label for="p-prio">urgência</label>
-           <select id="p-prio" data-p-prio>
-             ${PRIORIDADES.map((p) => `<option value="${p.slug}"${p.slug === 'normal' ? ' selected' : ''}>${escapeHtml(p.rotulo)}</option>`).join('')}
-           </select>
-         </div>
+         <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+       </form>
+       <div class="ad-filtros" role="group" aria-label="filtrar pautas">
+         <button type="button" class="filtro" data-f-quem="">de todo mundo</button>
+         <button type="button" class="filtro" data-f-quem="eu">minhas</button>
        </div>
-       <div data-p-aviso></div>
-       <div class="ad-card-acoes">
-         <button type="submit" class="btn solid" data-p-salvar>colar no quadro</button>
-         <button type="button" class="btn ghost" data-p-cancelar hidden>cancelar edição</button>
+       <div class="ad-filtros pauta-visoes" role="group" aria-label="jeito de ver o quadro">
+         <button type="button" class="filtro" data-visao="tabela"><i data-lucide="table-2"></i>tabela</button>
+         <button type="button" class="filtro" data-visao="quadro"><i data-lucide="columns-3"></i>quadro</button>
        </div>
-     </form>
-
-     <form class="ad-busca" data-busca-pauta>
-       <div class="field">
-         <label for="busca-pauta" class="sr-only">buscar por pauta ou por quem recebeu</label>
-         <input id="busca-pauta" type="search" placeholder="um trecho da pauta ou o nome de quem recebeu" autocomplete="off" />
-       </div>
-       <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
-     </form>
-     <div class="ad-filtros" role="group" aria-label="filtrar pautas">
-       <button type="button" class="filtro" data-f-quem="">de todo mundo</button>
-       <button type="button" class="filtro" data-f-quem="eu">minhas</button>
      </div>
-     <div data-quadro></div>`;
+     <div data-quadro-corpo></div>`;
 
-  const form = $('[data-form-pauta]', view);
-  const quadro = $('[data-quadro]', view);
-  const avisoForm = $('[data-p-aviso]', form);
-  const meuId = estado.sessao?.user?.id || '';
+  const corpo = $('[data-quadro-corpo]', view);
+  const barraQuadros = $('[data-quadros]', view);
 
-  const marcar = () =>
+  const marcar = () => {
     $$('[data-f-quem]', view).forEach((b) =>
-      b.setAttribute('aria-pressed', String(b.dataset.fQuem === filtrosPautas.dequem)),
+      b.setAttribute('aria-pressed', String(b.dataset.fQuem === estadoQuadro.dequem)),
     );
+    $$('[data-visao]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.visao === estadoQuadro.visao)),
+    );
+  };
+
   $$('[data-f-quem]', view).forEach((b) =>
     b.addEventListener('click', () => {
-      filtrosPautas.dequem = b.dataset.fQuem;
+      estadoQuadro.dequem = b.dataset.fQuem;
       marcar();
-      carregarQuadro();
+      abrirQuadro(corpo);
+    }),
+  );
+  $$('[data-visao]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      estadoQuadro.visao = b.dataset.visao;
+      marcar();
+      desenharQuadro(corpo);
     }),
   );
   $('[data-busca-pauta]', view).addEventListener('submit', (e) => {
     e.preventDefault();
-    filtrosPautas.busca = $('#busca-pauta', view).value.trim();
-    carregarQuadro();
+    estadoQuadro.busca = $('#busca-pauta', view).value.trim();
+    abrirQuadro(corpo);
   });
-  $('[data-recarregar]', view).addEventListener('click', () => carregarQuadro());
-
-  const limparForm = () => {
-    pautaEditando = null;
-    form.reset();
-    $('[data-p-id]', form).value = '';
-    $('[data-p-prio]', form).value = 'normal';
-    $('[data-p-salvar]', form).textContent = 'colar no quadro';
-    $('[data-p-cancelar]', form).hidden = true;
-    avisoForm.innerHTML = '';
-  };
-
-  const preencherForm = (p) => {
-    pautaEditando = p.id;
-    $('[data-p-id]', form).value = p.id;
-    $('[data-p-titulo]', form).value = p.titulo || '';
-    $('[data-p-briefing]', form).value = p.briefing || '';
-    $('[data-p-quem]', form).value = p.atribuido_a || '';
-    $('[data-p-prazo]', form).value = p.prazo ? String(p.prazo).slice(0, 10) : '';
-    $('[data-p-prio]', form).value = p.prioridade || 'normal';
-    $('[data-p-salvar]', form).textContent = 'salvar a pauta';
-    $('[data-p-cancelar]', form).hidden = false;
-    view.scrollTop = 0;
-    $('[data-p-titulo]', form).focus();
-  };
-
-  // A lista de quem pode receber pauta vem da própria permissão do quadro
-  // (admin_pautas_equipe), não da aba equipe: quem escreve briefing não precisa
-  // ter o direito de mexer no acesso dos outros.
-  async function carregarEquipe() {
-    const select = $('[data-p-quem]', form);
-    try {
-      const gente = await rpc('admin_pautas_equipe');
-      equipeDasPautas = Array.isArray(gente) ? gente : [];
-    } catch {
-      equipeDasPautas = [];
-    }
-    select.innerHTML =
-      `<option value="">pra toda a equipe</option>` +
-      equipeDasPautas
-        .map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nome)}${p.id === meuId ? ' (tu)' : ''}</option>`)
-        .join('');
-  }
-
-  async function carregarQuadro() {
-    carregando(quadro, 'buscando o quadro…');
-    try {
-      const dados = await rpc('admin_pautas_listar', {
-        p_status: null,
-        p_de_quem: filtrosPautas.dequem === 'eu' ? meuId || null : null,
-        p_busca: filtrosPautas.busca || null,
-      });
-      const pautas = Array.isArray(dados) ? dados : [];
-      if (!pautas.length) {
-        quadro.innerHTML = vazio(
-          filtrosPautas.busca || filtrosPautas.dequem ? 'nada por aqui' : 'o quadro está limpo',
-          filtrosPautas.busca || filtrosPautas.dequem
-            ? 'tenta outro termo, ou olha o quadro de todo mundo.'
-            : 'escreve a primeira pauta aí em cima. o time vê na hora que entrar.',
-        );
-        return;
-      }
-      quadro.innerHTML = `
-        <div class="pauta-quadro">
-          ${COLUNAS_PAUTA.map((col) => {
-            const daColuna = pautas.filter((p) => p.status === col.slug);
-            return `
-            <section class="pauta-col" aria-label="${escapeHtml(col.rotulo)}">
-              <header class="pauta-col-topo">
-                <p class="pauta-col-nome">${escapeHtml(col.rotulo)}</p>
-                <span class="pauta-col-conta">${formatNumero(daColuna.length)}</span>
-              </header>
-              ${
-                daColuna.length
-                  ? daColuna.map((p) => cardPauta(p, meuId)).join('')
-                  : `<p class="pauta-col-vazia">${escapeHtml(col.dica)}</p>`
-              }
-            </section>`;
-          }).join('')}
-        </div>`;
-      ligarCardsPauta();
-      renderIcons();
-    } catch (e) {
-      erroNaTela(quadro, e);
-    }
-  }
-
-  function ligarCardsPauta() {
-    $$('[data-p-mover]', quadro).forEach((b) =>
-      b.addEventListener('click', async () => {
-        b.disabled = true;
-        try {
-          const r = await rpc('admin_pauta_status', { p_id: b.dataset.pAlvo, p_status: b.dataset.pMover });
-          if (r && r.ok === false) throw new Error(r.erro || 'não deu pra mover');
-          carregarQuadro();
-        } catch (e) {
-          toast(e.message, 'erro');
-          b.disabled = false;
-        }
-      }),
-    );
-
-    $$('[data-p-editar]', quadro).forEach((b) =>
-      b.addEventListener('click', async () => {
-        try {
-          const dados = await rpc('admin_pautas_listar', { p_busca: null });
-          const p = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.pEditar);
-          if (p) preencherForm(p);
-        } catch (e) {
-          toast(e.message, 'erro');
-        }
-      }),
-    );
-
-    $$('[data-p-apagar]', quadro).forEach((b) =>
-      b.addEventListener('click', async () => {
-        const ok = await confirmar({
-          titulo: `apagar "${b.dataset.pTitulo}"?`,
-          texto: 'some do quadro pra todo mundo e não tem como voltar. se já foi feita, "concluir" guarda o registro.',
-          ok: 'apagar',
-          tom: 'perigo',
-        });
-        if (!ok) return;
-        b.disabled = true;
-        try {
-          const r = await rpc('admin_pauta_remover', { p_id: b.dataset.pApagar });
-          if (r && r.ok === false) throw new Error(r.erro || 'não deu pra apagar');
-          toast('pauta apagada');
-          if (pautaEditando === b.dataset.pApagar) limparForm();
-          carregarQuadro();
-        } catch (e) {
-          toast(e.message, 'erro');
-          b.disabled = false;
-        }
-      }),
-    );
-  }
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    avisoForm.innerHTML = '';
-    const titulo = $('[data-p-titulo]', form).value.trim();
-    if (!titulo) {
-      avisoForm.innerHTML = '<div class="notice err"><p>escreve a pauta em uma linha 💛</p></div>';
-      $('[data-p-titulo]', form).focus();
-      return;
-    }
-    const botao = $('[data-p-salvar]', form);
-    botao.disabled = true;
-    try {
-      const r = await rpc('admin_pauta_salvar', {
-        p_id: pautaEditando || null,
-        p_titulo: titulo,
-        p_briefing: $('[data-p-briefing]', form).value.trim() || null,
-        p_atribuido_a: $('[data-p-quem]', form).value || null,
-        p_prazo: $('[data-p-prazo]', form).value || null,
-        p_prioridade: $('[data-p-prio]', form).value || 'normal',
-      });
-      if (r && r.ok === false) {
-        avisoForm.innerHTML = `<div class="notice err"><p>${escapeHtml(r.erro || 'não deu pra salvar')}</p></div>`;
-        return;
-      }
-      toast(pautaEditando ? 'pauta salva 💛' : 'pauta no quadro 💛');
-      limparForm();
-      carregarQuadro();
-    } catch (e2) {
-      avisoForm.innerHTML = `<div class="notice err"><p>${escapeHtml(e2.message)}</p></div>`;
-    } finally {
-      botao.disabled = false;
-    }
+  $('[data-recarregar]', view).addEventListener('click', () => {
+    carregarQuadros(barraQuadros, corpo);
   });
 
-  $('[data-p-cancelar]', form).addEventListener('click', limparForm);
+  // Um listener só, delegado, pro corpo inteiro do quadro.
+  corpo.addEventListener('click', (ev) => aoTocarNoQuadro(ev, corpo));
+  corpo.addEventListener('submit', (ev) => aoSubmeterNoQuadro(ev, corpo));
+  barraQuadros.addEventListener('click', (ev) => aoTocarNosQuadros(ev, barraQuadros, corpo));
 
   marcar();
   renderIcons();
-  await carregarEquipe();
-  carregarQuadro();
+  await carregarEquipeDasPautas();
+  await carregarQuadros(barraQuadros, corpo);
 }
 
-function cardPauta(p, meuId) {
-  const tags = [];
-  if (p.prioridade === 'alta') tags.push('<span class="tag coral">urgente</span>');
-  if (p.prioridade === 'baixa') tags.push('<span class="tag">quando der</span>');
-  if (p.status !== 'feita' && prazoVencido(p.prazo)) tags.push('<span class="tag gold">passou do prazo</span>');
-
-  const quem = p.atribuido_a
-    ? `${escapeHtml(p.atribuido_nome || 'alguém do time')}${p.atribuido_a === meuId ? ' (tu)' : ''}`
-    : 'toda a equipe';
-
-  const linhas = [`<span class="pauta-meta-item"><i data-lucide="user-round"></i>${quem}</span>`];
-  if (p.prazo) {
-    linhas.push(`<span class="pauta-meta-item"><i data-lucide="calendar-clock"></i>até ${escapeHtml(dataDoPrazo(p.prazo))}</span>`);
+async function carregarEquipeDasPautas() {
+  try {
+    const gente = await rpc('admin_pautas_equipe');
+    equipeDasPautas = Array.isArray(gente) ? gente : [];
+  } catch {
+    equipeDasPautas = [];
   }
-  if (p.status === 'feita' && p.concluida_por_nome) {
-    linhas.push(`<span class="pauta-meta-item"><i data-lucide="check"></i>feita por ${escapeHtml(p.concluida_por_nome)}</span>`);
-  }
+}
 
-  const mover = {
-    aberta: `<button type="button" class="btn solid sm" data-p-mover="fazendo" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="play"></i>pegar pra mim</button>`,
-    fazendo: `<button type="button" class="btn solid sm" data-p-mover="feita" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="check"></i>concluir</button>
-              <button type="button" class="btn ghost sm" data-p-mover="aberta" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="undo-2"></i>devolver</button>`,
-    feita: `<button type="button" class="btn ghost sm" data-p-mover="aberta" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="undo-2"></i>reabrir</button>`,
-  }[p.status];
+async function carregarQuadros(barra, corpo) {
+  try {
+    const lista = await rpc('admin_quadros_listar');
+    estadoQuadro.quadros = Array.isArray(lista) ? lista : [];
+  } catch (e) {
+    estadoQuadro.quadros = [];
+    erroNaTela(corpo, e);
+    return;
+  }
+  desenharBarraDeQuadros(barra);
+  await abrirQuadro(corpo);
+}
+
+function desenharBarraDeQuadros(barra) {
+  const vivos = estadoQuadro.quadros.filter((q) => !q.arquivado);
+  const arquivados = estadoQuadro.quadros.filter((q) => q.arquivado);
+  barra.innerHTML = `
+    ${vivos
+      .map(
+        (q) => `
+      <button type="button" class="pauta-quadro-chip${q.id === estadoQuadro.quadroId ? ' is-atual' : ''}"
+              data-abrir-quadro="${escapeHtml(q.id)}" aria-pressed="${q.id === estadoQuadro.quadroId}">
+        <span class="pauta-bolha tag ${escapeHtml(corValida(q.cor))}" aria-hidden="true"></span>
+        <span>${escapeHtml(q.nome)}</span>
+        ${Number(q.abertas) > 0 ? `<span class="pauta-chip-n">${formatNumero(q.abertas)}</span>` : ''}
+      </button>`,
+      )
+      .join('')}
+    <button type="button" class="pauta-quadro-novo" data-novo-quadro><i data-lucide="plus"></i>novo quadro</button>
+    ${
+      arquivados.length
+        ? `<button type="button" class="pauta-quadro-novo" data-ver-arquivados><i data-lucide="archive"></i>arquivados (${formatNumero(arquivados.length)})</button>`
+        : ''
+    }`;
+  renderIcons();
+}
+
+async function abrirQuadro(corpo) {
+  carregando(corpo, 'abrindo o quadro…');
+  try {
+    const dados = await rpc('admin_quadro_abrir', {
+      p_quadro_id: estadoQuadro.quadroId,
+      p_busca: estadoQuadro.busca || null,
+      p_de_quem: estadoQuadro.dequem === 'eu' ? estado.sessao?.user?.id || null : null,
+    });
+    estadoQuadro.dados = dados || null;
+    estadoQuadro.quadroId = dados?.quadro?.id || null;
+    const barra = $('[data-quadros]');
+    if (barra) desenharBarraDeQuadros(barra);
+    desenharQuadro(corpo);
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function desenharQuadro(corpo) {
+  const d = estadoQuadro.dados;
+  if (!d || !d.quadro) {
+    corpo.innerHTML = vazio(
+      'nenhum quadro ainda',
+      'cria o primeiro aí em cima. um quadro por canto da casa (salão, cozinha, o que fizer sentido).',
+    );
+    return;
+  }
+  corpo.innerHTML = estadoQuadro.visao === 'quadro' ? kanbanHTML(d) : tabelaHTML(d);
+  renderIcons();
+}
+
+// ---------------------------------------------------------------------------
+// Visão TABELA: grupos com faixa colorida e linhas com célula clicável.
+// ---------------------------------------------------------------------------
+function tabelaHTML(d) {
+  const grupos = Array.isArray(d.grupos) ? d.grupos : [];
+  const itens = Array.isArray(d.itens) ? d.itens : [];
+  const soltos = itens.filter((i) => !i.grupo_id || !grupos.some((g) => g.id === i.grupo_id));
+
+  const blocos = grupos.map((g) => grupoHTML(g, itens.filter((i) => i.grupo_id === g.id)));
+  if (soltos.length) {
+    blocos.push(grupoHTML({ id: '', nome: 'sem grupo', cor: 'neutro', recolhido: false }, soltos, true));
+  }
 
   return `
+    <div class="pauta-topo-acoes">
+      <button type="button" class="btn ghost sm" data-novo-grupo><i data-lucide="plus"></i>novo grupo</button>
+      <button type="button" class="btn ghost sm" data-editar-quadro><i data-lucide="pencil"></i>renomear o quadro</button>
+      <button type="button" class="btn ghost sm" data-arquivar-quadro><i data-lucide="archive"></i>arquivar</button>
+      <button type="button" class="btn ghost sm" data-apagar-quadro><i data-lucide="trash-2"></i>apagar</button>
+    </div>
+    <div class="pauta-tabela" role="table" aria-label="${escapeHtml(d.quadro.nome || 'quadro')}">
+      <div class="pauta-cabeca" role="row">
+        <span role="columnheader">a pauta</span>
+        <span role="columnheader">pra quem</span>
+        <span role="columnheader">estado</span>
+        <span role="columnheader">até quando</span>
+        <span role="columnheader">urgência</span>
+        <span role="columnheader"><span class="sr-only">ações</span></span>
+      </div>
+      ${blocos.join('') || vazio('esse quadro está limpo', 'cria um grupo e escreve a primeira pauta.')}
+    </div>`;
+}
+
+function grupoHTML(g, itens, semGrupo = false) {
+  const cor = corValida(g.cor);
+  const feitas = itens.filter((i) => i.status === 'feita').length;
+  return `
+    <section class="pauta-grupo" data-grupo="${escapeHtml(g.id || '')}" data-cor="${escapeHtml(cor)}" role="rowgroup">
+      <header class="pauta-grupo-topo">
+        <button type="button" class="pauta-grupo-abrir" data-recolher="${escapeHtml(g.id || '')}"
+                aria-expanded="${!g.recolhido}" ${semGrupo ? 'disabled' : ''}>
+          <i data-lucide="${g.recolhido ? 'chevron-right' : 'chevron-down'}"></i>
+        </button>
+        <p class="pauta-grupo-nome tag ${escapeHtml(cor)}">${escapeHtml(g.nome)}</p>
+        <span class="pauta-grupo-conta">${formatNumero(itens.length)} ${itens.length === 1 ? 'pauta' : 'pautas'}${feitas ? ` · ${formatNumero(feitas)} feita${feitas > 1 ? 's' : ''}` : ''}</span>
+        ${
+          semGrupo
+            ? ''
+            : `<span class="pauta-grupo-acoes">
+                 <button type="button" class="btn ghost sm pauta-ico" data-editar-grupo="${escapeHtml(g.id)}" aria-label="renomear o grupo" title="renomear"><i data-lucide="pencil"></i></button>
+                 <button type="button" class="btn ghost sm pauta-ico" data-apagar-grupo="${escapeHtml(g.id)}" data-nome="${escapeHtml(g.nome)}" aria-label="apagar o grupo" title="apagar"><i data-lucide="trash-2"></i></button>
+               </span>`
+        }
+      </header>
+      ${
+        g.recolhido
+          ? ''
+          : `${itens.map(linhaPautaHTML).join('')}
+             ${
+               semGrupo
+                 ? ''
+                 : `<form class="pauta-nova" data-nova-pauta="${escapeHtml(g.id)}">
+                      <i data-lucide="plus"></i>
+                      <input type="text" maxlength="120" placeholder="escreve uma pauta e dá enter" aria-label="escrever uma pauta em ${escapeHtml(g.nome)}" />
+                    </form>`
+             }`
+      }
+    </section>`;
+}
+
+function linhaPautaHTML(p) {
+  const est = acheEstado(p.status);
+  const pri = achePrioridade(p.prioridade);
+  const vencido = p.status !== 'feita' && prazoVencido(p.prazo);
+  return `
+    <div class="pauta-linha${p.status === 'feita' ? ' is-feita' : ''}" role="row" data-pauta="${escapeHtml(p.id)}">
+      <div class="pl-titulo" role="cell">
+        <button type="button" class="pauta-abrir-item" data-abrir-item="${escapeHtml(p.id)}">
+          <span class="pl-txt">${escapeHtml(p.titulo || '')}</span>
+        </button>
+        <span class="pl-sinais">
+          ${p.briefing ? '<i data-lucide="align-left" title="tem briefing"></i>' : ''}
+          ${Number(p.comentarios) > 0 ? `<span class="pl-coment"><i data-lucide="message-square"></i>${formatNumero(p.comentarios)}</span>` : ''}
+        </span>
+      </div>
+      <div class="pl-pessoa" role="cell">
+        <button type="button" class="pauta-celula" data-celula="atribuido_a" title="pra quem">
+          ${
+            p.atribuido_a
+              ? `<span class="pauta-avatar">${escapeHtml(iniciais(p.atribuido_nome))}</span><span class="pl-nome">${escapeHtml(p.atribuido_nome || 'alguém')}</span>`
+              : '<span class="pauta-avatar is-vazio">+</span><span class="pl-nome pl-fraco">toda a equipe</span>'
+          }
+        </button>
+      </div>
+      <div class="pl-estado" role="cell">
+        <button type="button" class="pauta-celula pauta-estado tag ${escapeHtml(est.cor)}" data-celula="status" title="estado">
+          ${escapeHtml(est.rotulo)}
+        </button>
+      </div>
+      <div class="pl-prazo" role="cell">
+        <button type="button" class="pauta-celula${vencido ? ' is-vencido' : ''}" data-celula="prazo" title="até quando">
+          ${p.prazo ? `<i data-lucide="calendar-clock"></i>${escapeHtml(dataDoPrazo(p.prazo))}` : '<span class="pl-fraco">sem prazo</span>'}
+        </button>
+      </div>
+      <div class="pl-urg" role="cell">
+        <button type="button" class="pauta-celula pauta-urg tag ${escapeHtml(pri.cor)}" data-celula="prioridade" title="urgência">
+          ${escapeHtml(pri.rotulo)}
+        </button>
+      </div>
+      <div class="pl-acoes" role="cell">
+        <button type="button" class="btn ghost sm pauta-ico" data-mover="cima" aria-label="subir a pauta" title="subir"><i data-lucide="chevron-up"></i></button>
+        <button type="button" class="btn ghost sm pauta-ico" data-mover="baixo" aria-label="descer a pauta" title="descer"><i data-lucide="chevron-down"></i></button>
+        <button type="button" class="btn ghost sm pauta-ico" data-apagar-pauta aria-label="apagar a pauta" title="apagar"><i data-lucide="trash-2"></i></button>
+      </div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Visão QUADRO (kanban): as mesmas pautas, empilhadas por estado.
+// ---------------------------------------------------------------------------
+function kanbanHTML(d) {
+  const itens = Array.isArray(d.itens) ? d.itens : [];
+  return `
+    <div class="pauta-kanban">
+      ${ESTADOS_PAUTA.map((e) => {
+        const daColuna = itens.filter((i) => i.status === e.slug);
+        return `
+        <section class="pauta-col" aria-label="${escapeHtml(e.rotulo)}">
+          <header class="pauta-col-topo">
+            <p class="pauta-grupo-nome tag ${escapeHtml(e.cor)}">${escapeHtml(e.rotulo)}</p>
+            <span class="pauta-col-conta">${formatNumero(daColuna.length)}</span>
+          </header>
+          ${
+            daColuna.length
+              ? daColuna.map(cartaoPautaHTML).join('')
+              : '<p class="pauta-col-vazia">nada por aqui</p>'
+          }
+        </section>`;
+      }).join('')}
+    </div>`;
+}
+
+function cartaoPautaHTML(p) {
+  const pri = achePrioridade(p.prioridade);
+  const vencido = p.status !== 'feita' && prazoVencido(p.prazo);
+  return `
     <article class="card pauta-card${p.prioridade === 'alta' ? ' is-urgente' : ''}" data-pauta="${escapeHtml(p.id)}">
-      ${tags.length ? `<div class="ad-card-tags">${tags.join('')}</div>` : ''}
-      <p class="pauta-titulo">${escapeHtml(p.titulo || '')}</p>
-      ${p.briefing ? `<p class="pauta-briefing">${escapeHtml(p.briefing)}</p>` : ''}
-      <div class="pauta-meta">${linhas.join('')}</div>
+      <button type="button" class="pauta-abrir-item" data-abrir-item="${escapeHtml(p.id)}">
+        <span class="pauta-titulo">${escapeHtml(p.titulo || '')}</span>
+      </button>
+      <div class="pauta-meta">
+        <span class="pauta-meta-item"><i data-lucide="user-round"></i>${escapeHtml(p.atribuido_a ? p.atribuido_nome || 'alguém' : 'toda a equipe')}</span>
+        ${p.prazo ? `<span class="pauta-meta-item${vencido ? ' is-vencido' : ''}"><i data-lucide="calendar-clock"></i>até ${escapeHtml(dataDoPrazo(p.prazo))}</span>` : ''}
+        ${Number(p.comentarios) > 0 ? `<span class="pauta-meta-item"><i data-lucide="message-square"></i>${formatNumero(p.comentarios)}</span>` : ''}
+      </div>
       <div class="pauta-acoes">
-        ${mover || ''}
+        <button type="button" class="pauta-celula pauta-urg tag ${escapeHtml(pri.cor)}" data-celula="prioridade">${escapeHtml(pri.rotulo)}</button>
         <span class="pauta-acoes-fim">
-          <button type="button" class="btn ghost sm pauta-ico" data-p-editar="${escapeHtml(p.id)}" aria-label="editar a pauta" title="editar"><i data-lucide="pencil"></i></button>
-          <button type="button" class="btn ghost sm pauta-ico" data-p-apagar="${escapeHtml(p.id)}" data-p-titulo="${escapeHtml(p.titulo || 'essa pauta')}" aria-label="apagar a pauta" title="apagar"><i data-lucide="trash-2"></i></button>
+          <button type="button" class="btn ghost sm pauta-ico" data-celula="status" aria-label="mudar o estado" title="estado"><i data-lucide="circle-dot"></i></button>
         </span>
       </div>
     </article>`;
+}
+
+// ---------------------------------------------------------------------------
+// Um toque no quadro: tudo passa por aqui.
+// ---------------------------------------------------------------------------
+function itemPorId(id) {
+  return (estadoQuadro.dados?.itens || []).find((i) => i.id === id) || null;
+}
+
+function redesenharLinha(id) {
+  const p = itemPorId(id);
+  if (!p) return;
+  const alvo = document.querySelector(`[data-pauta="${CSS.escape(id)}"]`);
+  if (!alvo) return;
+  const molde = document.createElement('div');
+  molde.innerHTML = estadoQuadro.visao === 'quadro' ? cartaoPautaHTML(p) : linhaPautaHTML(p);
+  const nova = molde.firstElementChild;
+  alvo.replaceWith(nova);
+  renderIcons();
+}
+
+async function aoTocarNoQuadro(ev, corpo) {
+  const alvo = (sel) => ev.target.closest(sel);
+  const idDaLinha = () => ev.target.closest('[data-pauta]')?.dataset.pauta;
+
+  // --- célula: pessoa, estado, prazo, urgência
+  const celula = alvo('[data-celula]');
+  if (celula) {
+    const id = idDaLinha();
+    const campo = celula.dataset.celula;
+    const p = itemPorId(id);
+    if (!id || !p) return;
+    const valor = await pedirValorDaCelula(campo, p);
+    if (valor === null) return;
+    try {
+      const r = await rpc('admin_pauta_celula', { p_id: id, p_campo: campo, p_valor: valor === '' ? null : valor });
+      if (r && r.ok === false) throw new Error(r.erro || 'não deu pra mudar');
+      aplicarNoEstado(p, campo, valor);
+      // Mudar de grupo tira a linha de lugar; o resto se resolve na própria linha.
+      if (campo === 'grupo_id') desenharQuadro(corpo);
+      else redesenharLinha(id);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+    return;
+  }
+
+  if (alvo('[data-abrir-item]')) {
+    return abrirPainelDaPauta(alvo('[data-abrir-item]').dataset.abrirItem, corpo);
+  }
+
+  const mover = alvo('[data-mover]');
+  if (mover) {
+    const id = idDaLinha();
+    mover.disabled = true;
+    try {
+      const r = await rpc('admin_pauta_ordenar', { p_id: id, p_direcao: mover.dataset.mover });
+      if (r && r.ok === false) throw new Error(r.erro);
+      await abrirQuadro(corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+      mover.disabled = false;
+    }
+    return;
+  }
+
+  if (alvo('[data-apagar-pauta]')) {
+    const id = idDaLinha();
+    const p = itemPorId(id);
+    const ok = await confirmar({
+      titulo: `apagar "${p?.titulo || 'essa pauta'}"?`,
+      texto: 'some do quadro pra todo mundo, com os comentários dela, e não tem como voltar.',
+      ok: 'apagar',
+      tom: 'perigo',
+    });
+    if (!ok) return;
+    try {
+      const r = await rpc('admin_pauta_remover', { p_id: id });
+      if (r && r.ok === false) throw new Error(r.erro);
+      toast('pauta apagada');
+      await abrirQuadro(corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+    return;
+  }
+
+  const recolher = alvo('[data-recolher]');
+  if (recolher) {
+    const id = recolher.dataset.recolher;
+    const g = (estadoQuadro.dados?.grupos || []).find((x) => x.id === id);
+    if (!g) return;
+    try {
+      await rpc('admin_grupo_recolher', { p_id: id, p_recolhido: !g.recolhido });
+      g.recolhido = !g.recolhido;
+      desenharQuadro(corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+    return;
+  }
+
+  if (alvo('[data-novo-grupo]')) return salvarGrupo(corpo, null);
+  const editarGrupo = alvo('[data-editar-grupo]');
+  if (editarGrupo) return salvarGrupo(corpo, editarGrupo.dataset.editarGrupo);
+
+  const apagarGrupo = alvo('[data-apagar-grupo]');
+  if (apagarGrupo) {
+    const ok = await confirmar({
+      titulo: `apagar o grupo "${apagarGrupo.dataset.nome}"?`,
+      texto: 'o grupo precisa estar vazio. as pautas dentro dele não somem junto.',
+      ok: 'apagar',
+      tom: 'perigo',
+    });
+    if (!ok) return;
+    try {
+      const r = await rpc('admin_grupo_remover', { p_id: apagarGrupo.dataset.apagarGrupo });
+      if (r && r.ok === false) throw new Error(r.erro);
+      toast('grupo apagado');
+      await abrirQuadro(corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+    return;
+  }
+
+  if (alvo('[data-editar-quadro]')) return salvarQuadro(corpo, estadoQuadro.quadroId);
+  if (alvo('[data-arquivar-quadro]')) {
+    try {
+      await rpc('admin_quadro_arquivar', { p_id: estadoQuadro.quadroId, p_arquivar: true });
+      toast('quadro arquivado');
+      estadoQuadro.quadroId = null;
+      await carregarQuadros($('[data-quadros]'), corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+    return;
+  }
+  if (alvo('[data-apagar-quadro]')) {
+    const nome = estadoQuadro.dados?.quadro?.nome || 'esse quadro';
+    const ok = await confirmar({
+      titulo: `apagar o quadro "${nome}"?`,
+      texto: 'só dá se ele estiver vazio. se ainda tem pauta dentro, arquiva em vez de apagar.',
+      ok: 'apagar',
+      tom: 'perigo',
+    });
+    if (!ok) return;
+    try {
+      const r = await rpc('admin_quadro_remover', { p_id: estadoQuadro.quadroId });
+      if (r && r.ok === false) throw new Error(r.erro);
+      toast('quadro apagado');
+      estadoQuadro.quadroId = null;
+      await carregarQuadros($('[data-quadros]'), corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+  }
+}
+
+// A linha "+ pauta" no pé de cada grupo: escreve o título e dá enter.
+async function aoSubmeterNoQuadro(ev, corpo) {
+  const form = ev.target.closest('[data-nova-pauta]');
+  if (!form) return;
+  ev.preventDefault();
+  const campo = $('input', form);
+  const titulo = campo.value.trim();
+  if (!titulo) return;
+  campo.disabled = true;
+  try {
+    const r = await rpc('admin_pauta_salvar', {
+      p_id: null,
+      p_quadro_id: estadoQuadro.quadroId,
+      p_grupo_id: form.dataset.novaPauta || null,
+      p_titulo: titulo,
+      p_briefing: null,
+      p_atribuido_a: null,
+      p_prazo: null,
+      p_prioridade: 'normal',
+    });
+    if (r && r.ok === false) throw new Error(r.erro);
+    campo.value = '';
+    await abrirQuadro(corpo);
+    // Devolve o foco pra a mesma linha: quem escreve uma pauta quase sempre
+    // escreve a próxima em seguida.
+    $(`[data-nova-pauta="${CSS.escape(form.dataset.novaPauta)}"] input`)?.focus();
+  } catch (e) {
+    toast(e.message, 'erro');
+    campo.disabled = false;
+  }
+}
+
+async function aoTocarNosQuadros(ev, barra, corpo) {
+  const chip = ev.target.closest('[data-abrir-quadro]');
+  if (chip) {
+    estadoQuadro.quadroId = chip.dataset.abrirQuadro;
+    return abrirQuadro(corpo);
+  }
+  if (ev.target.closest('[data-novo-quadro]')) return salvarQuadro(corpo, null);
+  if (ev.target.closest('[data-ver-arquivados]')) {
+    const arquivados = estadoQuadro.quadros.filter((q) => q.arquivado);
+    const escolha = await escolher({
+      titulo: 'quadros arquivados',
+      opcoes: arquivados.map((q) => ({ valor: q.id, rotulo: q.nome, cor: q.cor })),
+      atual: null,
+    });
+    if (!escolha) return;
+    try {
+      await rpc('admin_quadro_arquivar', { p_id: escolha, p_arquivar: false });
+      estadoQuadro.quadroId = escolha;
+      toast('quadro de volta 💛');
+      await carregarQuadros(barra, corpo);
+    } catch (e) {
+      toast(e.message, 'erro');
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Os pedidos de valor (a folhinha de opções de cada célula)
+// ---------------------------------------------------------------------------
+async function pedirValorDaCelula(campo, p) {
+  if (campo === 'status') {
+    return escolher({
+      titulo: 'como está essa pauta?',
+      opcoes: ESTADOS_PAUTA.map((e) => ({ valor: e.slug, rotulo: e.rotulo, cor: e.cor })),
+      atual: p.status,
+    });
+  }
+  if (campo === 'prioridade') {
+    return escolher({
+      titulo: 'qual a urgência?',
+      opcoes: PRIORIDADES.map((e) => ({ valor: e.slug, rotulo: e.rotulo, cor: e.cor })),
+      atual: p.prioridade,
+    });
+  }
+  if (campo === 'atribuido_a') {
+    return escolher({
+      titulo: 'pra quem é essa pauta?',
+      opcoes: [
+        { valor: '', rotulo: 'toda a equipe' },
+        ...equipeDasPautas.map((g) => ({ valor: g.id, rotulo: g.nome, inicial: iniciais(g.nome) })),
+      ],
+      atual: p.atribuido_a || '',
+    });
+  }
+  if (campo === 'prazo') {
+    // No balcão ninguém digita 20/08. Os atalhos resolvem quase sempre, e o
+    // campo de data fica pro caso que eles não cobrem.
+    return escolher({
+      titulo: 'até quando?',
+      opcoes: [
+        { valor: hojeISO(), rotulo: 'hoje' },
+        { valor: maisDias(1), rotulo: 'amanhã' },
+        { valor: maisDias(7), rotulo: 'daqui uma semana' },
+        { valor: '', rotulo: 'sem prazo' },
+      ],
+      atual: p.prazo ? String(p.prazo).slice(0, 10) : '',
+      rodape: `<form class="pauta-data-livre">
+                 <label for="pauta-data" class="lbl">ou escolhe o dia</label>
+                 <div class="pauta-data-linha">
+                   <input id="pauta-data" type="date" data-data-livre value="${escapeHtml(p.prazo ? String(p.prazo).slice(0, 10) : '')}" />
+                   <button type="submit" class="btn solid sm">usar</button>
+                 </div>
+               </form>`,
+    });
+  }
+  return null;
+}
+
+function aplicarNoEstado(p, campo, valor) {
+  if (campo === 'atribuido_a') {
+    p.atribuido_a = valor || null;
+    p.atribuido_nome = valor ? equipeDasPautas.find((g) => g.id === valor)?.nome || '' : '';
+  } else if (campo === 'prazo') {
+    p.prazo = valor || null;
+  } else if (campo === 'grupo_id') {
+    p.grupo_id = valor || null;
+  } else {
+    p[campo] = valor;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Quadro e grupo: criar e renomear
+// ---------------------------------------------------------------------------
+async function salvarQuadro(corpo, id) {
+  const atual = id ? estadoQuadro.quadros.find((q) => q.id === id) : null;
+  const nome = window.prompt(id ? 'novo nome do quadro' : 'nome do quadro novo', atual?.nome || '');
+  if (nome === null) return;
+  const cor = await escolher({
+    titulo: 'a cor do quadro',
+    opcoes: CORES_QUADRO.map((c) => ({ valor: c.slug, rotulo: c.rotulo, cor: c.slug })),
+    atual: atual?.cor || 'coral',
+  });
+  if (cor === null) return;
+  try {
+    const r = await rpc('admin_quadro_salvar', { p_id: id, p_nome: nome.trim(), p_cor: cor });
+    if (r && r.ok === false) throw new Error(r.erro);
+    if (!id) estadoQuadro.quadroId = r.id;
+    toast(id ? 'quadro salvo 💛' : 'quadro criado 💛');
+    await carregarQuadros($('[data-quadros]'), corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+  }
+}
+
+async function salvarGrupo(corpo, id) {
+  const atual = id ? (estadoQuadro.dados?.grupos || []).find((g) => g.id === id) : null;
+  const nome = window.prompt(id ? 'novo nome do grupo' : 'nome do grupo novo', atual?.nome || '');
+  if (nome === null) return;
+  const cor = await escolher({
+    titulo: 'a cor do grupo',
+    opcoes: CORES_QUADRO.map((c) => ({ valor: c.slug, rotulo: c.rotulo, cor: c.slug })),
+    atual: atual?.cor || 'neutro',
+  });
+  if (cor === null) return;
+  try {
+    const r = await rpc('admin_grupo_salvar', {
+      p_id: id,
+      p_quadro_id: estadoQuadro.quadroId,
+      p_nome: nome.trim(),
+      p_cor: cor,
+    });
+    if (r && r.ok === false) throw new Error(r.erro);
+    toast(id ? 'grupo salvo 💛' : 'grupo criado 💛');
+    await abrirQuadro(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// O painel da pauta: briefing, dados e a conversa.
+// ---------------------------------------------------------------------------
+async function abrirPainelDaPauta(id, corpo) {
+  const fundo = document.createElement('div');
+  fundo.className = 'pauta-painel-fundo';
+  fundo.innerHTML = `<aside class="pauta-painel" role="dialog" aria-modal="true" aria-label="a pauta">
+    <div class="ad-carregando">abrindo a pauta…</div>
+  </aside>`;
+  const fechar = () => {
+    document.removeEventListener('keydown', aoTeclar);
+    fundo.remove();
+  };
+  const aoTeclar = (e) => {
+    if (e.key === 'Escape') fechar();
+  };
+  fundo.addEventListener('click', (e) => {
+    if (e.target === fundo || e.target.closest('[data-fechar-painel]')) fechar();
+  });
+  document.addEventListener('keydown', aoTeclar);
+  document.body.appendChild(fundo);
+
+  const painel = $('.pauta-painel', fundo);
+  let dados;
+  try {
+    dados = await rpc('admin_pauta_ver', { p_id: id });
+    if (!dados || dados.ok === false) throw new Error(dados?.erro || 'não achei essa pauta');
+  } catch (e) {
+    painel.innerHTML = `<div class="notice err"><p>${escapeHtml(e.message)}</p></div>`;
+    return;
+  }
+
+  const desenhar = () => {
+    const p = dados.pauta;
+    const est = acheEstado(p.status);
+    painel.innerHTML = `
+      <header class="pauta-painel-topo">
+        <span class="tag ${escapeHtml(est.cor)}">${escapeHtml(est.rotulo)}</span>
+        <button type="button" class="btn ghost sm pauta-ico" data-fechar-painel aria-label="fechar"><i data-lucide="x"></i></button>
+      </header>
+      <h2 class="title sm pauta-painel-titulo">${escapeHtml(p.titulo || '')}</h2>
+      <p class="pauta-painel-sub">${escapeHtml(p.grupo_nome || 'sem grupo')} · escrita por ${escapeHtml(p.criado_por_nome || 'alguém da equipe')}</p>
+
+      <div class="pauta-painel-campos">
+        <div><span class="lbl">pra quem</span><p>${escapeHtml(p.atribuido_a ? p.atribuido_nome || 'alguém' : 'toda a equipe')}</p></div>
+        <div><span class="lbl">até quando</span><p>${p.prazo ? escapeHtml(dataDoPrazo(p.prazo)) : 'sem prazo'}</p></div>
+        <div><span class="lbl">urgência</span><p>${escapeHtml(achePrioridade(p.prioridade).rotulo)}</p></div>
+      </div>
+
+      <div class="field">
+        <label for="painel-briefing">o briefing</label>
+        <textarea id="painel-briefing" rows="5" maxlength="4000" data-painel-briefing
+          placeholder="o que precisa ser feito, onde, e o que fazer se der ruim.">${escapeHtml(p.briefing || '')}</textarea>
+        <div class="ad-card-acoes">
+          <button type="button" class="btn solid sm" data-salvar-briefing>salvar o briefing</button>
+        </div>
+      </div>
+
+      <div class="pauta-conversa">
+        <p class="lbl">a conversa dessa pauta</p>
+        ${
+          dados.comentarios.length
+            ? dados.comentarios
+                .map(
+                  (c) => `
+          <article class="pauta-coment" data-coment="${escapeHtml(c.id)}">
+            <p class="pauta-coment-quem"><span class="pauta-avatar">${escapeHtml(iniciais(c.autor_nome))}</span>${escapeHtml(c.autor_nome)}<span class="pauta-coment-quando">${escapeHtml(formatData(c.created_at))}</span></p>
+            <p class="pauta-coment-txt">${escapeHtml(c.texto)}</p>
+            <button type="button" class="pauta-coment-apagar" data-apagar-coment="${escapeHtml(c.id)}">apagar</button>
+          </article>`,
+                )
+                .join('')
+            : '<p class="pauta-col-vazia">ninguém escreveu nada ainda.</p>'
+        }
+        <form class="pauta-coment-form" data-form-coment>
+          <label for="painel-coment" class="sr-only">escrever na conversa</label>
+          <input id="painel-coment" type="text" maxlength="2000" placeholder="escreve aqui o que aconteceu" autocomplete="off" />
+          <button type="submit" class="btn solid sm">mandar</button>
+        </form>
+      </div>`;
+    renderIcons();
+  };
+
+  desenhar();
+
+  painel.addEventListener('click', async (ev) => {
+    if (ev.target.closest('[data-salvar-briefing]')) {
+      const texto = $('[data-painel-briefing]', painel).value;
+      try {
+        const r = await rpc('admin_pauta_salvar', {
+          p_id: dados.pauta.id,
+          p_quadro_id: dados.pauta.quadro_id,
+          p_grupo_id: dados.pauta.grupo_id,
+          p_titulo: dados.pauta.titulo,
+          p_briefing: texto || null,
+          p_atribuido_a: dados.pauta.atribuido_a,
+          p_prazo: dados.pauta.prazo,
+          p_prioridade: dados.pauta.prioridade,
+        });
+        if (r && r.ok === false) throw new Error(r.erro);
+        dados.pauta.briefing = texto || null;
+        const naTela = itemPorId(dados.pauta.id);
+        if (naTela) {
+          naTela.briefing = dados.pauta.briefing;
+          redesenharLinha(dados.pauta.id);
+        }
+        toast('briefing salvo 💛');
+      } catch (e) {
+        toast(e.message, 'erro');
+      }
+      return;
+    }
+    const apagar = ev.target.closest('[data-apagar-coment]');
+    if (apagar) {
+      try {
+        const r = await rpc('admin_pauta_comentario_remover', { p_id: apagar.dataset.apagarComent });
+        if (r && r.ok === false) throw new Error(r.erro);
+        dados.comentarios = dados.comentarios.filter((c) => c.id !== apagar.dataset.apagarComent);
+        const naTela = itemPorId(dados.pauta.id);
+        if (naTela) {
+          naTela.comentarios = dados.comentarios.length;
+          redesenharLinha(dados.pauta.id);
+        }
+        desenhar();
+      } catch (e) {
+        toast(e.message, 'erro');
+      }
+    }
+  });
+
+  painel.addEventListener('submit', async (ev) => {
+    if (!ev.target.closest('[data-form-coment]')) return;
+    ev.preventDefault();
+    const campo = $('#painel-coment', painel);
+    const texto = campo.value.trim();
+    if (!texto) return;
+    campo.disabled = true;
+    try {
+      const r = await rpc('admin_pauta_comentar', { p_pauta_id: dados.pauta.id, p_texto: texto });
+      if (r && r.ok === false) throw new Error(r.erro);
+      dados = await rpc('admin_pauta_ver', { p_id: dados.pauta.id });
+      const naTela = itemPorId(dados.pauta.id);
+      if (naTela) {
+        naTela.comentarios = dados.comentarios.length;
+        redesenharLinha(dados.pauta.id);
+      }
+      desenhar();
+      $('#painel-coment', painel)?.focus();
+    } catch (e) {
+      toast(e.message, 'erro');
+      campo.disabled = false;
+    }
+  });
 }
 
 // ===== PEDIDOS ======================================================
