@@ -2070,25 +2070,46 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 /* ---------- equipe: busca e grade de permissões ---------- */
 .ad-achados { display: flex; flex-direction: column; gap: 10px; border-radius: 14px }
 .ad-achados .row:last-child { border-bottom: 0 }
-/* As 19 permissões vêm em ÁREAS (o dia a dia, a loja e o balcão, a gente, o que
-   a casa lê, o que a casa publica). Numa grade corrida de 19 caixinhas ninguém
-   acha o que procura, e é justamente aqui que se decide quem vê o quê. */
+/* As permissões vêm agrupadas por SEÇÃO DO SITE (a loja, o clube, a casa…),
+   cada seção com as páginas dela, cada página com as ações que existem nela
+   (enxergar, mexer, arrumar). Numa grade corrida de quarenta e tantas caixinhas
+   ninguém acha o que procura, e é justamente aqui que se decide quem vê o quê.
+   O catálogo vem do banco (0047); esta folha só desenha o que chegou. */
 .ad-perm-resumo { margin: 0 0 4px; font-size: 13.5px; line-height: 1.5; color: var(--muted) }
 .ad-perm-area { display: flex; flex-direction: column; gap: 10px; margin-top: 6px }
 .ad-perm-area-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px }
-.ad-perm-area-acoes { display: inline-flex; gap: 12px }
+.ad-perm-area-titulo { display: flex; flex-direction: column; gap: 1px; min-width: 0 }
+.ad-perm-area-titulo em { font-style: normal; font-size: 12.5px; line-height: 1.4; color: var(--muted) }
+.ad-perm-area-acoes { display: inline-flex; gap: 12px; flex: 0 0 auto }
+/* Em tela estreita o "marcar tudo / limpar" desce: lado a lado, ele passava por
+   cima da descrição da seção. */
+@media (max-width: 560px) {
+  .ad-perm-area-topo { flex-direction: column; align-items: flex-start; gap: 6px }
+}
 .ad-perm-mini { border: 0; background: none; padding: 0; font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer }
 .ad-perm-mini:hover { color: var(--coral) }
-.ad-perms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px }
-.ad-perm { display: flex; align-items: flex-start; gap: 11px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); cursor: pointer; transition: border-color .18s var(--e) }
-.ad-perm:hover { border-color: var(--coral) }
-.ad-perm input { margin-top: 3px; width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--coral); cursor: pointer }
-.ad-perm span { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
-.ad-perm strong { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--ink) }
-.ad-perm em { font-style: normal; font-size: 13px; line-height: 1.4; color: var(--muted) }
-.ad-perm.is-travado { opacity: .55; cursor: not-allowed }
-.ad-perm.is-travado:hover { border-color: var(--line) }
-.ad-perm.is-travado input { cursor: not-allowed }
+.ad-perms { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px }
+
+/* Uma página = um bloco, com o nome em cima e as ações embaixo. As ações ficam
+   em fila, e quando não cabem elas quebram (não encolhem): "arrumar" espremido
+   a ponto de virar "arr…" seria pior que uma segunda linha. */
+.ad-perm-pagina { display: flex; flex-direction: column; gap: 9px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2) }
+.ad-perm-pagina-nome { display: flex; flex-direction: column; gap: 2px; margin: 0; min-width: 0 }
+.ad-perm-pagina-nome strong { font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--ink) }
+.ad-perm-pagina-nome em { font-style: normal; font-size: 13px; line-height: 1.4; color: var(--muted) }
+.ad-perm-acoes { display: flex; flex-wrap: wrap; gap: 8px }
+.ad-perm-acao { display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); font-size: 13.5px; line-height: 1; color: var(--ink-2); cursor: pointer; transition: border-color .18s var(--e), color .18s var(--e) }
+.ad-perm-acao:hover { border-color: var(--coral) }
+.ad-perm-acao input { width: 15px; height: 15px; flex: 0 0 auto; accent-color: var(--coral); cursor: pointer }
+.ad-perm-acao:has(input:checked) { border-color: var(--coral); color: var(--coral); font-weight: 600 }
+.ad-perm-acao.is-travado { opacity: .55; cursor: not-allowed }
+.ad-perm-acao.is-travado:hover { border-color: var(--line) }
+.ad-perm-acao.is-travado input { cursor: not-allowed }
+
+/* ---------- pontos: o ajuste manual ---------- */
+/* Fica DENTRO do extrato, não num modal: quem lança um ajuste precisa estar
+   olhando pro extrato enquanto escreve o motivo. */
+.ad-ajuste { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; background: var(--paper-2) }
 
 /* ---------- tua conta ---------- */
 .ad-duas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start }

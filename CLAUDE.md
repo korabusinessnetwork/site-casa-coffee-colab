@@ -1292,37 +1292,41 @@ de lugar nenhum do site público. Quem decide se a pessoa entra é o **banco**, 
 `pode_entrar_no_console()` + `tem_permissao(...)` (0017), e enquanto a senha inicial não
 for trocada de verdade a conta não tem privilégio nenhum (0032).
 
-**As 19 abas** (o `perm` de cada uma está no array `NAV` do `admin.js`; `tudo` = owner vê
-todas). Todas as funções que o console chama foram rodadas contra um banco de verdade em
-13/ago/2026 (depois da `0042`) e de novo em 17/ago (depois da `0043`/`0044`), e todas
-respondem:
+**As 21 abas**, agrupadas por **seção do site** (é assim que a `0047` organiza as
+permissões, e é assim que a casa pensa quando decide quem cuida do quê). O `perm` de cada
+aba é o `<pagina>.ver` dela, no array `NAV` do `admin.js`; `tudo` = owner vê todas. Todas
+as funções que o console chama foram rodadas contra um banco de verdade em 13/ago/2026
+(depois da `0042`), em 17/ago (depois da `0043`/`0044`) e de novo depois da `0047`, com
+uma pessoa de cada nível chamando cada função, e todas respondem:
 
-> **A auditoria anterior (mesma data) foi feita com as respostas do banco simuladas no
-> navegador**, e por isso deu tudo certo enquanto cinco abas estavam quebradas no banco de
-> verdade desde a 0017 (ver `0042` na lista de migrations). Tela que renderiza não é prova
-> de função que responde: pra valer, a função tem que ser **chamada**.
+> **A auditoria de 13/ago foi feita com as respostas do banco simuladas no navegador**, e
+> por isso deu tudo certo enquanto cinco abas estavam quebradas no banco de verdade desde a
+> 0017 (ver `0042` na lista de migrations). Tela que renderiza não é prova de função que
+> responde: pra valer, a função tem que ser **chamada**.
 
-| Aba | Permissão | O que faz |
-|-----|-----------|-----------|
-| painel | `dashboard` | os números do dia (`admin_dashboard`) |
-| **pautas** | `pautas` | **novo:** o quadro de briefings da equipe (0043) |
-| pedidos | `pedidos` | fila da loja + baixa de retirada/entrega (a baixa é a ação `entregas`) |
-| resgates | `resgates` | recompensas resgatadas, baixa em mãos |
-| aniversários | `aniversarios` | os brunches reservados (0025) |
-| presentes | `presentes` | os planos dados de presente (0041) |
-| pessoas | `usuarios` | quem já passou por aqui, com plano e pontos |
-| mural | `mural` | moderar a parede do `/o-casa` (0020/0044) |
-| relatórios | `relatorios` | o que vendeu e o que saiu por pontos |
-| favoritos | `favoritos` | ranking do cardápio (0027) |
-| desejos | `desejos` | ranking da loja (0029) |
-| esperando | `reposicao` | quem espera reposição (0030) |
-| lista de espera | `lista_espera` | e-mails do rodapé (0031/0034) |
-| eventos | `leads` | pedidos de evento (0040) |
-| equipe | `equipe` | dar e tirar permissões |
-| recados | `avisos` | a tarja no topo do site (0022) |
-| trilha | `trilha` | playlists da home (0023) |
-| agenda | `agenda` | encontros da casa (0026) |
-| tua conta | livre | trocar a própria senha |
+| Seção | Aba | Ações que existem nela | O que faz |
+|-------|-----|------------------------|-----------|
+| o dia a dia | painel | ver | os números do dia (`admin_dashboard`) |
+| o dia a dia | pautas | ver · mexer · arrumar | o quadro de briefings da equipe (0043/0045) |
+| a loja | pedidos | ver · mexer · arrumar | fila da loja, baixa de entrega/retirada, e arrumar o estado |
+| a loja | relatórios | ver | o que vendeu e o que saiu por pontos |
+| a loja | desejos | ver | ranking da loja (0029) |
+| a loja | esperando | ver | quem espera reposição (0030) |
+| o clube | **assinaturas** | ver · arrumar | **nova (0047):** quem assina, e esticar o período pago |
+| o clube | **pontos** | ver · arrumar | **nova (0047):** o extrato de cada pessoa, e o ajuste manual |
+| o clube | resgates | ver · mexer · arrumar | recompensas trocadas, baixa em mãos, e desfazer devolvendo os pontos |
+| o clube | presentes | ver · arrumar | os planos dados de presente (0041), e gerar o código que faltou |
+| o clube | aniversários | ver · mexer · arrumar | os brunches reservados (0025), a baixa, e esticar a validade |
+| o cardápio | favoritos | ver | ranking do cardápio (0027) |
+| a casa | mural | ver · mexer · arrumar | esconder (reversível) e apagar a parede do `/o-casa` (0020/0044) |
+| a casa | recados | ver · mexer · arrumar | a tarja no topo do site (0022) |
+| a casa | trilha | ver · mexer · arrumar | playlists da home (0023) |
+| a casa | agenda | ver · mexer · arrumar | encontros da casa (0026) |
+| a gente | pessoas | ver | quem já passou por aqui, com plano e pontos |
+| a gente | lista de espera | ver · arrumar | e-mails do rodapé (0031/0034), e tirar quem pediu pra sair |
+| os eventos | eventos | ver · mexer · arrumar | pedidos de evento (0040), atender e apagar |
+| o console | equipe | ver · mexer | dar e tirar permissões |
+| (livre) | tua conta | livre | trocar a própria senha, e ver o que se alcança |
 
 - **Permissão não é cargo, e isso tem consequência.** A `admin_definir_permissoes` grava
   em `staff_permissions` e **nunca toca em `profiles.role`** (o princípio da casa é "cargo
@@ -1334,34 +1338,81 @@ respondem:
   por RPC gated em `tem_permissao`**, nunca por tabela direta. Hoje **nenhuma** aba escreve
   direto (o `admin.js` não tem mais um `supabase.from(` sequer).
 - **`mural`** modera por três RPCs da `0044` (`admin_mural_listar`/`_status`/`_remover`),
-  gated por `tem_permissao('usuarios')`. A trigger da `0036` segue por baixo impedindo que
+  hoje gated por `mural.ver`, `mural.mexer` e `mural.arrumar` (a 0044 as pôs em
+  `tem_permissao('usuarios')`; a 0046 passou pra `mural` e a 0047 separou as três). A trigger da `0036` segue por baixo impedindo que
   qualquer um reescreva `texto`/`autor_nome`/`user_id`: dá pra esconder e apagar, **nunca**
   pra pôr na parede uma frase que a pessoa não escreveu. "Esconder" é reversível e resolve
   quase tudo; "apagar" passa por confirmação e fica registrado no `audit_log` **com o texto
   apagado** (apagar da parede não pode apagar também a memória do que era).
-- **`presentes`** é **só leitura** (RPC `admin_presentes`, 0041). O código do presente é
-  **título ao portador**, então mora na permissão `resgates`, a mesma de quem já entrega
-  recompensa em mãos, e não na mais larga do console. O **bilhete** que o comprador
-  escreveu **não** vem na RPC: é recado de uma pessoa pra outra.
-- **Uma permissão por PÁGINA (`0046`), e a régua mora no banco.** Eram 8 permissões pra 19
-  abas, e isso grudava coisas que não combinam: quem recebia `relatorios` pra ver o que a
-  loja vendeu levava junto a lista de e-mails do rodapé e os pedidos de evento (com nome e
-  telefone de quem pediu); quem recebia `resgates` pra entregar recompensa levava junto os
-  códigos dos presentes vendidos. Agora **cada aba pede a permissão dela**, e as três que
-  eram do dono (recados, trilha, agenda) **passaram a ser delegáveis**: as funções delas
-  perguntavam `is_owner()` e hoje perguntam `tem_permissao(...)`, o que **não tira nada do
-  dono** (a `tem_permissao` responde verdadeiro pra owner em qualquer slug). Na virada,
-  **ninguém perdeu acesso**: a 0046 faz backfill de quem tinha a permissão larga pras que
-  saíram de dentro dela.
-- **A aba equipe mostra as 19 em cinco áreas** (o dia a dia; a loja e o balcão; a gente; o
-  que a casa lê; o que a casa publica), com **"marcar tudo"/"limpar" por área** e uma linha
-  de resumo que diz, em português, quais abas a pessoa alcança com o que está marcado. Numa
-  grade corrida de 19 caixinhas ninguém acha o que procura, e é justamente aqui que se
-  decide quem vê o quê.
-- **Ainda sem aba** (verificado em 13/ago/2026, ficaram de fora a pedido): assinaturas,
-  conquistas (ligar/desligar), indicações e o extrato bruto de pontos. As três primeiras
-  **não precisariam de migration** (as policies de `subscriptions`, `achievements` e
-  `points_ledger` já liberam staff); indicações precisaria.
+- **`presentes`** é leitura mais dois consertos (RPC `admin_presentes` da 0041 +
+  `admin_presente_arrumar` da 0047). O código do presente é **título ao portador**, então a
+  página tem permissão própria e não anda junto com a de resgates. O **bilhete** que o
+  comprador escreveu **não** vem na RPC: é recado de uma pessoa pra outra.
+- **Ainda sem aba** (ficaram de fora a pedido): conquistas (ligar/desligar) e indicações. A
+  primeira **não precisaria de migration** (a policy de `achievements` já libera staff); a
+  segunda precisaria. Assinaturas e o extrato de pontos, que também estavam nesta lista,
+  **entraram com a 0047**.
+
+### Permissão por seção do site, e por ação (`0047`)
+
+O pedido foi: *"um agrupamento de permissões por seção do site; página de vendas, algumas
+permissões de ação; página de resgate/presentes, permissões de quem enxerga, de quem mexe,
+de quem arruma."* O desenho tem **três camadas**, e as três moram no banco:
+
+- **SEÇÃO** — um pedaço do site: o dia a dia, a loja, o clube, o cardápio, a casa, a gente,
+  os eventos, o console. É por aqui que a tela da equipe agrupa, então quem dá acesso
+  raciocina *"essa pessoa cuida da loja"*, não *"essa pessoa precisa das caixinhas 3, 7 e 12"*.
+- **PÁGINA** — uma tela do console dentro daquela seção. É o que a 0046 chamava de permissão.
+- **AÇÃO** — o que se faz naquela página, em três níveis fixos: **ver** (enxergar), **mexer**
+  (o dia a dia: dar baixa, publicar, atender) e **arrumar** (o que desfaz, apaga ou mexe em
+  ponto, código e dinheiro; sempre com rastro no `audit_log`).
+
+O slug ficou `<pagina>.<acao>` (`pedidos.ver`, `mural.arrumar`), e quem tem um nível
+**alcança os de baixo na mesma página** (arrumar > mexer > ver): ninguém fica podendo
+consertar uma tela que não pode abrir. São **8 seções, 20 páginas, 43 permissões**.
+
+- **O whitelist virou TABELA.** Era um CHECK escrito à mão, que a 0043 e a 0046 já tiveram
+  que reescrever; agora são as tabelas `permissao_secoes` › `permissao_paginas` ›
+  `permissoes`, com FK vinda da `staff_permissions`. **Permissão nova daqui pra frente é
+  INSERT numa tabela de catálogo, não `alter constraint`.**
+- **O catálogo não é repetido no front.** A tela da equipe monta o que vier da
+  `admin_permissoes_catalogo()`. Enquanto a lista estava escrita nos dois lugares, ela
+  divergia, e a que a tela mostrava não era a que o banco cobrava.
+- **A ponte com os slugs velhos** (`permissoes_legado` + `permissao_canonica`): as funções e
+  as policies que a 0047 não reescreve continuam perguntando pelo slug da 0046
+  (`tem_permissao('favoritos')`) e caem no `favoritos.ver`. Sem isso, aplicar a 0047
+  apagaria o acesso de todo mundo até a última função ser reescrita. **Cuidado ao escrever
+  função nova:** o slug velho resolve pro nível de LEITURA, então gate novo se escreve
+  sempre no formato `<pagina>.<acao>`.
+- **`admin_minhas_permissoes` devolve a lista já EXPANDIDA** (quem tem `mural.arrumar`
+  recebe `mural.mexer` e `mural.ver` junto), e o front só pergunta `pode('mural.ver')`. A
+  regra da hierarquia é do banco; o front não repete régua de permissão.
+- **A tela da equipe** (`/admin#equipe`) mostra seção por seção, cada página com as
+  caixinhas das ações dela, **"marcar tudo"/"limpar" por seção**, e uma linha de resumo em
+  português ("alcança 6 de 20 páginas: …, e arruma o mural"). Marcar um nível acende os de
+  baixo; desmarcar apaga os de cima, pra a tela nunca mostrar um acesso que não é o que a
+  pessoa tem. A página **equipe** é a única que só o dono delega.
+- **Na virada ninguém perdeu nada:** a 0047 faz backfill de cada slug da 0046 pra fila do
+  que aquela pessoa já fazia. `mural`, `avisos`, `trilha` e `agenda` levam o `arrumar` junto
+  (apagar já estava dentro delas); `resgates`, `aniversarios` e `leads` param no `mexer`. O
+  `arrumar` de pedido, ponto, presente e assinatura **não vai pra ninguém automaticamente**:
+  é poder novo, e poder novo se dá na mão.
+
+### O "arrumar" existe de verdade
+
+Permissão que não abre porta nenhuma é enfeite. A 0047 entrega, junto, os consertos que a
+casa não tinha como fazer sem SQL na mão, e cada um deles deixa rastro no `audit_log`:
+
+| Conserto | Função | Por que precisava existir |
+|----------|--------|---------------------------|
+| desfazer resgate | `admin_resgate_desfazer` | o ledger é append-only, então resgate clicado sem querer custava os pontos **pra sempre**. Devolve os pontos (idempotente pelo índice `(ref_type, ref_id)`), volta o estoque e tira o cupom de circulação |
+| ajustar pontos | `admin_pontos_ajustar` | webhook que falhou, ponto que caiu duplicado, cortesia. Lançamento no ledger com **motivo obrigatório**, teto de 5.000 por vez, saldo pode ficar negativo (igual ao estorno do webhook) |
+| arrumar pedido | `admin_pedido_status` | a baixa da 0017 era só de ida: marcou entregue no pedido errado e a fila mentia pra sempre. `pendente` e `estornado` seguem fechados, ali quem manda é o gateway |
+| gerar o código do presente | `admin_presente_arrumar` | presente **pago sem código** (o webhook caiu entre o pagamento e a `marcar_presente_pago`): quem pagou ficava com um presente que não existe. Também cancela um `pendente` parado. Presente pago **não** se cancela por aqui |
+| desfazer/esticar o brunch | `admin_brinde_arrumar` | baixa no código errado, e quem não conseguiu vir nos 30 dias |
+| esticar a assinatura | `admin_assinatura_esticar` | dias de cortesia no período já pago. **Não cobra, não estorna e não contradiz o Asaas** (lá o ciclo segue igual); pausar, retomar, subir e descer de plano continuam nas Edge Functions |
+| tirar da lista de espera | `admin_espera_remover` | "me tira dessa lista" é direito de quem deixou o e-mail. O endereço **não** vai pro `audit_log`, só o domínio: apagar da tela e guardar na gaveta não é apagar |
+| apagar pedido de evento | `admin_lead_evento_remover` | mesmo caso, com nome e telefone. O audit guarda só o tipo do evento |
 - **A faixa de abas gruda no topo em tela estreita.** Abaixo de 900px a lateral escura vira
   uma faixa no topo, e ela era `position: static`: numa aba comprida bastava rolar um pouco
   e **a navegação inteira saía da tela**, deixando o conteúdo solto no fundo bege, com cara
@@ -1612,9 +1663,12 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **Banco em dia (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no SQL Editor
-  (as `0040` e `0041` em 13/ago) e a leva **`0042` → `0046` em 17/ago**, então **não há
-  migration pendente**. A numeração livre pra próxima é a **`0047`**. O
+- **PENDENTE: a `0047_permissoes_por_secao`.** É a única que falta rodar no SQL Editor.
+  Sem ela, o console segue funcionando com as permissões da 0046 (o front novo pergunta por
+  `<pagina>.ver`, então **a aba equipe e as abas todas ficam vazias até aplicar**). Depois
+  de aplicar, a numeração livre pra próxima é a **`0048`**.
+- **Banco em dia até a `0046` (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no
+  SQL Editor (as `0040` e `0041` em 13/ago) e a leva **`0042` → `0046` em 17/ago**. O
   front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
@@ -1899,6 +1953,28 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   delegar. Tem **backfill**: quem já tinha `resgates`, `usuarios` ou `relatorios` recebe,
   uma a uma, as permissões que saíram de dentro delas, então ninguém perde acesso na
   virada.
+- **`0047_permissoes_por_secao` — PENDENTE (a única que falta).** Permissão por **seção do
+  site** e por **ação**: as tabelas de catálogo `permissao_secoes` › `permissao_paginas` ›
+  `permissoes` (8 seções, 20 páginas, 43 permissões `<pagina>.<acao>`), o FK vindo da
+  `staff_permissions` no lugar do CHECK escrito à mão, a `permissao_canonica` traduzindo os
+  slugs da 0046, e a `tem_permissao` com hierarquia (arrumar > mexer > ver, dentro da mesma
+  página). Reescreve **25 funções** só pra separar quem mexe de quem enxerga (o corpo é
+  idêntico ao que está no ar, extraído da última versão de cada uma), reapronta as **8
+  policies** que falavam os slugs velhos, e cria **12 funções novas**: as duas páginas que
+  faltavam (`admin_assinaturas`, `admin_pontos_extrato`/`_pessoas`) e os oito consertos do
+  "arrumar". Tem **backfill**, então ninguém perde acesso na virada.
+  > **A ordem interna dela é frágil de propósito e está comentada no arquivo:** o CHECK da
+  > 0046 tem que sair ANTES do backfill (senão `pedidos.ver` é valor proibido e o insert
+  > morre na primeira linha), e o FK só entra DEPOIS de as linhas velhas saírem. Foi
+  > exatamente esse o defeito que o teste com dado de verdade pegou, e que um banco vazio
+  > não teria mostrado.
+  > **Como foi verificada:** as 48 migrations rodaram do zero num Postgres local (os stubs
+  > do `auth`/`storage` que o CLAUDE.md já descrevia na 0042), a 0047 rodou **duas vezes**
+  > pra provar idempotência, o corpo das 25 funções reescritas foi comparado com
+  > `pg_get_functiondef` antes e depois (**só a linha da trava mudou, nas 25**), e as 46
+  > funções do console foram **chamadas** por cinco pessoas de permissões diferentes: só
+  > enxerga, mexe, arruma, o dono e um cliente sem nada. 230 chamadas, todas com o
+  > allow/deny esperado.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

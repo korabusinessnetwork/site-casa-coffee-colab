@@ -100,7 +100,53 @@ from (values
   ('0036_mural_cantinho',   exists (select 1 from pg_trigger
                                      where tgname = 'trg_prevent_mural_content_tamper'
                                        and not tgisinternal),
-                            'trigger trg_prevent_mural_content_tamper')
+                            'trigger trg_prevent_mural_content_tamper'),
+
+  ('0037_dicas_sem_traco',  not exists (select 1 from public.achievements
+                                         where dica like '%' || chr(8212) || '%'),
+                            'nenhuma dica de conquista com travessão'),
+
+  ('0038_cardapio_conq',    exists (select 1 from public.achievements where slug like 'cardapio-%'),
+                            'as conquistas do cardápio (desligadas)'),
+
+  ('0039_slug_carne',       exists (select 1 from public.achievements
+                                     where slug = 'cardapio-carne-de-panela'
+                                       and criterios::text like '%sanduiches-carne-de-panela%'),
+                            'o slug da carne de panela no plural'),
+
+  ('0040_leads_evento',     to_regclass('public.leads_evento') is not null,
+                            'tabela leads_evento'),
+
+  ('0041_admin_presentes',  to_regprocedure('public.admin_presentes(text,text,int)') is not null,
+                            'função admin_presentes'),
+
+  -- A 0042 não cria objeto: ela CONSERTA seis funções que declaravam o e-mail do
+  -- auth como `text` sendo varchar. A pista é o cast que ela pôs no corpo.
+  ('0042_email_console',    exists (select 1 from pg_proc p
+                                      join pg_namespace n on n.oid = p.pronamespace
+                                     where n.nspname = 'public' and p.proname = 'admin_usuarios'
+                                       and pg_get_functiondef(p.oid) like '%u.email::text%'),
+                            'admin_usuarios com o e-mail convertido'),
+
+  ('0043_pautas',           to_regclass('public.pautas') is not null,
+                            'tabela pautas'),
+
+  ('0044_mural_permissao',  to_regprocedure('public.admin_mural_listar(text,text,int)') is not null,
+                            'função admin_mural_listar'),
+
+  ('0045_quadros',          to_regclass('public.pauta_quadros') is not null,
+                            'tabela pauta_quadros'),
+
+  -- A 0046 também não cria objeto: ela separa as permissões página por página.
+  -- A pista é a trava que ela pôs na aba de favoritos (que a 0047 não mexeu).
+  ('0046_perm_por_pagina',  exists (select 1 from pg_proc p
+                                      join pg_namespace n on n.oid = p.pronamespace
+                                     where n.nspname = 'public' and p.proname = 'admin_cardapio_favoritos'
+                                       and pg_get_functiondef(p.oid) like '%favoritos%'),
+                            'admin_cardapio_favoritos pedindo a permissão dela'),
+
+  ('0047_perm_por_secao',   to_regclass('public.permissoes') is not null,
+                            'catálogo de permissões (seção › página › ação)')
 
 ) as t(migration, aplicada, pista)
 order by migration;

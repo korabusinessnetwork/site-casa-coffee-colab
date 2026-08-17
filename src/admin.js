@@ -60,6 +60,10 @@ import {
   MessageSquare,
   CircleDot,
   UserPlus,
+  BadgeCheck,
+  Coins,
+  Wrench,
+  SlidersHorizontal,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -111,6 +115,10 @@ const LUCIDE_ICONS = {
   MessageSquare,
   CircleDot,
   UserPlus,
+  BadgeCheck,
+  Coins,
+  Wrench,
+  SlidersHorizontal,
 };
 
 function renderIcons() {
@@ -263,6 +271,10 @@ const estado = {
   aba: null,
 };
 
+// `estado.perms.permissoes` vem do banco JÁ EXPANDIDO (a 0047 resolve a
+// hierarquia lá dentro: quem tem `mural.arrumar` recebe `mural.mexer` e
+// `mural.ver` na mesma lista). Aqui só se pergunta pelo slug exato — a régua
+// mora no banco, e o front não repete regra de permissão.
 function pode(slug) {
   if (!estado.perms) return false;
   if (estado.perms.tudo) return true;
@@ -270,116 +282,68 @@ function pode(slug) {
 }
 
 // ===== NAVEGAÇÃO ====================================================
-// 'entregas' não vira aba: é a permissão de dar baixa, e o botão dela mora
-// dentro de "pedidos".
+// Cada aba pede o `ver` da PÁGINA dela. O que se FAZ dentro da aba (dar baixa,
+// publicar, apagar) pede `<pagina>.mexer` ou `<pagina>.arrumar`, e isso é
+// perguntado no botão, não aqui: dá pra enxergar uma tela inteira sem poder
+// mexer em nada dela.
 const NAV = [
-  { id: 'painel', rotulo: 'painel', icone: 'layout-dashboard', perm: 'dashboard' },
-  // O quadro de pautas (0043) vem logo depois do painel porque é por onde o dia
-  // começa pra quem trabalha no salão: o que a casa combinou pra hoje. É a
-  // única aba com permissão PRÓPRIA e grantável ('pautas', que a 0043 abriu no
-  // whitelist), justamente pra poder existir sem dar junto pedido nem cadastro.
-  { id: 'pautas', rotulo: 'pautas', icone: 'clipboard-list', perm: 'pautas' },
-  { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos' },
-  { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates' },
-  // Brunch de aniversário: quem confere/dá baixa no balcão é a mesma gente dos
-  // resgates (é uma recompensa entregue em mãos) — reusa a permissão 'resgates',
-  // sem permissão nova no whitelist do 0017.
-  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'aniversarios' },
-  // Presentes vendidos (0041). O código é título ao portador — quem tem o texto
-  // resgata um mês de plano —, então fica na mesma permissão de quem já entrega
-  // recompensa em mãos, não na mais larga do console.
-  { id: 'presentes', rotulo: 'presentes', icone: 'gift', perm: 'presentes' },
-  { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
-  // Moderação do Mural do /o-casa. As policies da 0020 já dão à equipe o direito
-  // de ver tudo, esconder e apagar; faltava a tela. Fica em 'usuarios' porque é
-  // cuidar do que a turma escreve, não relatório.
-  { id: 'mural', rotulo: 'mural', icone: 'sticky-note', perm: 'mural' },
-  { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
-  // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
-  // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
-  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'favoritos' },
-  // "o que a casa mais quer" — a lista de desejos da loja. Também é relatório,
-  // mesma permissão 'relatorios'.
-  { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'desejos' },
-  // "quem espera reposição" — os avisos de produto esgotado. Relatório que guia a
-  // reposição, mesma permissão 'relatorios'.
-  { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'reposicao' },
-  // "quem deixou o e-mail" — a lista de espera do rodapé (0031). Também é leitura
-  // de interesse, mesma permissão 'relatorios'.
-  { id: 'espera', rotulo: 'lista de espera', icone: 'mail', perm: 'lista_espera' },
-  // "quem quer fazer evento aqui" — os pedidos da página /eventos (0040). É a
-  // fila comercial da casa, mas continua sendo leitura de interesse: mesma
-  // permissão 'relatorios', sem precisar mexer no whitelist fechado da 0017.
-  // Note que é OUTRA coisa que a aba 'agenda', que é dos encontros que a casa
-  // promove; esta é de quem quer alugar a casa pro evento dele.
-  { id: 'leads', rotulo: 'eventos', icone: 'party-popper', perm: 'leads' },
-  { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
-  // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
-  // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
-  // 'tudo' (adm do Casa) vê; ninguém mais recebe. Abrir pra delegar pediria migration.
-  { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'avisos' },
-  // Trilha do Casa (playlists): owner-only, mesma lógica do 'avisos' (não grantável).
-  { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha' },
-  // Agenda (encontros): owner-only, mesma lógica (perm 'eventos' não grantável).
-  { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'agenda' },
+  { id: 'painel', rotulo: 'painel', icone: 'layout-dashboard', perm: 'painel.ver' },
+  // O quadro de pautas (0043/0045) vem logo depois do painel porque é por onde o
+  // dia começa pra quem trabalha no salão: o que a casa combinou pra hoje.
+  { id: 'pautas', rotulo: 'pautas', icone: 'clipboard-list', perm: 'pautas.ver' },
+  { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos.ver' },
+  { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates.ver' },
+  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'aniversarios.ver' },
+  // Presentes vendidos (0041). O código é título ao portador, quem tem o texto
+  // resgata um mês de plano, então a página tem permissão própria.
+  { id: 'presentes', rotulo: 'presentes', icone: 'gift', perm: 'presentes.ver' },
+  // As duas telas que a 0047 abriu, e que eram os dois buracos do console: a
+  // casa não conseguia OLHAR uma assinatura nem o extrato de pontos de ninguém,
+  // que é justamente o que a pessoa liga pra perguntar.
+  { id: 'assinaturas', rotulo: 'assinaturas', icone: 'badge-check', perm: 'assinaturas.ver' },
+  { id: 'pontos', rotulo: 'pontos', icone: 'coins', perm: 'pontos.ver' },
+  { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'pessoas.ver' },
+  { id: 'mural', rotulo: 'mural', icone: 'sticky-note', perm: 'mural.ver' },
+  { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios.ver' },
+  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'favoritos.ver' },
+  { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'desejos.ver' },
+  { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'reposicao.ver' },
+  { id: 'espera', rotulo: 'lista de espera', icone: 'mail', perm: 'espera.ver' },
+  // "quem quer fazer evento aqui" — os pedidos da página /eventos (0040). Note
+  // que é OUTRA coisa que a aba 'agenda', que é dos encontros que a casa
+  // promove; esta é de quem quer usar a casa pro evento dele.
+  { id: 'leads', rotulo: 'eventos', icone: 'party-popper', perm: 'leads.ver' },
+  { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe.ver' },
+  { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'recados.ver' },
+  { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha.ver' },
+  { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'agenda.ver' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
-// As permissões, em áreas. Uma por PÁGINA do console (e as ações que não têm
-// página própria, como dar baixa em pedido), pra a casa poder abrir uma aba sem
-// abrir a de al lado. Antes eram 8 pra 19 abas, e isso grudava coisas que não
-// combinam: quem via relatório de venda levava junto a lista de e-mails do
-// rodapé e os pedidos de evento, com nome e telefone de quem pediu. A 0046
-// separou, e o banco é quem cobra (cada função pede a permissão da própria
-// página).
-const AREAS_PERMISSAO = [
-  {
-    titulo: 'o dia a dia',
-    itens: [
-      { slug: 'dashboard', rotulo: 'o painel', descricao: 'os números do dia' },
-      { slug: 'pautas', rotulo: 'o quadro de pautas', descricao: 'ler e escrever os briefings da equipe' },
-    ],
-  },
-  {
-    titulo: 'a loja e o balcão',
-    itens: [
-      { slug: 'pedidos', rotulo: 'os pedidos', descricao: 'a fila de compras da loja' },
-      { slug: 'entregas', rotulo: 'dar baixa em pedido', descricao: 'confirmar entregue ou retirado' },
-      { slug: 'resgates', rotulo: 'os resgates', descricao: 'ver e entregar recompensas' },
-      { slug: 'aniversarios', rotulo: 'os aniversários', descricao: 'os brunches reservados, e dar baixa' },
-      { slug: 'presentes', rotulo: 'os presentes', descricao: 'os planos dados de presente, com o código' },
-    ],
-  },
-  {
-    titulo: 'a gente',
-    itens: [
-      { slug: 'usuarios', rotulo: 'as pessoas', descricao: 'quem já passou por aqui' },
-      { slug: 'mural', rotulo: 'o mural', descricao: 'moderar a parede do /o-casa' },
-      { slug: 'equipe', rotulo: 'cuidar da equipe', descricao: 'dar e tirar permissões' },
-    ],
-  },
-  {
-    titulo: 'o que a casa lê',
-    itens: [
-      { slug: 'relatorios', rotulo: 'os relatórios', descricao: 'o que vendeu e o que saiu por pontos' },
-      { slug: 'favoritos', rotulo: 'favoritos do cardápio', descricao: 'o que a casa mais ama' },
-      { slug: 'desejos', rotulo: 'desejos da loja', descricao: 'o que a casa mais quer' },
-      { slug: 'reposicao', rotulo: 'quem espera reposição', descricao: 'produto esgotado com fila' },
-      { slug: 'lista_espera', rotulo: 'a lista de espera', descricao: 'os e-mails deixados no rodapé' },
-      { slug: 'leads', rotulo: 'pedidos de evento', descricao: 'quem quer fazer evento aqui (nome e telefone)' },
-    ],
-  },
-  {
-    titulo: 'o que a casa publica',
-    itens: [
-      { slug: 'avisos', rotulo: 'o recado do topo', descricao: 'a tarja que aparece no site' },
-      { slug: 'trilha', rotulo: 'a trilha', descricao: 'as playlists da home' },
-      { slug: 'agenda', rotulo: 'a agenda', descricao: 'os encontros que a casa promove' },
-    ],
-  },
-];
+// O catálogo de permissões (seção › página › ação) NÃO mora aqui: mora no banco,
+// nas tabelas da 0047, e chega pela `admin_permissoes_catalogo`. Foi uma escolha:
+// enquanto a lista era escrita nos dois lugares, ela divergia, e a que a tela
+// mostrava não era a que o banco cobrava. Aqui fica só o cache da resposta.
+let catalogoPermissoes = null;
 
-const PERMISSOES = AREAS_PERMISSAO.flatMap((a) => a.itens);
+async function carregarCatalogo() {
+  if (catalogoPermissoes) return catalogoPermissoes;
+  const dados = await rpc('admin_permissoes_catalogo');
+  catalogoPermissoes = Array.isArray(dados) ? dados : [];
+  return catalogoPermissoes;
+}
+
+// Todas as ações do catálogo, achatadas, pra contar e procurar.
+function todasAsAcoes(secoes) {
+  return (secoes || []).flatMap((s) => (s.paginas || []).flatMap((p) => p.acoes || []));
+}
+
+// Quando a pessoa só ENXERGA a página, o que ela não pode fazer nem aparece, e
+// no lugar fica um recado dizendo por quê. Tela sem explicação vira "tá
+// quebrado"; o banco barra de qualquer jeito, isto é pra não oferecer.
+function soLeitura(texto) {
+  return `<div class="notice info"><p>${escapeHtml(texto)}</p></div>`;
+}
 
 const ROTULO_PAPEL = {
   owner: 'adm do Casa',
@@ -717,7 +681,8 @@ function zerarEstadoDasAbas() {
   recadoEditando = null;
   trilhaEditando = null;
   agendaEditando = null;
-  [filtrosBrindes, filtrosPresentes, filtrosMural, filtrosLeads, estadoQuadro].forEach((f) => {
+  pontosPessoa = null;
+  [filtrosBrindes, filtrosPresentes, filtrosMural, filtrosLeads, filtrosAssinaturas, estadoQuadro].forEach((f) => {
     f.busca = '';
   });
 }
@@ -755,6 +720,8 @@ function abrirDoHash() {
     resgates: viewResgates,
     aniversarios: viewAniversarios,
     presentes: viewPresentes,
+    assinaturas: viewAssinaturas,
+    pontos: viewPontos,
     pessoas: viewPessoas,
     mural: viewMural,
     relatorios: viewRelatorios,
@@ -814,7 +781,7 @@ async function viewPainel(view) {
           .join('')}
       </div>
       ${
-        Number(d.a_entregar) + Number(d.a_retirar) > 0 && pode('pedidos')
+        Number(d.a_entregar) + Number(d.a_retirar) > 0 && pode('pedidos.ver')
           ? `<div class="notice info"><p>tem gente esperando: <a class="form-link" href="#pedidos">ver os pedidos abertos</a>.</p></div>`
           : ''
       }`;
@@ -1837,6 +1804,9 @@ async function carregarPedidos(corpo) {
     $$('[data-baixa]', corpo).forEach((botao) => {
       botao.addEventListener('click', () => darBaixaPedido(botao, corpo));
     });
+    $$('[data-pedido-arrumar]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => arrumarPedido(botao, corpo));
+    });
   } catch (e) {
     erroNaTela(corpo, e);
   }
@@ -1866,7 +1836,11 @@ function cardPedido(p) {
   const modo = p.modo_entrega === 'retirada' ? 'retirada' : 'entrega';
   const itens = Array.isArray(p.itens) ? p.itens : [];
   const aberto = ['pago', 'preparando', 'pronto'].includes(p.status);
-  const podeBaixar = aberto && pode('entregas');
+  const podeBaixar = aberto && pode('pedidos.mexer');
+  // Arrumar é pra quando a fila passou a mentir: baixa dada no pedido errado,
+  // pedido que voltou pro forno. 'pendente' e 'estornado' não entram, ali quem
+  // manda é o gateway (o banco recusa também, isto aqui é pra não oferecer).
+  const podeArrumar = pode('pedidos.arrumar') && !['pendente', 'estornado'].includes(p.status);
   const endereco = modo === 'entrega' ? enderecoDoPedido(p) : '';
 
   return `
@@ -1923,6 +1897,13 @@ function cardPedido(p) {
                  </button>`
               : ''
           }
+          ${
+            podeArrumar
+              ? `<button type="button" class="btn ghost sm" data-pedido-arrumar="${escapeHtml(p.id)}" data-status="${escapeHtml(p.status || '')}">
+                   <i data-lucide="wrench"></i>arrumar
+                 </button>`
+              : ''
+          }
         </div>
       </div>
     </article>`;
@@ -1950,6 +1931,44 @@ async function darBaixaPedido(botao, corpo) {
       return;
     }
     toast(r?.ja_estava ? 'esse já estava dado como entregue' : 'pronto, baixa confirmada 💛');
+    carregarPedidos(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
+  }
+}
+
+// Arrumar o estado do pedido na mão (permissão `pedidos.arrumar`). Existe porque
+// a baixa da 0017 era só de ida: marcou entregue no pedido errado e a fila
+// mentia pra sempre. Cancelar aqui tira da fila e não devolve dinheiro nenhum,
+// e a folhinha diz isso na cara.
+const ESTADOS_PEDIDO = [
+  { valor: 'pago', rotulo: 'pago, ainda não começou' },
+  { valor: 'preparando', rotulo: 'preparando' },
+  { valor: 'pronto', rotulo: 'pronto, esperando sair' },
+  { valor: 'entregue', rotulo: 'entregue ou retirado' },
+  { valor: 'cancelado', rotulo: 'cancelado' },
+];
+
+async function arrumarPedido(botao, corpo) {
+  const id = botao.dataset.pedidoArrumar;
+  const novo = await escolher({
+    titulo: 'em que pé está esse pedido?',
+    opcoes: ESTADOS_PEDIDO,
+    atual: botao.dataset.status,
+    rodape: '<p class="ad-dica">isso muda só a fila daqui. devolver o dinheiro de um pedido pago continua sendo no Asaas.</p>',
+  });
+  if (!novo || novo === botao.dataset.status) return;
+
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_pedido_status', { p_order_id: id, p_status: novo });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra arrumar esse pedido', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast('pronto, pedido arrumado 💛');
     carregarPedidos(corpo);
   } catch (e) {
     toast(e.message, 'erro');
@@ -2008,6 +2027,9 @@ async function carregarResgates(corpo) {
     $$('[data-usado]', corpo).forEach((botao) => {
       botao.addEventListener('click', () => darBaixaResgate(botao, corpo));
     });
+    $$('[data-resgate-desfazer]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => desfazerResgate(botao, corpo));
+    });
   } catch (e) {
     erroNaTela(corpo, e);
   }
@@ -2015,7 +2037,10 @@ async function carregarResgates(corpo) {
 
 function cardResgate(r) {
   const aberto = ['solicitado', 'aprovado'].includes(r.status);
-  const podeBaixar = aberto && pode('resgates');
+  const podeBaixar = aberto && pode('resgates.mexer');
+  // Desfazer devolve os pontos. Até a 0047 não existia jeito nenhum: o ledger é
+  // append-only, então resgate clicado sem querer custava os pontos pra sempre.
+  const podeDesfazer = r.status !== 'cancelado' && pode('resgates.arrumar');
   return `
     <article class="card ad-card">
       <div class="ad-card-topo">
@@ -2046,6 +2071,13 @@ function cardResgate(r) {
               ? `<button type="button" class="btn solid sm" data-usado="${escapeHtml(r.id)}"><i data-lucide="check"></i>entreguei</button>`
               : ''
           }
+          ${
+            podeDesfazer
+              ? `<button type="button" class="btn ghost sm" data-resgate-desfazer="${escapeHtml(r.id)}" data-pontos="${escapeHtml(String(r.pontos_gastos || 0))}">
+                   <i data-lucide="undo-2"></i>desfazer e devolver
+                 </button>`
+              : ''
+          }
         </div>
       </div>
     </article>`;
@@ -2067,6 +2099,34 @@ async function darBaixaResgate(botao, corpo) {
       return;
     }
     toast(r?.ja_estava ? 'esse já estava entregue' : 'pronto, resgate entregue 💛');
+    carregarResgates(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
+  }
+}
+
+async function desfazerResgate(botao, corpo) {
+  const pontos = formatNumero(botao.dataset.pontos || 0);
+  const ok = await confirmar({
+    titulo: 'desfazer esse resgate?',
+    texto: `os ${pontos} pontos voltam pro saldo da pessoa, a recompensa volta pro estoque e o cupom, se tinha um, sai de circulação. tudo isso fica registrado.`,
+    ok: 'sim, devolver os pontos',
+    tom: 'perigo',
+  });
+  if (!ok) return;
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_resgate_desfazer', {
+      p_redemption_id: botao.dataset.resgateDesfazer,
+      p_motivo: null,
+    });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra desfazer esse resgate', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast(r?.ja_estava ? 'esse resgate já estava desfeito' : `pronto, ${formatNumero(r?.devolvidos || 0)} pontos de volta 💛`);
     carregarResgates(corpo);
   } catch (e) {
     toast(e.message, 'erro');
@@ -2146,6 +2206,9 @@ async function carregarBrindes(corpo) {
     $$('[data-brinde-usar]', corpo).forEach((botao) => {
       botao.addEventListener('click', () => darBaixaBrinde(botao, corpo));
     });
+    $$('[data-brinde-arrumar]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => arrumarBrinde(botao, corpo));
+    });
   } catch (e) {
     erroNaTela(corpo, e);
   }
@@ -2153,7 +2216,10 @@ async function carregarBrindes(corpo) {
 
 function cardBrinde(b) {
   const ativo = b.situacao === 'ativo';
-  const podeBaixar = ativo && pode('resgates');
+  const podeBaixar = ativo && pode('aniversarios.mexer');
+  // Os dois consertos do brunch: a baixa dada no código errado, e a pessoa que
+  // não conseguiu vir dentro dos 30 dias.
+  const podeArrumar = pode('aniversarios.arrumar');
   const tag =
     b.situacao === 'usado'
       ? '<span class="tag">usado</span>'
@@ -2185,6 +2251,16 @@ function cardBrinde(b) {
               ? `<button type="button" class="btn solid sm" data-brinde-usar="${escapeHtml(b.id)}"><i data-lucide="cake"></i>brunch entregue</button>`
               : ''
           }
+          ${
+            podeArrumar && b.situacao === 'usado'
+              ? `<button type="button" class="btn ghost sm" data-brinde-arrumar="${escapeHtml(b.id)}" data-acao="desfazer"><i data-lucide="undo-2"></i>desfazer a baixa</button>`
+              : ''
+          }
+          ${
+            podeArrumar && b.situacao !== 'usado'
+              ? `<button type="button" class="btn ghost sm" data-brinde-arrumar="${escapeHtml(b.id)}" data-acao="esticar"><i data-lucide="calendar-clock"></i>esticar 30 dias</button>`
+              : ''
+          }
         </div>
       </div>
     </article>`;
@@ -2206,6 +2282,33 @@ async function darBaixaBrinde(botao, corpo) {
       return;
     }
     toast(r?.ja_estava ? 'esse brunch já estava dado como usado' : 'pronto, feliz aniversário 💛');
+    carregarBrindes(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
+  }
+}
+
+async function arrumarBrinde(botao, corpo) {
+  const acao = botao.dataset.acao;
+  const ok = await confirmar({
+    titulo: acao === 'desfazer' ? 'desfazer a baixa desse brunch?' : 'esticar a validade em 30 dias?',
+    texto:
+      acao === 'desfazer'
+        ? 'o código volta a valer, como se a baixa não tivesse acontecido.'
+        : 'o código ganha mais 30 dias a partir de hoje. serve pra quem não conseguiu vir a tempo.',
+    ok: acao === 'desfazer' ? 'sim, desfazer' : 'sim, esticar',
+  });
+  if (!ok) return;
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_brinde_arrumar', { p_id: botao.dataset.brindeArrumar, p_acao: acao });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra arrumar esse brunch', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast(acao === 'desfazer' ? 'baixa desfeita, o código volta a valer' : `pronto, vale até ${r?.valido_ate || 'mais tarde'} 💛`);
     carregarBrindes(corpo);
   } catch (e) {
     toast(e.message, 'erro');
@@ -2420,7 +2523,7 @@ async function viewEquipe(view) {
   view.innerHTML =
     cabecalho(
       'quem cuida do quê',
-      'cada pessoa vê só o que precisa. marca o que faz sentido e salva.',
+      'as permissões vêm por seção do site, e cada página tem as ações dela: quem enxerga, quem mexe, quem arruma.',
       `<button type="button" class="btn solid sm" data-add-equipe><i data-lucide="user-plus"></i>+equipe</button>
        <button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
     ) + `<div data-corpo></div>`;
@@ -2538,7 +2641,9 @@ async function procurarPessoaParaEquipe(corpo) {
 async function carregarEquipe(corpo) {
   carregando(corpo);
   try {
-    const resposta = await rpc('admin_equipe');
+    // O catálogo e a equipe vêm juntos: sem o catálogo não dá pra desenhar
+    // caixinha nenhuma, e sem a equipe não há em quem marcar.
+    const [resposta] = await Promise.all([rpc('admin_equipe'), carregarCatalogo()]);
     const linhas = Array.isArray(resposta) ? resposta : [];
     // Lista vazia era uma área em BRANCO, sem nada dizendo por quê. Se nem o adm
     // do Casa voltou, o problema não é "ninguém na equipe", é a leitura.
@@ -2556,13 +2661,24 @@ async function carregarEquipe(corpo) {
   }
 }
 
-// Uma linha em cima dos checkboxes dizendo o que a pessoa alcança hoje. Com 19
-// permissões, ler a grade inteira pra descobrir isso é trabalho.
+// Uma linha em cima das caixinhas dizendo o que a pessoa alcança hoje. Com mais
+// de quarenta permissões, ler a grade inteira pra descobrir isso é trabalho.
+// Conta as páginas, não as permissões: "alcança 6 páginas" diz mais do que
+// "tem 11 permissões", e é assim que a casa pensa.
 function resumoDoAcesso(permissoes) {
-  const n = PERMISSOES.filter((x) => permissoes.includes(x.slug)).length;
-  if (!n) return 'ainda não enxerga nada por aqui.';
-  const abas = NAV.filter((item) => item.perm && permissoes.includes(item.perm)).map((i) => i.rotulo);
-  return `${n} de ${PERMISSOES.length} permissões${abas.length ? `, e enxerga: ${abas.join(', ')}` : ''}.`;
+  const acoes = todasAsAcoes(catalogoPermissoes);
+  const minhas = acoes.filter((a) => permissoes.includes(a.slug));
+  if (!minhas.length) return 'ainda não enxerga nada por aqui.';
+
+  const paginas = (catalogoPermissoes || []).flatMap((s) => s.paginas || []);
+  const alcanca = paginas.filter((pg) => (pg.acoes || []).some((a) => permissoes.includes(a.slug)));
+  const arruma = paginas.filter((pg) =>
+    (pg.acoes || []).some((a) => a.acao === 'arrumar' && permissoes.includes(a.slug)),
+  );
+
+  const partes = [`alcança ${alcanca.length} de ${paginas.length} páginas: ${alcanca.map((pg) => pg.rotulo).join(', ')}`];
+  if (arruma.length) partes.push(`e arruma ${arruma.map((pg) => pg.rotulo).join(', ')}`);
+  return `${partes.join('. ')}.`;
 }
 
 function cardEquipe(p) {
@@ -2602,11 +2718,15 @@ function cardEquipe(p) {
 
       <p class="ad-perm-resumo" data-resumo="${escapeHtml(p.id)}">${resumoDoAcesso(permissoes)}</p>
 
-      ${AREAS_PERMISSAO.map(
-        (area) => `
+      ${(catalogoPermissoes || [])
+        .map(
+          (secao) => `
         <section class="ad-perm-area">
           <header class="ad-perm-area-topo">
-            <p class="lbl">${escapeHtml(area.titulo)}</p>
+            <span class="ad-perm-area-titulo">
+              <span class="lbl">${escapeHtml(secao.rotulo)}</span>
+              ${secao.descricao ? `<em>${escapeHtml(secao.descricao)}</em>` : ''}
+            </span>
             ${
               euMesmo
                 ? ''
@@ -2617,24 +2737,39 @@ function cardEquipe(p) {
             }
           </header>
           <div class="ad-perms">
-            ${area.itens
-              .map((perm) => {
-                const marcado = permissoes.includes(perm.slug);
-                const soOwner = perm.slug === 'equipe' && !souOwner;
+            ${(secao.paginas || [])
+              .map((pagina) => {
+                // Delegar a página da equipe é o único poder que não se delega:
+                // senão o controle vaza de mão em mão. O banco também recusa.
+                const soOwner = pagina.slug === 'equipe' && !souOwner;
                 const travado = euMesmo || soOwner;
                 return `
-              <label class="ad-perm${travado ? ' is-travado' : ''}">
-                <input type="checkbox" value="${perm.slug}" ${marcado ? 'checked' : ''} ${travado ? 'disabled' : ''} />
-                <span>
-                  <strong>${escapeHtml(perm.rotulo)}</strong>
-                  <em>${escapeHtml(soOwner ? 'só o adm do Casa delega isso' : perm.descricao)}</em>
-                </span>
-              </label>`;
+              <div class="ad-perm-pagina">
+                <p class="ad-perm-pagina-nome">
+                  <strong>${escapeHtml(pagina.rotulo)}</strong>
+                  <em>${escapeHtml(soOwner ? 'só o adm do Casa delega isto' : pagina.descricao || '')}</em>
+                </p>
+                <div class="ad-perm-acoes">
+                  ${(pagina.acoes || [])
+                    .map((acao) => {
+                      const marcado = permissoes.includes(acao.slug);
+                      return `
+                    <label class="ad-perm-acao${travado ? ' is-travado' : ''}" title="${escapeHtml(acao.descricao || '')}">
+                      <input type="checkbox" value="${escapeHtml(acao.slug)}"
+                             data-pagina="${escapeHtml(pagina.slug)}" data-nivel="${Number(acao.nivel) || 1}"
+                             ${marcado ? 'checked' : ''} ${travado ? 'disabled' : ''} />
+                      <span>${escapeHtml(acao.rotulo)}</span>
+                    </label>`;
+                    })
+                    .join('')}
+                </div>
+              </div>`;
               })
               .join('')}
           </div>
         </section>`,
-      ).join('')}
+        )
+        .join('')}
 
       ${
         euMesmo
@@ -2648,8 +2783,9 @@ function cardEquipe(p) {
 }
 
 function ligarCardsEquipe(corpo) {
-  // Marcar tudo / limpar por área, e o resumo se atualizando a cada clique: com
-  // 19 caixinhas, dar acesso "a tudo da loja" na mão é enfadonho e dá erro.
+  // Marcar tudo / limpar por seção, e o resumo se atualizando a cada clique: com
+  // mais de quarenta caixinhas, dar acesso "a tudo da loja" na mão é enfadonho e
+  // dá erro.
   $$('[data-pessoa]', corpo).forEach((card) => {
     if (card.dataset.ligado) return;
     card.dataset.ligado = '1';
@@ -2659,8 +2795,25 @@ function ligarCardsEquipe(corpo) {
       const marcadas = $$('input[type="checkbox"]', card).filter((c) => c.checked).map((c) => c.value);
       resumo.textContent = resumoDoAcesso(marcadas);
     };
+
+    // A hierarquia da 0047, espelhada na tela: quem arruma também mexe e
+    // enxerga. O banco já resolve isso sozinho, mas se a tela deixasse marcar
+    // "arrumar" com "enxergar" em branco, ela estaria mostrando um acesso que
+    // não é o que a pessoa tem. Marcar um nível acende os de baixo; desmarcar
+    // um nível apaga os de cima.
+    const irmas = (alvo) =>
+      $$(`input[data-pagina="${CSS.escape(alvo.dataset.pagina)}"]`, card).filter((c) => !c.disabled);
+
     card.addEventListener('change', (ev) => {
-      if (ev.target.matches('input[type="checkbox"]')) atualizarResumo();
+      const alvo = ev.target;
+      if (!alvo.matches('input[type="checkbox"][data-pagina]')) return;
+      const nivel = Number(alvo.dataset.nivel) || 1;
+      irmas(alvo).forEach((c) => {
+        const n = Number(c.dataset.nivel) || 1;
+        if (alvo.checked && n < nivel) c.checked = true;
+        if (!alvo.checked && n > nivel) c.checked = false;
+      });
+      atualizarResumo();
     });
     card.addEventListener('click', (ev) => {
       const marcar = ev.target.closest('[data-area-marcar]');
@@ -2764,12 +2917,20 @@ function statusDoRecado(a) {
 }
 
 async function viewRecados(view) {
+  const podeEscrever = pode('recados.mexer');
+  const podeApagar = pode('recados.arrumar');
+
   view.innerHTML =
     cabecalho(
       'recados da casa',
       'a tarjinha que acende no topo do site. escreve curto, dá um prazo, e ela some sozinha quando vence.',
     ) +
-    `<form class="card ad-form-recado" data-form-recado novalidate>
+    (podeEscrever
+      ? ''
+      : soLeitura('tu enxerga os recados, mas quem escreve e agenda é quem tem a permissão de mexer aqui. fala com o adm do Casa se precisar dela.')) +
+    (!podeEscrever
+      ? ''
+      : `<form class="card ad-form-recado" data-form-recado novalidate>
        <input type="hidden" data-r-id />
        <div class="field">
          <label for="r-texto">o recado</label>
@@ -2815,15 +2976,16 @@ async function viewRecados(view) {
          <button type="submit" class="btn solid" data-r-salvar>publicar recado</button>
          <button type="button" class="btn ghost" data-r-cancelar hidden>cancelar edição</button>
        </div>
-     </form>
-     <div class="ad-recado-lista" data-recado-lista></div>`;
+     </form>`) +
+    `<div class="ad-recado-lista" data-recado-lista></div>`;
 
   renderIcons();
   const form = $('[data-form-recado]', view);
   const lista = $('[data-recado-lista]', view);
-  const avisoForm = $('[data-r-aviso]', form);
+  const avisoForm = form ? $('[data-r-aviso]', form) : null;
 
   const limparForm = () => {
+    if (!form) return;
     recadoEditando = null;
     form.reset();
     $('[data-r-id]', form).value = '';
@@ -2834,6 +2996,7 @@ async function viewRecados(view) {
   };
 
   const preencherForm = (a) => {
+    if (!form) return;
     recadoEditando = a.id;
     $('[data-r-id]', form).value = a.id;
     $('[data-r-texto]', form).value = a.texto || '';
@@ -2856,7 +3019,12 @@ async function viewRecados(view) {
       const dados = await rpc('admin_avisos_listar');
       const avisos = Array.isArray(dados) ? dados : [];
       if (!avisos.length) {
-        lista.innerHTML = vazio('nenhum recado ainda', 'escreve o primeiro aí em cima — ele acende no topo do site.');
+        lista.innerHTML = vazio(
+          'nenhum recado ainda',
+          podeEscrever
+            ? 'escreve o primeiro aí em cima, ele acende no topo do site.'
+            : 'quando alguém da casa escrever um recado, ele aparece aqui.',
+        );
         return;
       }
       lista.innerHTML = avisos.map(cardRecado).join('');
@@ -2883,8 +3051,8 @@ async function viewRecados(view) {
           <div class="ad-card-tags"><span class="tag ${st.tom === 'on' ? 'olive' : 'gold'}">${escapeHtml(st.txt)}</span></div>
         </div>
         <div class="ad-card-acoes">
-          <button type="button" class="btn ghost sm" data-r-editar="${escapeHtml(a.id)}">editar</button>
-          <button type="button" class="btn ghost sm" data-r-remover="${escapeHtml(a.id)}" data-r-resumo="${escapeHtml((a.texto || '').slice(0, 40))}">remover</button>
+          ${podeEscrever ? `<button type="button" class="btn ghost sm" data-r-editar="${escapeHtml(a.id)}">editar</button>` : ''}
+          ${podeApagar ? `<button type="button" class="btn ghost sm" data-r-remover="${escapeHtml(a.id)}" data-r-resumo="${escapeHtml((a.texto || '').slice(0, 40))}">remover</button>` : ''}
         </div>
       </article>`;
   }
@@ -2924,7 +3092,7 @@ async function viewRecados(view) {
     });
   }
 
-  form.addEventListener('submit', async (e) => {
+  form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     avisoForm.innerHTML = '';
     const texto = $('[data-r-texto]', form).value.trim();
@@ -2962,7 +3130,7 @@ async function viewRecados(view) {
     }
   });
 
-  $('[data-r-cancelar]', form).addEventListener('click', limparForm);
+  if (form) $('[data-r-cancelar]', form).addEventListener('click', limparForm);
 
   carregarRecados();
 }
@@ -2984,12 +3152,20 @@ function pareceSpotify(url) {
 }
 
 async function viewTrilha(view) {
+  const podeEscrever = pode('trilha.mexer');
+  const podeApagar = pode('trilha.arrumar');
+
   view.innerHTML =
     cabecalho(
       'a trilha do Casa',
       'as playlists do Spotify que tocam na home. cola o link, dá um clima, e marca qual está tocando agora.',
     ) +
-    `<form class="card ad-form-recado" data-form-trilha novalidate>
+    (podeEscrever
+      ? ''
+      : soLeitura('tu enxerga a trilha, mas quem cadastra e escolhe a que está tocando é quem tem a permissão de mexer aqui.')) +
+    (!podeEscrever
+      ? ''
+      : `<form class="card ad-form-recado" data-form-trilha novalidate>
        <input type="hidden" data-t-id />
        <div class="ad-recado-linha">
          <div class="field">
@@ -3022,15 +3198,16 @@ async function viewTrilha(view) {
          <button type="submit" class="btn solid" data-t-salvar>adicionar playlist</button>
          <button type="button" class="btn ghost" data-t-cancelar hidden>cancelar edição</button>
        </div>
-     </form>
-     <div class="ad-recado-lista" data-trilha-lista></div>`;
+     </form>`) +
+    `<div class="ad-recado-lista" data-trilha-lista></div>`;
 
   renderIcons();
   const form = $('[data-form-trilha]', view);
   const lista = $('[data-trilha-lista]', view);
-  const avisoForm = $('[data-t-aviso]', form);
+  const avisoForm = form ? $('[data-t-aviso]', form) : null;
 
   const limparForm = () => {
+    if (!form) return;
     trilhaEditando = null;
     form.reset();
     $('[data-t-id]', form).value = '';
@@ -3042,6 +3219,7 @@ async function viewTrilha(view) {
   };
 
   const preencherForm = (p) => {
+    if (!form) return;
     trilhaEditando = p.id;
     $('[data-t-id]', form).value = p.id;
     $('[data-t-nome]', form).value = p.nome || '';
@@ -3062,7 +3240,12 @@ async function viewTrilha(view) {
       const dados = await rpc('admin_trilha_listar');
       const pls = Array.isArray(dados) ? dados : [];
       if (!pls.length) {
-        lista.innerHTML = vazio('nenhuma playlist ainda', 'cola a primeira aí em cima — ela aparece na home.');
+        lista.innerHTML = vazio(
+          'nenhuma playlist ainda',
+          podeEscrever
+            ? 'cola a primeira aí em cima, ela aparece na home.'
+            : 'quando alguém da casa cadastrar uma playlist, ela aparece aqui.',
+        );
         return;
       }
       lista.innerHTML = pls.map(cardTrilha).join('');
@@ -3087,8 +3270,8 @@ async function viewTrilha(view) {
           <div class="ad-card-tags">${tags.join('')}</div>
         </div>
         <div class="ad-card-acoes">
-          <button type="button" class="btn ghost sm" data-t-editar="${escapeHtml(p.id)}">editar</button>
-          <button type="button" class="btn ghost sm" data-t-remover="${escapeHtml(p.id)}" data-t-nome="${escapeHtml(p.nome || 'essa playlist')}">remover</button>
+          ${podeEscrever ? `<button type="button" class="btn ghost sm" data-t-editar="${escapeHtml(p.id)}">editar</button>` : ''}
+          ${podeApagar ? `<button type="button" class="btn ghost sm" data-t-remover="${escapeHtml(p.id)}" data-t-nome="${escapeHtml(p.nome || 'essa playlist')}">remover</button>` : ''}
         </div>
       </article>`;
   }
@@ -3128,7 +3311,7 @@ async function viewTrilha(view) {
     });
   }
 
-  form.addEventListener('submit', async (e) => {
+  form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     avisoForm.innerHTML = '';
     const nome = $('[data-t-nome]', form).value.trim();
@@ -3163,7 +3346,7 @@ async function viewTrilha(view) {
     }
   });
 
-  $('[data-t-cancelar]', form).addEventListener('click', limparForm);
+  if (form) $('[data-t-cancelar]', form).addEventListener('click', limparForm);
 
   carregarTrilha();
 }
@@ -3175,12 +3358,20 @@ async function viewTrilha(view) {
 let agendaEditando = null;
 
 async function viewAgenda(view) {
+  const podeEscrever = pode('agenda.mexer');
+  const podeApagar = pode('agenda.arrumar');
+
   view.innerHTML =
     cabecalho(
       'a agenda do Casa',
       'os próximos encontros que aparecem na home. marca a data, o lugar e quantas vagas.',
     ) +
-    `<form class="card ad-form-recado" data-form-agenda novalidate>
+    (podeEscrever
+      ? ''
+      : soLeitura('tu enxerga a agenda e quantos confirmaram, mas quem cria e edita encontro é quem tem a permissão de mexer aqui.')) +
+    (!podeEscrever
+      ? ''
+      : `<form class="card ad-form-recado" data-form-agenda novalidate>
        <input type="hidden" data-a-id />
        <div class="field">
          <label for="a-nome">nome do encontro</label>
@@ -3216,15 +3407,16 @@ async function viewAgenda(view) {
          <button type="submit" class="btn solid" data-a-salvar>adicionar encontro</button>
          <button type="button" class="btn ghost" data-a-cancelar hidden>cancelar edição</button>
        </div>
-     </form>
-     <div class="ad-recado-lista" data-agenda-lista></div>`;
+     </form>`) +
+    `<div class="ad-recado-lista" data-agenda-lista></div>`;
 
   renderIcons();
   const form = $('[data-form-agenda]', view);
   const lista = $('[data-agenda-lista]', view);
-  const avisoForm = $('[data-a-aviso]', form);
+  const avisoForm = form ? $('[data-a-aviso]', form) : null;
 
   const limparForm = () => {
+    if (!form) return;
     agendaEditando = null;
     form.reset();
     $('[data-a-id]', form).value = '';
@@ -3235,6 +3427,7 @@ async function viewAgenda(view) {
   };
 
   const preencherForm = (e) => {
+    if (!form) return;
     agendaEditando = e.id;
     $('[data-a-id]', form).value = e.id;
     $('[data-a-nome]', form).value = e.nome || '';
@@ -3255,7 +3448,12 @@ async function viewAgenda(view) {
       const dados = await rpc('admin_eventos_listar');
       const evs = Array.isArray(dados) ? dados : [];
       if (!evs.length) {
-        lista.innerHTML = vazio('nenhum encontro ainda', 'marca o primeiro aí em cima — ele aparece na home.');
+        lista.innerHTML = vazio(
+          'nenhum encontro ainda',
+          podeEscrever
+            ? 'marca o primeiro aí em cima, ele aparece na home.'
+            : 'quando a casa marcar um encontro, ele aparece aqui.',
+        );
         return;
       }
       lista.innerHTML = evs.map(cardAgenda).join('');
@@ -3285,8 +3483,8 @@ async function viewAgenda(view) {
           <div class="ad-card-tags">${tags.join('')}</div>
         </div>
         <div class="ad-card-acoes">
-          <button type="button" class="btn ghost sm" data-a-editar="${escapeHtml(e.id)}">editar</button>
-          <button type="button" class="btn ghost sm" data-a-remover="${escapeHtml(e.id)}" data-a-nome="${escapeHtml(e.nome || 'esse encontro')}">remover</button>
+          ${podeEscrever ? `<button type="button" class="btn ghost sm" data-a-editar="${escapeHtml(e.id)}">editar</button>` : ''}
+          ${podeApagar ? `<button type="button" class="btn ghost sm" data-a-remover="${escapeHtml(e.id)}" data-a-nome="${escapeHtml(e.nome || 'esse encontro')}">remover</button>` : ''}
         </div>
       </article>`;
   }
@@ -3326,7 +3524,7 @@ async function viewAgenda(view) {
     });
   }
 
-  form.addEventListener('submit', async (e) => {
+  form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     avisoForm.innerHTML = '';
     const nome = $('[data-a-nome]', form).value.trim();
@@ -3357,7 +3555,7 @@ async function viewAgenda(view) {
     }
   });
 
-  $('[data-a-cancelar]', form).addEventListener('click', limparForm);
+  if (form) $('[data-a-cancelar]', form).addEventListener('click', limparForm);
 
   carregarAgenda();
 }
@@ -3551,12 +3749,40 @@ async function carregarListaEspera(corpo) {
                 ${l.origem ? `<span class="row-meta">deixou em ${escapeHtml(l.origem)}</span>` : ''}
               </div>
               <span class="row-meta">${escapeHtml(formatData(l.created_at, false))}</span>
+              ${
+                pode('espera.arrumar')
+                  ? `<button type="button" class="btn ghost sm" data-espera-remover="${escapeHtml(l.id)}" data-email="${escapeHtml(l.email || '')}"><i data-lucide="trash-2"></i>tirar</button>`
+                  : ''
+              }
             </div>`,
             )
             .join('')}
         </div>
       </section>`;
     renderIcons();
+    // "me tira dessa lista" é pedido comum e é direito de quem deixou o e-mail
+    // (LGPD). Antes só saía com SQL na mão.
+    $$('[data-espera-remover]', corpo).forEach((botao) =>
+      botao.addEventListener('click', async () => {
+        const certeza = await confirmar({
+          titulo: 'tirar esse e-mail da lista?',
+          texto: `${botao.dataset.email} some do banco. é o que fazer quando a pessoa pede pra sair.`,
+          ok: 'sim, tirar',
+          tom: 'perigo',
+        });
+        if (!certeza) return;
+        botao.disabled = true;
+        try {
+          const r = await rpc('admin_espera_remover', { p_id: botao.dataset.esperaRemover });
+          if (r?.ok === false) throw new Error(r.erro || 'não deu pra tirar agora');
+          toast('pronto, saiu da lista');
+          carregarListaEspera(corpo);
+        } catch (e) {
+          botao.disabled = false;
+          toast(e?.message || 'não deu pra tirar agora', 'erro');
+        }
+      }),
+    );
   } catch (e) {
     erroNaTela(corpo, e);
   }
@@ -3646,8 +3872,44 @@ async function carregarPresentes(corpo) {
       </div>
       <div class="ad-lista">${linhas.map(cardPresente).join('')}</div>`;
     renderIcons();
+    $$('[data-presente-arrumar]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => arrumarPresente(botao, corpo));
+    });
   } catch (e) {
     erroNaTela(corpo, e);
+  }
+}
+
+// Os dois presentes que travam, e que antes só saíam com SQL na mão:
+//   • pago sem código, quando o webhook caiu entre o pagamento e a
+//     `marcar_presente_pago`. Quem pagou ficava com um presente que não existe;
+//   • pendente que nunca fechou o checkout, entulhando a lista.
+// Presente PAGO não se cancela por aqui: o código pode estar na mão de alguém.
+async function arrumarPresente(botao, corpo) {
+  const acao = botao.dataset.acao;
+  const ok = await confirmar({
+    titulo: acao === 'gerar_codigo' ? 'gerar o código desse presente?' : 'cancelar esse presente?',
+    texto:
+      acao === 'gerar_codigo'
+        ? 'o presente foi pago e ficou sem código. isso cria o código pra entregar a quem comprou.'
+        : 'o checkout nunca fechou, então ele sai da lista. presente pago não some por aqui.',
+    ok: acao === 'gerar_codigo' ? 'sim, gerar' : 'sim, cancelar',
+    tom: acao === 'gerar_codigo' ? '' : 'perigo',
+  });
+  if (!ok) return;
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_presente_arrumar', { p_id: botao.dataset.presenteArrumar, p_acao: acao });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra arrumar esse presente', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast(acao === 'gerar_codigo' ? `pronto, o código é ${r?.codigo || ''} 💛` : 'presente cancelado');
+    carregarPresentes(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
   }
 }
 
@@ -3684,8 +3946,372 @@ function cardPresente(g) {
               : ''
           }
         </div>
+        <div class="ad-card-acao">
+          ${
+            pode('presentes.arrumar') && g.status === 'pago' && !g.codigo
+              ? `<button type="button" class="btn solid sm" data-presente-arrumar="${escapeHtml(g.id)}" data-acao="gerar_codigo"><i data-lucide="wrench"></i>gerar o código</button>`
+              : ''
+          }
+          ${
+            pode('presentes.arrumar') && g.status === 'pendente'
+              ? `<button type="button" class="btn ghost sm" data-presente-arrumar="${escapeHtml(g.id)}" data-acao="cancelar"><i data-lucide="x"></i>cancelar</button>`
+              : ''
+          }
+        </div>
       </div>
     </article>`;
+}
+
+// ===== ASSINATURAS ==================================================
+// O clube é o principal benefício do site, e até a 0047 o console era CEGO pra
+// ele: quando alguém ligava dizendo "paguei e não caiu", não havia tela nenhuma
+// pra olhar. Aqui a casa VÊ. Mexer de verdade (pausar, retomar, subir e descer
+// de plano) continua nas Edge Functions, que falam com o Asaas; o único conserto
+// daqui é esticar o período já pago, que não cobra nem estorna nada.
+const filtrosAssinaturas = { status: '', busca: '' };
+
+const ROTULO_STATUS_ASSINATURA = {
+  ativa: ['green', 'ativa'],
+  pausada: ['gold', 'pausada'],
+  cancelada: ['coral', 'encerrada'],
+  pendente: ['', 'esperando pagamento'],
+  trial: ['', 'teste'],
+};
+
+async function viewAssinaturas(view) {
+  view.innerHTML =
+    cabecalho(
+      'as assinaturas',
+      'quem é do clube, em que plano e até quando vale. é a tela pra abrir quando alguém liga perguntando do plano.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-assinatura" class="sr-only">buscar por nome ou e-mail</label>
+        <input id="busca-assinatura" type="search" placeholder="nome ou e-mail de quem assina" autocomplete="off" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div class="ad-filtros" role="group" aria-label="filtrar assinaturas">
+      <button type="button" class="filtro" data-f-status="ativa">ativas</button>
+      <button type="button" class="filtro" data-f-status="pausada">pausadas</button>
+      <button type="button" class="filtro" data-f-status="cancelada">encerradas</button>
+      <button type="button" class="filtro" data-f-status="">todas</button>
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const form = $('[data-busca]', view);
+  const marcar = () =>
+    $$('[data-f-status]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosAssinaturas.status)),
+    );
+  $$('[data-f-status]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosAssinaturas.status = b.dataset.fStatus || '';
+      marcar();
+      carregarAssinaturas(corpo);
+    }),
+  );
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosAssinaturas.busca = $('#busca-assinatura', form).value.trim();
+    carregarAssinaturas(corpo);
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarAssinaturas(corpo));
+  marcar();
+  renderIcons();
+  carregarAssinaturas(corpo);
+}
+
+async function carregarAssinaturas(corpo) {
+  carregando(corpo);
+  try {
+    const dados = await rpc('admin_assinaturas', {
+      p_busca: filtrosAssinaturas.busca || null,
+      p_status: filtrosAssinaturas.status || null,
+    });
+    const linhas = Array.isArray(dados) ? dados : [];
+    if (!linhas.length) {
+      corpo.innerHTML = vazio(
+        filtrosAssinaturas.busca ? 'nada com esse termo' : 'nenhuma assinatura por aqui',
+        filtrosAssinaturas.busca
+          ? 'tenta outro nome ou e-mail.'
+          : 'quando alguém assinar um plano, ele aparece nesta lista.',
+      );
+      return;
+    }
+    corpo.innerHTML = `
+      <p class="lbl" style="margin-bottom: 14px">${formatNumero(linhas.length)} ${linhas.length === 1 ? 'assinatura' : 'assinaturas'}</p>
+      <div class="ad-lista">${linhas.map(cardAssinatura).join('')}</div>`;
+    renderIcons();
+    $$('[data-assinatura-esticar]', corpo).forEach((botao) => {
+      botao.addEventListener('click', () => esticarAssinatura(botao, corpo));
+    });
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function cardAssinatura(s) {
+  const [cor, rotulo] = ROTULO_STATUS_ASSINATURA[s.status] || ['', s.status || '—'];
+  const tags = [`<span class="tag ${cor}">${escapeHtml(rotulo)}</span>`];
+  if (s.de_presente) tags.push('<span class="tag olive">presente</span>');
+  if (!s.no_gateway && !s.de_presente) tags.push('<span class="tag">fora do gateway</span>');
+
+  return `
+    <article class="card ad-card">
+      <div class="ad-card-topo">
+        <div>
+          <p class="ad-card-nome">${escapeHtml(s.pessoa || 'sem nome')}</p>
+          <p class="ad-card-meta">${escapeHtml(s.email || '')}</p>
+        </div>
+        <div class="ad-card-tags">${tags.join('')}</div>
+      </div>
+      <div class="ad-card-rodape">
+        <div class="ad-card-info">
+          <p class="ad-card-meta">plano ${escapeHtml(s.plano || s.tier_slug || '')} · assinou em ${escapeHtml(formatData(s.criada_em, false))}</p>
+          <p class="ad-card-meta">${
+            s.vale_ate
+              ? `${s.vencida ? 'venceu' : 'vale até'} ${escapeHtml(formatData(s.vale_ate, false))}`
+              : 'sem data de fim registrada'
+          }</p>
+          ${
+            s.descida_agendada
+              ? `<p class="ad-card-meta">desce pro ${escapeHtml(s.descida_agendada)} na próxima renovação</p>`
+              : ''
+          }
+        </div>
+        <div class="ad-card-acao">
+          ${
+            pode('assinaturas.arrumar') && s.status !== 'cancelada'
+              ? `<button type="button" class="btn ghost sm" data-assinatura-esticar="${escapeHtml(s.id)}" data-nome="${escapeHtml(s.pessoa || 'essa pessoa')}">
+                   <i data-lucide="calendar-clock"></i>esticar o período
+                 </button>`
+              : ''
+          }
+        </div>
+      </div>
+    </article>`;
+}
+
+async function esticarAssinatura(botao, corpo) {
+  const dias = await escolher({
+    titulo: `quantos dias de cortesia pra ${botao.dataset.nome}?`,
+    opcoes: [
+      { valor: '7', rotulo: 'uma semana' },
+      { valor: '15', rotulo: 'quinze dias' },
+      { valor: '30', rotulo: 'um mês' },
+    ],
+    atual: null,
+    rodape: '<p class="ad-dica">isso só faz o benefício durar mais deste lado. no Asaas a assinatura segue no ciclo dela, e nada é cobrado agora.</p>',
+  });
+  if (!dias) return;
+
+  botao.disabled = true;
+  try {
+    const r = await rpc('admin_assinatura_esticar', { p_id: botao.dataset.assinaturaEsticar, p_dias: Number(dias) });
+    if (r?.ok === false) {
+      toast(r.erro || 'não deu pra esticar essa assinatura', 'erro');
+      botao.disabled = false;
+      return;
+    }
+    toast(`pronto, vale até ${formatData(r?.vale_ate, false)} 💛`);
+    carregarAssinaturas(corpo);
+  } catch (e) {
+    toast(e.message, 'erro');
+    botao.disabled = false;
+  }
+}
+
+// ===== PONTOS =======================================================
+// O `points_ledger` é append-only e é a fonte da verdade do saldo (0008). A casa
+// não tinha como OLHAR o extrato de ninguém, nem como consertar quando o webhook
+// do pagamento falhava e o ponto não caía; sobrava responder "não sei" pra quem
+// perguntava. O ajuste é um LANÇAMENTO como qualquer outro, com motivo
+// obrigatório: nada de `update` no saldo, que é só cache.
+let pontosPessoa = null;
+
+async function viewPontos(view) {
+  view.innerHTML =
+    cabecalho('os pontos', 'o saldo e o extrato de cada pessoa. procura por nome ou e-mail.') +
+    `<form class="ad-busca" data-busca>
+      <div class="field">
+        <label for="busca-pontos" class="sr-only">buscar por nome ou e-mail</label>
+        <input id="busca-pontos" type="search" placeholder="nome ou e-mail (pelo menos 3 letras)" autocomplete="off" />
+      </div>
+      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+    </form>
+    <div data-achados></div>
+    <div data-extrato></div>`;
+
+  const achados = $('[data-achados]', view);
+  const extrato = $('[data-extrato]', view);
+  const form = $('[data-busca]', view);
+  renderIcons();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const termo = $('#busca-pontos', form).value.trim();
+    if (termo.length < 3) {
+      achados.innerHTML = '<div class="notice warn"><p>escreve pelo menos 3 letras pra eu procurar.</p></div>';
+      return;
+    }
+    carregando(achados, 'procurando…');
+    extrato.innerHTML = '';
+    try {
+      const dados = await rpc('admin_pontos_pessoas', { p_busca: termo });
+      const gente = Array.isArray(dados) ? dados : [];
+      if (!gente.length) {
+        achados.innerHTML = vazio('não achei ninguém', 'confere o nome ou o e-mail.');
+        return;
+      }
+      achados.innerHTML = `
+        <section class="card ad-card">
+          <p class="lbl">quem eu achei</p>
+          <div class="rows">
+            ${gente
+              .map(
+                (g) => `
+              <div class="row">
+                <div class="row-main">
+                  <span>${escapeHtml(g.nome || 'sem nome')}</span>
+                  <span class="row-meta">${escapeHtml(g.email || '')}${g.plano ? ' · ' + escapeHtml(g.plano) : ''}</span>
+                </div>
+                <span class="row-val">${formatNumero(g.saldo)} pts</span>
+                <button type="button" class="btn ghost sm" data-abrir-extrato="${escapeHtml(g.id)}">ver o extrato</button>
+              </div>`,
+              )
+              .join('')}
+          </div>
+        </section>`;
+      renderIcons();
+      $$('[data-abrir-extrato]', achados).forEach((botao) =>
+        botao.addEventListener('click', () => abrirExtrato(botao.dataset.abrirExtrato, extrato)),
+      );
+    } catch (err) {
+      erroNaTela(achados, err);
+    }
+  });
+
+}
+
+async function abrirExtrato(userId, alvo) {
+  pontosPessoa = userId;
+  carregando(alvo, 'somando…');
+  try {
+    const d = await rpc('admin_pontos_extrato', { p_user_id: userId });
+    if (!d || d.ok === false) {
+      erroNaTela(alvo, new Error(d?.erro || 'não achei essa pessoa'));
+      return;
+    }
+    const lancamentos = Array.isArray(d.lancamentos) ? d.lancamentos : [];
+    // Saldo do cache diferente da soma do ledger é sintoma, não detalhe: quer
+    // dizer que alguma escrita passou por fora da trigger. A tela conta em vez
+    // de esconder atrás de um número só.
+    const bate = Number(d.saldo_cache) === Number(d.saldo_ledger);
+
+    alvo.innerHTML = `
+      <section class="card ad-card" style="margin-top: 20px">
+        <div class="ad-card-topo">
+          <div>
+            <p class="ad-card-nome">${escapeHtml(d.nome || 'sem nome')}</p>
+            <p class="ad-card-meta">${escapeHtml(d.email || '')}${d.plano ? ' · ' + escapeHtml(d.plano) : ' · sem plano'}</p>
+          </div>
+          <div class="ad-card-tags"><span class="tag gold">${formatNumero(d.saldo_ledger)} pts</span></div>
+        </div>
+
+        ${
+          bate
+            ? ''
+            : `<div class="notice warn"><p>o saldo guardado no perfil (${formatNumero(d.saldo_cache)}) não bate com a soma do extrato (${formatNumero(
+                d.saldo_ledger,
+              )}). quem vale é o extrato. me avisa que a gente conserta o cache.</p></div>`
+        }
+
+        ${
+          pode('pontos.arrumar')
+            ? `<form class="ad-ajuste" data-ajuste>
+                 <p class="lbl">lançar um ajuste</p>
+                 <div class="ad-recado-linha">
+                   <div class="field ad-recado-prio">
+                     <label for="aj-delta">pontos</label>
+                     <input id="aj-delta" type="number" step="1" placeholder="50 ou -50" required />
+                     <p class="ad-dica">negativo tira. até 5.000 por vez.</p>
+                   </div>
+                   <div class="field">
+                     <label for="aj-motivo">motivo</label>
+                     <input id="aj-motivo" maxlength="120" placeholder="o pagamento caiu e o ponto não" required />
+                     <p class="ad-dica">isso fica no extrato da pessoa, escreve pensando em quem vai ler.</p>
+                   </div>
+                 </div>
+                 <div data-aj-aviso></div>
+                 <div class="ad-card-acoes">
+                   <button type="submit" class="btn solid sm"><i data-lucide="sliders-horizontal"></i>lançar</button>
+                 </div>
+               </form>`
+            : ''
+        }
+
+        <div class="divider"></div>
+        <p class="lbl">o extrato</p>
+        ${
+          lancamentos.length
+            ? `<div class="rows">
+                 ${lancamentos
+                   .map(
+                     (l) => `
+                   <div class="row">
+                     <div class="row-main">
+                       <span>${escapeHtml(l.motivo || 'lançamento')}</span>
+                       <span class="row-meta">${escapeHtml(l.descricao || l.ref_type || '')} · ${escapeHtml(formatData(l.quando))}</span>
+                     </div>
+                     <span class="row-val">${Number(l.delta) > 0 ? '+' : ''}${formatNumero(l.delta)}</span>
+                   </div>`,
+                   )
+                   .join('')}
+               </div>`
+            : vazio('nenhum ponto ainda', 'pontuar é coisa de quem assina, então conta sem plano não tem lançamento.')
+        }
+      </section>`;
+    renderIcons();
+
+    const ajuste = $('[data-ajuste]', alvo);
+    ajuste?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const aviso = $('[data-aj-aviso]', ajuste);
+      const delta = Number($('#aj-delta', ajuste).value);
+      const motivo = $('#aj-motivo', ajuste).value.trim();
+      aviso.innerHTML = '';
+      if (!delta) {
+        aviso.innerHTML = '<div class="notice err"><p>diz quantos pontos, pra mais ou pra menos.</p></div>';
+        return;
+      }
+      if (motivo.length < 3) {
+        aviso.innerHTML = '<div class="notice err"><p>escreve o motivo, é o que explica esse lançamento depois.</p></div>';
+        return;
+      }
+      const ok = await confirmar({
+        titulo: `lançar ${delta > 0 ? '+' : ''}${formatNumero(delta)} pontos?`,
+        texto: `vai aparecer no extrato de ${d.nome || 'quem recebe'} como "${motivo}". o extrato é append-only, então um ajuste não se apaga, se corrige com outro.`,
+        ok: 'sim, lançar',
+      });
+      if (!ok) return;
+      try {
+        const r = await rpc('admin_pontos_ajustar', { p_user_id: userId, p_delta: delta, p_motivo: motivo });
+        if (r?.ok === false) {
+          aviso.innerHTML = `<div class="notice err"><p>${escapeHtml(r.erro || 'não deu pra lançar agora')}</p></div>`;
+          return;
+        }
+        toast(`pronto, saldo agora é ${formatNumero(r?.saldo || 0)} 💛`);
+        abrirExtrato(userId, alvo);
+      } catch (err) {
+        aviso.innerHTML = `<div class="notice err"><p>${escapeHtml(err.message || 'não deu pra lançar agora')}</p></div>`;
+      }
+    });
+  } catch (e) {
+    erroNaTela(alvo, e);
+  }
 }
 
 // ===== MURAL (moderação) ============================================
@@ -3806,11 +4432,17 @@ function cardRecadoMural(r) {
       <div class="ad-card-rodape">
         <div class="ad-card-info"></div>
         <div class="ad-card-acao">
-          <button type="button" class="btn ghost sm" data-mural-apagar><i data-lucide="trash-2"></i>apagar</button>
           ${
-            oculto
-              ? `<button type="button" class="btn solid sm" data-mural-status="aprovado"><i data-lucide="undo-2"></i>devolver pra parede</button>`
-              : `<button type="button" class="btn ghost sm" data-mural-status="oculto"><i data-lucide="eye-off"></i>esconder</button>`
+            pode('mural.arrumar')
+              ? '<button type="button" class="btn ghost sm" data-mural-apagar><i data-lucide="trash-2"></i>apagar</button>'
+              : ''
+          }
+          ${
+            !pode('mural.mexer')
+              ? ''
+              : oculto
+                ? `<button type="button" class="btn solid sm" data-mural-status="aprovado"><i data-lucide="undo-2"></i>devolver pra parede</button>`
+                : `<button type="button" class="btn ghost sm" data-mural-status="oculto"><i data-lucide="eye-off"></i>esconder</button>`
           }
         </div>
       </div>
@@ -3996,10 +4628,17 @@ function cardLead(l) {
         </div>
         <div class="ad-card-acao">
           ${
-            l.status === 'novo'
-              ? `<button type="button" class="btn ghost sm" data-lead-status="arquivado"><i data-lucide="archive"></i>arquivar</button>
-                 <button type="button" class="btn solid sm" data-lead-status="atendido"><i data-lucide="check"></i>já falei</button>`
-              : `<button type="button" class="btn ghost sm" data-lead-status="novo"><i data-lucide="rotate-ccw"></i>voltar pra fila</button>`
+            !pode('leads.mexer')
+              ? ''
+              : l.status === 'novo'
+                ? `<button type="button" class="btn ghost sm" data-lead-status="arquivado"><i data-lucide="archive"></i>arquivar</button>
+                   <button type="button" class="btn solid sm" data-lead-status="atendido"><i data-lucide="check"></i>já falei</button>`
+                : `<button type="button" class="btn ghost sm" data-lead-status="novo"><i data-lucide="rotate-ccw"></i>voltar pra fila</button>`
+          }
+          ${
+            pode('leads.arrumar')
+              ? '<button type="button" class="btn ghost sm" data-lead-apagar><i data-lucide="trash-2"></i>apagar</button>'
+              : ''
           }
         </div>
       </div>
@@ -4022,15 +4661,42 @@ function ligarAcoesLead(corpo) {
       }
     }),
   );
+
+  // Apagar é pra o pedido que a própria pessoa pediu pra tirar, e pra spam.
+  // Arquivar resolve o resto e dá pra desfazer, então o texto oferece isso antes.
+  $$('[data-lead-apagar]', corpo).forEach((botao) =>
+    botao.addEventListener('click', async () => {
+      const id = botao.closest('[data-lead]')?.dataset.lead;
+      if (!id) return;
+      const certeza = await confirmar({
+        titulo: 'apagar este pedido de vez?',
+        texto: 'nome, telefone e recado somem do banco e não tem como voltar. se for só pra tirar da fila, "arquivar" resolve.',
+        ok: 'apagar',
+        tom: 'perigo',
+      });
+      if (!certeza) return;
+      botao.disabled = true;
+      try {
+        const r = await rpc('admin_lead_evento_remover', { p_id: id });
+        if (r?.ok === false) throw new Error(r.erro || 'não deu pra apagar agora');
+        toast('pedido apagado');
+        carregarLeadsEventos(corpo);
+      } catch (e) {
+        botao.disabled = false;
+        toast(e?.message || 'não deu pra apagar agora', 'erro');
+      }
+    }),
+  );
 }
 
 // ===== TUA CONTA ====================================================
 function viewConta(view) {
   const nome = estado.perms.nome || 'equipe';
   const papel = ROTULO_PAPEL[estado.perms.papel] || estado.perms.papel || '';
-  const minhas = estado.perms.tudo
-    ? PERMISSOES.map((p) => p.rotulo)
-    : PERMISSOES.filter((p) => (estado.perms.permissoes || []).includes(p.slug)).map((p) => p.rotulo);
+  // O `alcance` vem pronto do banco, agrupado por seção e página. Esta tela é
+  // livre (qualquer pessoa do console abre), então ela não pode depender do
+  // catálogo, que é da permissão `equipe.ver`.
+  const alcance = Array.isArray(estado.perms.alcance) ? estado.perms.alcance : [];
 
   view.innerHTML =
     cabecalho('tua conta', 'a senha é tua; ninguém aqui consegue ver.') +
@@ -4041,10 +4707,21 @@ function viewConta(view) {
         <p class="ad-card-meta">${escapeHtml(estado.sessao?.user?.email || '')}</p>
         <p class="ad-card-meta">${escapeHtml(papel)}${estado.perms.master ? ' · conta do Casa, essa não some' : ''}</p>
         <div class="divider"></div>
-        <p class="lbl">o que tu enxerga</p>
-        <ul class="ad-lista-simples">
-          ${minhas.map((m) => `<li><i data-lucide="check"></i>${escapeHtml(m)}</li>`).join('')}
-        </ul>
+        <p class="lbl">o que tu alcança</p>
+        ${
+          alcance.length
+            ? `<ul class="ad-lista-simples">
+                 ${alcance
+                   .map(
+                     (a) =>
+                       `<li><i data-lucide="check"></i>${escapeHtml(a.secao)} · ${escapeHtml(a.pagina)}: ${escapeHtml(
+                         (Array.isArray(a.acoes) ? a.acoes : []).join(', '),
+                       )}</li>`,
+                   )
+                   .join('')}
+               </ul>`
+            : '<p class="ad-card-meta">ainda sem permissão nenhuma por aqui. quem cuida da equipe consegue te dar.</p>'
+        }
       </section>
 
       <section class="card ad-card">
