@@ -736,6 +736,20 @@ function abrirDoHash() {
     console.error('[console] não deu pra zerar o estado das abas:', e);
   }
 
+  try {
+    marcarAbaEabrir(item);
+  } catch (e) {
+    // Qualquer tropeço AQUI (marcar a aba ativa, puxar a fila pra vista, montar
+    // o mapa de telas) deixava a área do conteúdo em branco, com a barra
+    // lateral inteira de pé: da tela, igualzinho a "essa aba não tem nada".
+    // Era o último lugar do console capaz de falhar calado.
+    const view = $('[data-view]');
+    if (view) falhaDaAba(view, item.id, e);
+    else console.error('[console] o roteador tropeçou e não achei onde escrever:', e);
+  }
+}
+
+function marcarAbaEabrir(item) {
   $$('[data-aba]').forEach((botao) => {
     const ativo = botao.dataset.aba === item.id;
     botao.classList.toggle('is-active', ativo);
