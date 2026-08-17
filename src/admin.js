@@ -59,6 +59,7 @@ import {
   AlignLeft,
   MessageSquare,
   CircleDot,
+  UserPlus,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -109,6 +110,7 @@ const LUCIDE_ICONS = {
   AlignLeft,
   MessageSquare,
   CircleDot,
+  UserPlus,
 };
 
 function renderIcons() {
@@ -2410,29 +2412,70 @@ async function carregarRelatorios(corpo, desde, ate) {
 }
 
 // ===== EQUIPE =======================================================
+// Onde se dá e se tira acesso. A busca vivia no topo, sempre aberta, e isso
+// fazia a tela abrir com um campo em vez de abrir com A EQUIPE — que é o que
+// alguém vem ver aqui. Agora a lista vem primeiro e a busca virou o botão
+// "+ na equipe", que abre a folhinha de procurar quem cadastrar.
 async function viewEquipe(view) {
   view.innerHTML =
     cabecalho(
       'quem cuida do quê',
       'cada pessoa vê só o que precisa. marca o que faz sentido e salva.',
-    ) +
-    `<form class="ad-busca" data-busca-pessoa>
-      <div class="field">
-        <label for="busca-equipe" class="sr-only">buscar alguém pra dar acesso</label>
-        <input id="busca-equipe" type="search" placeholder="buscar alguém pelo nome ou e-mail" autocomplete="off" />
-      </div>
-      <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
-    </form>
-    <div data-achados></div>
-    <div data-corpo></div>`;
+      `<button type="button" class="btn solid sm" data-add-equipe><i data-lucide="user-plus"></i>+equipe</button>
+       <button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) + `<div data-corpo></div>`;
 
   const corpo = $('[data-corpo]', view);
-  const achados = $('[data-achados]', view);
   renderIcons();
 
-  $('[data-busca-pessoa]', view).addEventListener('submit', async (e) => {
+  $('[data-add-equipe]', view).addEventListener('click', () => procurarPessoaParaEquipe(corpo));
+  $('[data-recarregar]', view).addEventListener('click', () => carregarEquipe(corpo));
+
+  carregarEquipe(corpo);
+}
+
+// A folhinha de "quem tu quer trazer": procura no cadastro do site e devolve a
+// pessoa escolhida. Quem não tem conta no site ainda não aparece aqui, e isso é
+// dito na cara em vez de virar "não achei ninguém".
+async function procurarPessoaParaEquipe(corpo) {
+  const fundo = document.createElement('div');
+  fundo.className = 'ad-modal pauta-escolha';
+  fundo.innerHTML = `
+    <div class="ad-modal-caixa pauta-escolha-caixa" role="dialog" aria-modal="true" aria-label="trazer alguém pra equipe">
+      <p class="lbl">trazer alguém pra equipe</p>
+      <form class="ad-busca" data-busca-pessoa style="margin: 12px 0">
+        <div class="field">
+          <label for="busca-equipe" class="sr-only">buscar pelo nome ou e-mail</label>
+          <input id="busca-equipe" type="search" placeholder="nome ou e-mail" autocomplete="off" />
+        </div>
+        <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+      </form>
+      <p class="ad-dica">a pessoa precisa ter conta no site. se ainda não tem, pede pra ela se cadastrar em /cadastro e volta aqui.</p>
+      <div data-achados></div>
+      <div class="ad-modal-acoes">
+        <button type="button" class="btn ghost sm" data-fechar>deixa pra lá</button>
+      </div>
+    </div>`;
+
+  const fechar = () => {
+    document.removeEventListener('keydown', aoTeclar);
+    fundo.remove();
+  };
+  const aoTeclar = (e) => {
+    if (e.key === 'Escape') fechar();
+  };
+  fundo.addEventListener('click', (e) => {
+    if (e.target === fundo || e.target.closest('[data-fechar]')) fechar();
+  });
+  document.addEventListener('keydown', aoTeclar);
+  document.body.appendChild(fundo);
+  renderIcons();
+  $('#busca-equipe', fundo).focus();
+
+  const achados = $('[data-achados]', fundo);
+  $('[data-busca-pessoa]', fundo).addEventListener('submit', async (e) => {
     e.preventDefault();
-    const termo = $('#busca-equipe', view).value.trim();
+    const termo = $('#busca-equipe', fundo).value.trim();
     if (termo.length < 3) {
       achados.innerHTML = `<div class="notice warn"><p>escreve pelo menos 3 letras pra eu procurar.</p></div>`;
       return;
@@ -2441,26 +2484,23 @@ async function viewEquipe(view) {
     try {
       const pessoas = await rpc('admin_buscar_pessoa', { p_busca: termo });
       if (!pessoas || !pessoas.length) {
-        achados.innerHTML = vazio('não achei ninguém', 'confere o nome ou o e-mail.');
+        achados.innerHTML = vazio('não achei ninguém', 'confere o nome ou o e-mail. só aparece quem já tem conta no site.');
         return;
       }
       achados.innerHTML = `
-        <div class="card ad-achados">
-          <p class="lbl">quem eu achei</p>
-          <div class="rows">
-            ${pessoas
-              .map(
-                (p) => `
-              <div class="row">
-                <div class="row-main">
-                  <span>${escapeHtml(p.nome || 'sem nome')}</span>
-                  <span class="row-meta">${escapeHtml(p.email || '')}</span>
-                </div>
-                <button type="button" class="btn ghost sm" data-add="${escapeHtml(p.id)}" data-nome="${escapeHtml(p.nome || 'sem nome')}" data-email="${escapeHtml(p.email || '')}">dar acesso</button>
-              </div>`,
-              )
-              .join('')}
-          </div>
+        <div class="rows">
+          ${pessoas
+            .map(
+              (p) => `
+            <div class="row">
+              <div class="row-main">
+                <span>${escapeHtml(p.nome || 'sem nome')}</span>
+                <span class="row-meta">${escapeHtml(p.email || '')}</span>
+              </div>
+              <button type="button" class="btn ghost sm" data-add="${escapeHtml(p.id)}" data-nome="${escapeHtml(p.nome || 'sem nome')}" data-email="${escapeHtml(p.email || '')}">trazer</button>
+            </div>`,
+            )
+            .join('')}
         </div>`;
       $$('[data-add]', achados).forEach((botao) => {
         botao.addEventListener('click', () => {
@@ -2473,35 +2513,42 @@ async function viewEquipe(view) {
             permissoes: [],
             novo: true,
           };
-          achados.innerHTML = '';
-          $('#busca-equipe', view).value = '';
+          fechar();
           const lista = $('.ad-lista', corpo);
           if (!lista) {
-            // carregarEquipe falhou (corpo só tem o aviso de erro, sem .ad-lista) —
-            // não dá pra inserir o card; avisa em vez de mentir "já está na lista".
             toast('a lista da equipe não carregou; recarrega a página pra adicionar');
-          } else if (!$(`[data-pessoa="${nova.id}"]`, corpo)) {
-            lista.insertAdjacentHTML('afterbegin', cardEquipe(nova));
-            ligarCardsEquipe(corpo);
-            renderIcons();
-          } else {
-            toast('essa pessoa já está na lista abaixo');
+            return;
           }
+          if ($(`[data-pessoa="${CSS.escape(nova.id)}"]`, corpo)) {
+            toast('essa pessoa já está na lista');
+            return;
+          }
+          lista.insertAdjacentHTML('afterbegin', cardEquipe(nova));
+          ligarCardsEquipe(corpo);
+          renderIcons();
+          $(`[data-pessoa="${CSS.escape(nova.id)}"]`, corpo)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
         });
       });
     } catch (err) {
       erroNaTela(achados, err);
     }
   });
-
-  carregarEquipe(corpo);
 }
 
 async function carregarEquipe(corpo) {
   carregando(corpo);
   try {
-    const linhas = await rpc('admin_equipe');
-    corpo.innerHTML = `<div class="ad-lista">${(linhas || []).map((p) => cardEquipe(p)).join('')}</div>`;
+    const resposta = await rpc('admin_equipe');
+    const linhas = Array.isArray(resposta) ? resposta : [];
+    // Lista vazia era uma área em BRANCO, sem nada dizendo por quê. Se nem o adm
+    // do Casa voltou, o problema não é "ninguém na equipe", é a leitura.
+    corpo.innerHTML =
+      (linhas.length
+        ? ''
+        : vazio(
+            'não veio ninguém do banco',
+            'nem a tua própria conta voltou nessa lista, então isso não é "equipe vazia". recarrega; se continuar, me avisa.',
+          )) + `<div class="ad-lista">${linhas.map((p) => cardEquipe(p)).join('')}</div>`;
     ligarCardsEquipe(corpo);
     renderIcons();
   } catch (e) {

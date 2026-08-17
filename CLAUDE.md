@@ -1362,6 +1362,12 @@ respondem:
   conquistas (ligar/desligar), indicações e o extrato bruto de pontos. As três primeiras
   **não precisariam de migration** (as policies de `subscriptions`, `achievements` e
   `points_ledger` já liberam staff); indicações precisaria.
+- **A faixa de abas gruda no topo em tela estreita.** Abaixo de 900px a lateral escura vira
+  uma faixa no topo, e ela era `position: static`: numa aba comprida bastava rolar um pouco
+  e **a navegação inteira saía da tela**, deixando o conteúdo solto no fundo bege, com cara
+  de página quebrada e sem jeito de trocar de aba a não ser voltando ao topo. Vale pra
+  qualquer janela abaixo de 900px **e pro notebook com o zoom do navegador aumentado**, que
+  é como isso apareceu. Agora é `sticky`.
 - **A barra de abas em tela estreita** (abaixo de 900px a lateral escura vira uma faixa no
   topo): o `.ad-nav-item` levava `width: 100%` da versão vertical, e em fila horizontal
   isso dá a **largura inteira da faixa pra cada item**. Os 18 viravam uma fila de 15.654px
@@ -1372,8 +1378,13 @@ respondem:
   (`scrollIntoView`, respeitando `prefers-reduced-motion`) — sem isso as últimas da fila
   nasciam fora da tela toda vez.
 - **Onde se dá acesso a alguém** (aba **equipe**, `perm: 'equipe'`, só quem é owner delega
-  a própria `equipe`): busca a pessoa por nome ou e-mail (`admin_buscar_pessoa`, mínimo 3
-  letras), "dar acesso", marca as permissões e salva (`admin_definir_permissoes`).
+  a própria `equipe`): a tela abre com **a equipe**, não com um campo de busca. O botão
+  **"+equipe"** no cabeçalho abre a folhinha de procurar (`admin_buscar_pessoa`, mínimo 3
+  letras); a pessoa escolhida entra na lista com as permissões em branco, e aí se marca e
+  salva (`admin_definir_permissoes`). A busca sempre-aberta no topo fazia a aba abrir com
+  um campo em vez de abrir com quem já está lá, que é o que se vem ver aqui. **Lista vazia
+  agora fala**: se nem a própria conta voltou do banco, isso não é "equipe vazia", é a
+  leitura, e a tela diz isso em vez de ficar em branco.
   "Tirar do console" limpa todas. O adm do Casa e o master aparecem como intocáveis, e
   ninguém edita as próprias permissões. **A pessoa precisa ter conta no site primeiro** (a
   busca varre o `profiles`): não existe convite por e-mail, ela se cadastra em `/cadastro`
