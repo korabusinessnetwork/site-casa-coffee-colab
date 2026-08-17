@@ -1353,6 +1353,13 @@ respondem:
   dono** (a `tem_permissao` responde verdadeiro pra owner em qualquer slug). Na virada,
   **ninguém perdeu acesso**: a 0046 faz backfill de quem tinha a permissão larga pras que
   saíram de dentro dela.
+- **O cartão da pessoa abre e fecha.** A grade tem 19 caixinhas: com todas abertas a lista
+  vira um paredão de checkbox, e depois de salvar ela continuava escancarada, como se ainda
+  houvesse o que fazer. O cartão mostra o nome, o e-mail e **o resumo do acesso**; quem vai
+  mexer aperta **"editar permissões"**. Salvar recarrega a lista (fecha e mostra o estado
+  novo) e **"cancelar" também recarrega** de propósito, pra o que foi marcado sem salvar
+  não ficar na tela fingindo que valeu. Quem acaba de ser trazido pelo **+equipe** nasce com
+  o cartão ABERTO, porque aí a próxima coisa a fazer é justamente marcar.
 - **A aba equipe mostra as 19 em cinco áreas** (o dia a dia; a loja e o balcão; a gente; o
   que a casa lê; o que a casa publica), com **"marcar tudo"/"limpar" por área** e uma linha
   de resumo que diz, em português, quais abas a pessoa alcança com o que está marcado. Numa

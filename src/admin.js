@@ -2643,6 +2643,7 @@ function cardEquipe(p) {
 
       <p class="ad-perm-resumo" data-resumo="${escapeHtml(p.id)}">${resumoDoAcesso(permissoes)}</p>
 
+      <div class="ad-perm-caixa" data-perms ${p.novo ? '' : 'hidden'}>
       ${AREAS_PERMISSAO.map(
         (area) => `
         <section class="ad-perm-area">
@@ -2676,16 +2677,32 @@ function cardEquipe(p) {
           </div>
         </section>`,
       ).join('')}
+      </div>
 
-      ${
-        euMesmo
-          ? ''
-          : `<div class="ad-card-acoes">
-               <button type="button" class="btn solid sm" data-salvar="${escapeHtml(p.id)}">salvar</button>
-               ${p.novo ? '' : `<button type="button" class="btn ghost sm" data-tirar="${escapeHtml(p.id)}" data-nome="${escapeHtml(p.nome || 'essa pessoa')}">tirar do console</button>`}
-             </div>`
-      }
+      <div class="ad-card-acoes">
+        <button type="button" class="btn ghost sm" data-editar-perms ${p.novo ? 'hidden' : ''}>
+          <i data-lucide="pencil"></i>${euMesmo ? 'ver as minhas permissões' : 'editar permissões'}
+        </button>
+        ${
+          euMesmo
+            ? `<button type="button" class="btn ghost sm" data-fechar-perms ${p.novo ? '' : 'hidden'}>fechar</button>`
+            : `<button type="button" class="btn solid sm" data-salvar="${escapeHtml(p.id)}" ${p.novo ? '' : 'hidden'}>salvar</button>
+               <button type="button" class="btn ghost sm" data-fechar-perms ${p.novo ? '' : 'hidden'}>cancelar</button>
+               ${p.novo ? '' : `<button type="button" class="btn ghost sm" data-tirar="${escapeHtml(p.id)}" data-nome="${escapeHtml(p.nome || 'essa pessoa')}">tirar do console</button>`}`
+        }
+      </div>
     </article>`;
+}
+
+// A grade tem 19 caixinhas: deixá-la aberta em todo mundo transforma a lista da
+// equipe num paredão de checkbox, e depois de salvar ela continuava escancarada
+// como se ainda houvesse o que fazer. O cartão fecha e mostra só o resumo; quem
+// vai mexer abre no "editar permissões".
+function abrirCartaoDeEquipe(card, aberto) {
+  const caixa = $('[data-perms]', card);
+  if (caixa) caixa.hidden = !aberto;
+  $$('[data-editar-perms]', card).forEach((b) => (b.hidden = aberto));
+  $$('[data-salvar], [data-fechar-perms]', card).forEach((b) => (b.hidden = !aberto));
 }
 
 function ligarCardsEquipe(corpo) {
@@ -2713,6 +2730,24 @@ function ligarCardsEquipe(corpo) {
       });
       atualizarResumo();
     });
+  });
+
+  $$('[data-editar-perms]', corpo).forEach((botao) => {
+    if (botao.dataset.ligado) return;
+    botao.dataset.ligado = '1';
+    botao.addEventListener('click', () => {
+      const card = botao.closest('[data-pessoa]');
+      abrirCartaoDeEquipe(card, true);
+      $('input[type="checkbox"]:not([disabled])', card)?.focus();
+    });
+  });
+
+  // "cancelar" recarrega a lista de propósito: assim o que foi marcado sem
+  // salvar não fica na tela fingindo que valeu.
+  $$('[data-fechar-perms]', corpo).forEach((botao) => {
+    if (botao.dataset.ligado) return;
+    botao.dataset.ligado = '1';
+    botao.addEventListener('click', () => carregarEquipe(corpo));
   });
 
   $$('[data-salvar]', corpo).forEach((botao) => {
