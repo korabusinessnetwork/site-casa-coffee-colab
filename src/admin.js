@@ -728,7 +728,13 @@ function abrirDoHash() {
   const item = abas.find((a) => a.id === pedida) || abas[0];
   if (!item) return;
   estado.aba = item.id;
-  zerarEstadoDasAbas();
+  // Arrumação da casa nunca pode derrubar a tela: se isto estourar, a aba ainda
+  // tem que abrir.
+  try {
+    zerarEstadoDasAbas();
+  } catch (e) {
+    console.error('[console] não deu pra zerar o estado das abas:', e);
+  }
 
   $$('[data-aba]').forEach((botao) => {
     const ativo = botao.dataset.aba === item.id;
@@ -769,7 +775,27 @@ function abrirDoHash() {
     agenda: viewAgenda,
     conta: viewConta,
   };
-  (telas[item.id] || viewPainel)(view);
+  // TODA view é `async`. Se uma delas estoura ANTES do try/catch que ela tem por
+  // dentro (um elemento que não veio, um helper que sumiu), a promise rejeita e
+  // a área do conteúdo fica EM BRANCO, sem uma linha dizendo o quê: a tela toda
+  // parece vazia e não há como saber de onde veio. Falha de tela tem que
+  // aparecer NA TELA.
+  const abrirAba = telas[item.id] || viewPainel;
+  try {
+    Promise.resolve(abrirAba(view)).catch((e) => falhaDaAba(view, item.id, e));
+  } catch (e) {
+    falhaDaAba(view, item.id, e);
+  }
+}
+
+function falhaDaAba(view, aba, e) {
+  console.error(`[console] a aba "${aba}" não abriu:`, e);
+  view.innerHTML = `
+    <div class="notice err">
+      <p><strong>essa aba não abriu.</strong></p>
+      <p>${escapeHtml(e?.message || String(e))}</p>
+      <p class="ad-dica">troca de aba pra seguir usando o resto do console, e me manda esse texto que eu conserto.</p>
+    </div>`;
 }
 
 function cabecalho(titulo, texto, extra = '') {

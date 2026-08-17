@@ -1391,6 +1391,14 @@ respondem:
   e aí aparece na busca. **Esta aba ficou quebrada da `0017` até a `0042`** (as duas
   funções dela caíam no erro de tipo do e-mail), então ela nunca tinha funcionado de
   verdade antes de 13/ago/2026.
+- **Aba que estoura mostra o motivo, não fica em branco.** Toda `view*` é `async`, e o
+  roteador chamava `(telas[id] || viewPainel)(view)` sem `catch`: se a view estourasse
+  ANTES do try/catch que ela tem por dentro (um elemento que não veio, um helper que
+  sumiu), a promise rejeitava em silêncio e a **área do conteúdo ficava vazia**, sem uma
+  linha dizendo o quê. Da tela, isso é indistinguível de "não tem dado", e foi assim que um
+  problema real ficou invisível. Agora o roteador embrulha a chamada (sync e async) e a
+  `falhaDaAba` escreve "essa aba não abriu" com a mensagem do erro. O `zerarEstadoDasAbas`
+  também virou try/catch: arrumação de casa não pode derrubar a tela.
 - **Trocar de aba zera o que a tela não mostra** (`zerarEstadoDasAbas`, chamada pelo
   `abrirDoHash`). O id em edição e o texto de busca viviam em variável de módulo e
   sobreviviam à remontagem da view, então a tela mentia de dois jeitos. O grave: clicar
