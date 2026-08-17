@@ -1663,13 +1663,16 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **PENDENTE: a `0047_permissoes_por_secao`.** É a única que falta rodar no SQL Editor.
-  Sem ela, o console segue funcionando com as permissões da 0046 (o front novo pergunta por
-  `<pagina>.ver`, então **a aba equipe e as abas todas ficam vazias até aplicar**). Depois
-  de aplicar, a numeração livre pra próxima é a **`0048`**.
-- **Banco em dia até a `0046` (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no
-  SQL Editor (as `0040` e `0041` em 13/ago) e a leva **`0042` → `0046` em 17/ago**. O
-  front correspondente está na `main` e o
+- **Banco em dia (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no
+  SQL Editor (as `0040` e `0041` em 13/ago), a leva **`0042` → `0046`** e a **`0047`**, as
+  duas em 17/ago, então **não há migration pendente**. A numeração livre pra próxima é a
+  **`0048`**. O
+  front correspondente está na `main` até a `0046`; **o da `0047` está na branch
+  `claude/permissions-system-sections-ielbyo` e ainda não foi pra produção**. Enquanto isso,
+  quem NÃO é o dono não enxerga aba nenhuma no console de produção: o front velho pergunta
+  por `pode('pedidos')` e a `admin_minhas_permissoes` já devolve `pedidos.ver` (o dono passa
+  porque o `tudo` dele curto-circuita a checagem). A ponte da `permissoes_legado` segura as
+  FUNÇÕES, não a lista de abas que o front monta. Deploy do front resolve. O
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
   da `0032` está destravada e o console responde. Pra conferir o banco a qualquer momento,
@@ -1953,7 +1956,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   delegar. Tem **backfill**: quem já tinha `resgates`, `usuarios` ou `relatorios` recebe,
   uma a uma, as permissões que saíram de dentro delas, então ninguém perde acesso na
   virada.
-- **`0047_permissoes_por_secao` — PENDENTE (a única que falta).** Permissão por **seção do
+- **`0047_permissoes_por_secao` — APLICADA em 17/ago/2026.** Permissão por **seção do
   site** e por **ação**: as tabelas de catálogo `permissao_secoes` › `permissao_paginas` ›
   `permissoes` (8 seções, 20 páginas, 43 permissões `<pagina>.<acao>`), o FK vindo da
   `staff_permissions` no lugar do CHECK escrito à mão, a `permissao_canonica` traduzindo os
