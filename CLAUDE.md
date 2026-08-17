@@ -1410,7 +1410,7 @@ pauta e o briefing, diz pra quem é e até quando, e quem trabalha move o cartã
   quem entra no console: a RPC recusa pauta pra cliente, e o `select` é montado pela
   `admin_pautas_equipe`, que pede a permissão do **quadro**, não a de mexer no acesso dos
   outros.
-- **Migration `0043_pautas` (PENDENTE):** tabela `pautas` **deny-by-default** (RLS ligada,
+- **Migration `0043_pautas` (APLICADA em 17/ago/2026):** tabela `pautas` **deny-by-default** (RLS ligada,
   nenhuma policy) + 5 RPCs SECURITY DEFINER (`admin_pautas_listar`, `admin_pautas_equipe`,
   `admin_pauta_salvar`, `admin_pauta_status`, `admin_pauta_remover`). É a **primeira
   migration a mexer no whitelist fechado de permissões da `0017`**: acrescenta `'pautas'`
@@ -1572,11 +1572,10 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **Banco em dia (13/ago/2026):** o humano aplicou **toda a leva `0017` → `0041`** no SQL
-  Editor (as `0040` e `0041` em 13/ago). Estão **pendentes** a **`0042`** (conserta o
-  `structure of query does not match function result type` de cinco abas do console), a
-  **`0043`** (o quadro de pautas) e a **`0044`** (moderação do mural pela permissão, não
-  pelo papel). Rodar nessa ordem. O front correspondente está na `main` e o
+- **Banco em dia (17/ago/2026):** o humano aplicou **toda a leva `0017` → `0041`** no SQL
+  Editor (as `0040` e `0041` em 13/ago), e a leva `0042` → `0044` em **17/ago/2026**,
+  então **não há migration pendente**. A numeração livre pra próxima é a **`0045`**. O
+  front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
   da `0032` está destravada e o console responde. Pra conferir o banco a qualquer momento,
@@ -1807,7 +1806,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `0019` só deixa ler quem é parte do presente, então a casa não enxergava o que vendeu.
   **Não devolve a `mensagem`** (o bilhete é de uma pessoa pra outra). Só leitura: nenhuma
   tabela, coluna ou policy muda.
-- **`0042_email_do_console` — PENDENTE (rodar no SQL Editor).** Cinco abas do console
+- **`0042_email_do_console` — APLICADA em 17/ago/2026.** Cinco abas do console
   (**pedidos, resgates, pessoas, equipe e aniversários**) respondiam sempre
   `structure of query does not match function result type`, com dado ou sem dado.
   **`auth.users.email` é `character varying(255)` no Supabase, não `text`** — e as seis
@@ -1826,13 +1825,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > Storage) e a `0028` (que depende da coluna `avatar_url` criada pela 0015) precisam do
   > Supabase de verdade. Erro de tipo em `returns table` **não aparece na criação da
   > função**, só na primeira chamada, então ler o SQL não basta: tem que chamar.
-- **`0043_pautas` — PENDENTE (rodar no SQL Editor).** O quadro da equipe: tabela `pautas`
+- **`0043_pautas` — APLICADA em 17/ago/2026.** O quadro da equipe: tabela `pautas`
   (deny-by-default, RLS ligada e nenhuma policy) + 5 RPCs SECURITY DEFINER gated por
   `tem_permissao('pautas')`, e a permissão `'pautas'` entrando no **whitelist fechado por
   CHECK da `0017`** (a primeira vez que aquele CHECK muda; o `do $$` acha a constraint pelo
   conteúdo em vez de confiar no nome). Apagar exige ser quem escreveu, ou o owner. Ver
   "O quadro da casa" acima.
-- **`0044_mural_pela_permissao` — PENDENTE (rodar no SQL Editor).** A aba do mural
+- **`0044_mural_pela_permissao` — APLICADA em 17/ago/2026.** A aba do mural
   escrevia direto pela RLS, e as policies da `0020` falam em `is_staff()` — que é papel,
   não permissão. Como o console **concede permissão sem nunca trocar o papel de ninguém**,
   quem recebia `'usuarios'` via só os recados aprovados e batia na RLS ao tentar esconder
