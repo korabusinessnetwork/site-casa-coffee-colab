@@ -1999,9 +1999,14 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .pauta-data-linha { display: flex; gap: 8px; margin-top: 6px }
 .pauta-data-linha input { flex: 1 1 auto; min-width: 0 }
 
-/* ---- o painel da pauta ---- */
-.pauta-painel-fundo { position: fixed; inset: 0; z-index: 60; background: rgba(20, 16, 11, .42); display: flex; justify-content: flex-end }
-.pauta-painel { width: min(520px, 100%); height: 100%; overflow-y: auto; background: var(--paper); padding: 22px 24px 40px; display: flex; flex-direction: column; gap: 16px; box-shadow: -18px 0 44px rgba(20, 16, 11, .16) }
+/* ---- o painel da pauta ----
+   Era gaveta colada na direita, de encostar no topo e no rodapé da janela; virou
+   uma caixa no meio da tela, com ar em volta, no mesmo desenho do `.ad-modal`
+   que o console já usa nas confirmações. A altura é a do conteúdo (`max-height:
+   100%` = a área do grid, que já desconta o ar do fundo), então pauta curta dá
+   caixa curta e pauta longa rola por dentro. */
+.pauta-painel-fundo { position: fixed; inset: 0; z-index: 60; background: rgba(20, 16, 11, .42); display: grid; place-items: center; padding: 28px 20px }
+.pauta-painel { width: min(560px, 100%); max-height: 100%; overflow-y: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 26px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 20px 60px rgba(20, 16, 11, .3) }
 .pauta-painel-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px }
 .pauta-painel-titulo { margin: 0; overflow-wrap: anywhere }
 .pauta-painel-sub { margin: -8px 0 0; font-size: 13px; color: var(--muted) }
@@ -2046,7 +2051,9 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
      não no meio da tela. `dvh` e não `vh` por causa do teclado virtual. */
   .pauta-escolha { align-items: flex-end }
   .pauta-escolha-caixa { max-width: none; width: 100%; border-radius: 18px 18px 0 0; max-height: 82dvh; overflow-y: auto }
-  .pauta-painel { width: 100%; padding: 18px 18px 40px }
+  /* no celular o ar em volta encolhe, senão sobra moldura e falta pauta */
+  .pauta-painel-fundo { padding: 14px }
+  .pauta-painel { width: 100%; padding: 18px 18px 22px; border-radius: 16px }
 }
 
 /* ---- o polish do quadro (alinhamento, cartão contínuo e tipografia) ----
