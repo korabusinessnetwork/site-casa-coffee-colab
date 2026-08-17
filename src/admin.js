@@ -1204,7 +1204,8 @@ function grupoHTML(g, itens, semGrupo = false) {
                 aria-expanded="${!g.recolhido}" ${semGrupo ? 'disabled' : ''}>
           <i data-lucide="${g.recolhido ? 'chevron-right' : 'chevron-down'}"></i>
         </button>
-        <p class="pauta-grupo-nome tag ${escapeHtml(cor)}">${escapeHtml(g.nome)}</p>
+        <span class="pauta-grupo-cor" aria-hidden="true"></span>
+        <p class="pauta-grupo-nome">${escapeHtml(g.nome)}</p>
         <span class="pauta-grupo-conta">${formatNumero(itens.length)} ${itens.length === 1 ? 'pauta' : 'pautas'}${feitas ? ` · ${formatNumero(feitas)} feita${feitas > 1 ? 's' : ''}` : ''}</span>
         ${
           semGrupo
@@ -1730,7 +1731,7 @@ async function abrirPainelDaPauta(id, corpo) {
         }
         <form class="pauta-coment-form" data-form-coment>
           <label for="painel-coment" class="sr-only">escrever na conversa</label>
-          <input id="painel-coment" type="text" maxlength="2000" placeholder="escreve aqui o que aconteceu" autocomplete="off" />
+          <input id="painel-coment" class="inp" type="text" maxlength="2000" placeholder="escreve aqui o que aconteceu" autocomplete="off" />
           <button type="submit" class="btn solid sm">mandar</button>
         </form>
       </div>`;

@@ -1468,7 +1468,32 @@ escreveu, ou o adm. Criar, editar e apagar ficam no `audit_log`.
 
 **As seis cores** (`neutro`, `coral`, `gold`, `green`, `olive`, `blue`) são exatamente as
 variantes de `.tag` que já existem no CSS, e o banco só aceita esses seis slugs: cor nunca
-vem do banco como hex, nem vira `style=`.
+vem do banco como hex, nem vira `style=`. Do handoff de design em diante, o mapa dos seis
+slugs virou **uma variável só** (`--grupo-cor`, no `.pauta-grupo[data-cor]`), que serve a
+barrinha do nome do grupo e o eco no começo de cada linha.
+
+**O acabamento da tela** (handoff de design, 17/ago/2026, só CSS mais dois retoques de
+markup): a tabela era **linhas soltas boiando** e o cabeçalho não caía no prumo das
+células. Agora as linhas são **um cartão contínuo** (raio só na primeira e na última, a
+linha "+ pauta" grudada no pé), o cabeçalho espelha o padding real da célula (14px da
+linha mais 1px de borda, mais os 10px de dentro da `.pauta-celula`), o nome do grupo
+troca a pílula pela **barrinha de cor** e os controles ficam quietos (os dois filtros
+viram trilho de *segmented control*, as quatro ações do quadro e as três da linha perdem
+a caixa). Três coisas que valem saber:
+- **O corte é 861px, não os 720px do handoff.** É aqui que a tabela deixa de ser tabela: o
+  `@media (max-width: 860px)` que já existia empilha cada pauta como cartão, e ali cada
+  linha PRECISA do próprio raio. Todo o bloco de layout do acabamento mora atrás de
+  `@media (min-width: 861px)`, então o celular não muda.
+- **O `gap: 6px` do `.pauta-grupo` era o que afastava as linhas** (menos o `-1px` que a
+  linha já puxava = 5px de ar). Sem zerar esse gap, o cartão contínuo não fecha, por mais
+  raio que se tire; o respiro entre o cabeçalho do grupo e a primeira linha passou a ser
+  um `margin-bottom`.
+- **O nome do grupo perdeu o `tag <cor>` no HTML, o da coluna do kanban não.** A classe
+  `.pauta-grupo-nome` serve os dois lugares, e no kanban a cor é o estado (a fazer,
+  fazendo, travada, feita), que não pode virar rótulo cinza. Como `.tag.coral` tem
+  especificidade maior que `.pauta-grupo-nome`, a mesma regra de tipografia serve os dois
+  e só a tabela fica quieta. O chip neutro ganhou fundo `--paper-2` pelo mesmo motivo:
+  sem ele, "a fazer" e "quando der" eram texto solto no meio de uma coluna de pílulas.
 
 **O que NÃO foi feito, de propósito:** coluna customizável por quadro (criar uma coluna
 "turno" ou renomear os estados). É a peça mais cara de uma ferramenta dessas, e um café
