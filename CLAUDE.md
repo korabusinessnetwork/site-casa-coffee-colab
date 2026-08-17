@@ -1306,22 +1306,22 @@ respondem:
 |-----|-----------|-----------|
 | painel | `dashboard` | os números do dia (`admin_dashboard`) |
 | **pautas** | `pautas` | **novo:** o quadro de briefings da equipe (0043) |
-| pedidos | `pedidos` | fila da loja + baixa de retirada/entrega |
+| pedidos | `pedidos` | fila da loja + baixa de retirada/entrega (a baixa é a ação `entregas`) |
 | resgates | `resgates` | recompensas resgatadas, baixa em mãos |
-| aniversários | `resgates` | os brunches reservados (0025) |
-| **presentes** | `resgates` | **novo:** os planos dados de presente (0041) |
+| aniversários | `aniversarios` | os brunches reservados (0025) |
+| presentes | `presentes` | os planos dados de presente (0041) |
 | pessoas | `usuarios` | quem já passou por aqui, com plano e pontos |
-| **mural** | `usuarios` | **novo:** moderar a parede do `/o-casa` (0020) |
+| mural | `mural` | moderar a parede do `/o-casa` (0020/0044) |
 | relatórios | `relatorios` | o que vendeu e o que saiu por pontos |
-| favoritos | `relatorios` | ranking do cardápio (0027) |
-| desejos | `relatorios` | ranking da loja (0029) |
-| esperando | `relatorios` | quem espera reposição (0030) |
-| lista de espera | `relatorios` | e-mails do rodapé (0031/0034) |
-| eventos | `relatorios` | pedidos de evento (0040) |
+| favoritos | `favoritos` | ranking do cardápio (0027) |
+| desejos | `desejos` | ranking da loja (0029) |
+| esperando | `reposicao` | quem espera reposição (0030) |
+| lista de espera | `lista_espera` | e-mails do rodapé (0031/0034) |
+| eventos | `leads` | pedidos de evento (0040) |
 | equipe | `equipe` | dar e tirar permissões |
-| recados | `avisos` | a tarja no topo do site (0022), **owner-only** |
-| trilha | `trilha` | playlists da home (0023), **owner-only** |
-| agenda | `eventos` | encontros da casa (0026), **owner-only** |
+| recados | `avisos` | a tarja no topo do site (0022) |
+| trilha | `trilha` | playlists da home (0023) |
+| agenda | `agenda` | encontros da casa (0026) |
 | tua conta | livre | trocar a própria senha |
 
 - **Permissão não é cargo, e isso tem consequência.** A `admin_definir_permissoes` grava
@@ -1343,6 +1343,21 @@ respondem:
   **título ao portador**, então mora na permissão `resgates`, a mesma de quem já entrega
   recompensa em mãos, e não na mais larga do console. O **bilhete** que o comprador
   escreveu **não** vem na RPC: é recado de uma pessoa pra outra.
+- **Uma permissão por PÁGINA (`0046`), e a régua mora no banco.** Eram 8 permissões pra 19
+  abas, e isso grudava coisas que não combinam: quem recebia `relatorios` pra ver o que a
+  loja vendeu levava junto a lista de e-mails do rodapé e os pedidos de evento (com nome e
+  telefone de quem pediu); quem recebia `resgates` pra entregar recompensa levava junto os
+  códigos dos presentes vendidos. Agora **cada aba pede a permissão dela**, e as três que
+  eram do dono (recados, trilha, agenda) **passaram a ser delegáveis**: as funções delas
+  perguntavam `is_owner()` e hoje perguntam `tem_permissao(...)`, o que **não tira nada do
+  dono** (a `tem_permissao` responde verdadeiro pra owner em qualquer slug). Na virada,
+  **ninguém perdeu acesso**: a 0046 faz backfill de quem tinha a permissão larga pras que
+  saíram de dentro dela.
+- **A aba equipe mostra as 19 em cinco áreas** (o dia a dia; a loja e o balcão; a gente; o
+  que a casa lê; o que a casa publica), com **"marcar tudo"/"limpar" por área** e uma linha
+  de resumo que diz, em português, quais abas a pessoa alcança com o que está marcado. Numa
+  grade corrida de 19 caixinhas ninguém acha o que procura, e é justamente aqui que se
+  decide quem vê o quê.
 - **Ainda sem aba** (verificado em 13/ago/2026, ficaram de fora a pedido): assinaturas,
   conquistas (ligar/desligar), indicações e o extrato bruto de pontos. As três primeiras
   **não precisariam de migration** (as policies de `subscriptions`, `achievements` e
@@ -1865,6 +1880,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `admin_pautas_listar` da 0043 são **dropadas e recriadas** (a assinatura mudou, e
   acrescentar parâmetro com default criaria uma sobrecarga que o PostgREST poderia
   escolher, gravando pauta sem quadro). Leitura em `returns jsonb`, ver "O quadro da casa".
+- **`0046_permissao_por_pagina` — PENDENTE (rodar no SQL Editor).** Abre o whitelist de
+  permissões pra **19 slugs, um por página** (mais a ação `entregas`), e troca a trava de
+  **21 funções** pra a permissão da própria página. O corpo das 21 é idêntico ao que já
+  estava no ar (foi extraído da última versão de cada uma); só a linha do `if not
+  public...` muda. As três funções de aba do dono deixam de perguntar `is_owner()` e passam
+  a perguntar `tem_permissao(...)`, o que **não tira nada do dono** e passa a permitir
+  delegar. Tem **backfill**: quem já tinha `resgates`, `usuarios` ou `relatorios` recebe,
+  uma a uma, as permissões que saíram de dentro delas, então ninguém perde acesso na
+  virada.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

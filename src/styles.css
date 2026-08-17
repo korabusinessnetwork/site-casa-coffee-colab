@@ -2070,6 +2070,15 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 /* ---------- equipe: busca e grade de permissões ---------- */
 .ad-achados { display: flex; flex-direction: column; gap: 10px; border-radius: 14px }
 .ad-achados .row:last-child { border-bottom: 0 }
+/* As 19 permissões vêm em ÁREAS (o dia a dia, a loja e o balcão, a gente, o que
+   a casa lê, o que a casa publica). Numa grade corrida de 19 caixinhas ninguém
+   acha o que procura, e é justamente aqui que se decide quem vê o quê. */
+.ad-perm-resumo { margin: 0 0 4px; font-size: 13.5px; line-height: 1.5; color: var(--muted) }
+.ad-perm-area { display: flex; flex-direction: column; gap: 10px; margin-top: 6px }
+.ad-perm-area-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px }
+.ad-perm-area-acoes { display: inline-flex; gap: 12px }
+.ad-perm-mini { border: 0; background: none; padding: 0; font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer }
+.ad-perm-mini:hover { color: var(--coral) }
 .ad-perms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px }
 .ad-perm { display: flex; align-items: flex-start; gap: 11px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); cursor: pointer; transition: border-color .18s var(--e) }
 .ad-perm:hover { border-color: var(--coral) }

@@ -282,35 +282,35 @@ const NAV = [
   // Brunch de aniversário: quem confere/dá baixa no balcão é a mesma gente dos
   // resgates (é uma recompensa entregue em mãos) — reusa a permissão 'resgates',
   // sem permissão nova no whitelist do 0017.
-  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'resgates' },
+  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'aniversarios' },
   // Presentes vendidos (0041). O código é título ao portador — quem tem o texto
   // resgata um mês de plano —, então fica na mesma permissão de quem já entrega
   // recompensa em mãos, não na mais larga do console.
-  { id: 'presentes', rotulo: 'presentes', icone: 'gift', perm: 'resgates' },
+  { id: 'presentes', rotulo: 'presentes', icone: 'gift', perm: 'presentes' },
   { id: 'pessoas', rotulo: 'pessoas', icone: 'users', perm: 'usuarios' },
   // Moderação do Mural do /o-casa. As policies da 0020 já dão à equipe o direito
   // de ver tudo, esconder e apagar; faltava a tela. Fica em 'usuarios' porque é
   // cuidar do que a turma escreve, não relatório.
-  { id: 'mural', rotulo: 'mural', icone: 'sticky-note', perm: 'usuarios' },
+  { id: 'mural', rotulo: 'mural', icone: 'sticky-note', perm: 'mural' },
   { id: 'relatorios', rotulo: 'relatórios', icone: 'bar-chart-3', perm: 'relatorios' },
   // "o que a casa mais ama" — os favoritos do cardápio. É um relatório, então
   // usa a permissão 'relatorios' (grantável, quem já vê relatório vê isto).
-  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'relatorios' },
+  { id: 'favoritos', rotulo: 'favoritos', icone: 'heart', perm: 'favoritos' },
   // "o que a casa mais quer" — a lista de desejos da loja. Também é relatório,
   // mesma permissão 'relatorios'.
-  { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'relatorios' },
+  { id: 'desejos', rotulo: 'desejos', icone: 'bookmark', perm: 'desejos' },
   // "quem espera reposição" — os avisos de produto esgotado. Relatório que guia a
   // reposição, mesma permissão 'relatorios'.
-  { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'relatorios' },
+  { id: 'esperando', rotulo: 'esperando', icone: 'bell-ring', perm: 'reposicao' },
   // "quem deixou o e-mail" — a lista de espera do rodapé (0031). Também é leitura
   // de interesse, mesma permissão 'relatorios'.
-  { id: 'espera', rotulo: 'lista de espera', icone: 'mail', perm: 'relatorios' },
+  { id: 'espera', rotulo: 'lista de espera', icone: 'mail', perm: 'lista_espera' },
   // "quem quer fazer evento aqui" — os pedidos da página /eventos (0040). É a
   // fila comercial da casa, mas continua sendo leitura de interesse: mesma
   // permissão 'relatorios', sem precisar mexer no whitelist fechado da 0017.
   // Note que é OUTRA coisa que a aba 'agenda', que é dos encontros que a casa
   // promove; esta é de quem quer alugar a casa pro evento dele.
-  { id: 'leads', rotulo: 'eventos', icone: 'party-popper', perm: 'relatorios' },
+  { id: 'leads', rotulo: 'eventos', icone: 'party-popper', perm: 'leads' },
   { id: 'equipe', rotulo: 'equipe', icone: 'shield-check', perm: 'equipe' },
   // Recado da casa: owner-only. O whitelist de permissões do console é fechado por
   // CHECK no banco (0017), então NÃO entra em PERMISSOES como grantável — quem tem
@@ -319,24 +319,65 @@ const NAV = [
   // Trilha do Casa (playlists): owner-only, mesma lógica do 'avisos' (não grantável).
   { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha' },
   // Agenda (encontros): owner-only, mesma lógica (perm 'eventos' não grantável).
-  { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'eventos' },
+  { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'agenda' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
-const PERMISSOES = [
-  { slug: 'dashboard', rotulo: 'ver o painel', descricao: 'os números do dia' },
-  { slug: 'pedidos', rotulo: 'ver os pedidos', descricao: 'a lista de compras da loja' },
-  { slug: 'entregas', rotulo: 'dar baixa em pedido', descricao: 'confirmar entregue ou retirado' },
-  { slug: 'resgates', rotulo: 'cuidar dos resgates', descricao: 'ver e entregar recompensas' },
-  { slug: 'usuarios', rotulo: 'ver as pessoas', descricao: 'quem já passou por aqui' },
-  { slug: 'relatorios', rotulo: 'ver relatórios', descricao: 'o que vendeu e o que saiu por pontos' },
-  // O quadro da equipe (0043). É a única permissão que faz sentido dar a quem
-  // trabalha no salão e não mexe em caixa nem em cadastro, então ela precisou
-  // ser própria: enfiar a pauta em 'relatorios' entregaria junto a lista de
-  // e-mails e o que a casa vendeu.
-  { slug: 'pautas', rotulo: 'o quadro de pautas', descricao: 'ler e escrever os briefings da equipe' },
-  { slug: 'equipe', rotulo: 'cuidar da equipe', descricao: 'dar e tirar permissões' },
+// As permissões, em áreas. Uma por PÁGINA do console (e as ações que não têm
+// página própria, como dar baixa em pedido), pra a casa poder abrir uma aba sem
+// abrir a de al lado. Antes eram 8 pra 19 abas, e isso grudava coisas que não
+// combinam: quem via relatório de venda levava junto a lista de e-mails do
+// rodapé e os pedidos de evento, com nome e telefone de quem pediu. A 0046
+// separou, e o banco é quem cobra (cada função pede a permissão da própria
+// página).
+const AREAS_PERMISSAO = [
+  {
+    titulo: 'o dia a dia',
+    itens: [
+      { slug: 'dashboard', rotulo: 'o painel', descricao: 'os números do dia' },
+      { slug: 'pautas', rotulo: 'o quadro de pautas', descricao: 'ler e escrever os briefings da equipe' },
+    ],
+  },
+  {
+    titulo: 'a loja e o balcão',
+    itens: [
+      { slug: 'pedidos', rotulo: 'os pedidos', descricao: 'a fila de compras da loja' },
+      { slug: 'entregas', rotulo: 'dar baixa em pedido', descricao: 'confirmar entregue ou retirado' },
+      { slug: 'resgates', rotulo: 'os resgates', descricao: 'ver e entregar recompensas' },
+      { slug: 'aniversarios', rotulo: 'os aniversários', descricao: 'os brunches reservados, e dar baixa' },
+      { slug: 'presentes', rotulo: 'os presentes', descricao: 'os planos dados de presente, com o código' },
+    ],
+  },
+  {
+    titulo: 'a gente',
+    itens: [
+      { slug: 'usuarios', rotulo: 'as pessoas', descricao: 'quem já passou por aqui' },
+      { slug: 'mural', rotulo: 'o mural', descricao: 'moderar a parede do /o-casa' },
+      { slug: 'equipe', rotulo: 'cuidar da equipe', descricao: 'dar e tirar permissões' },
+    ],
+  },
+  {
+    titulo: 'o que a casa lê',
+    itens: [
+      { slug: 'relatorios', rotulo: 'os relatórios', descricao: 'o que vendeu e o que saiu por pontos' },
+      { slug: 'favoritos', rotulo: 'favoritos do cardápio', descricao: 'o que a casa mais ama' },
+      { slug: 'desejos', rotulo: 'desejos da loja', descricao: 'o que a casa mais quer' },
+      { slug: 'reposicao', rotulo: 'quem espera reposição', descricao: 'produto esgotado com fila' },
+      { slug: 'lista_espera', rotulo: 'a lista de espera', descricao: 'os e-mails deixados no rodapé' },
+      { slug: 'leads', rotulo: 'pedidos de evento', descricao: 'quem quer fazer evento aqui (nome e telefone)' },
+    ],
+  },
+  {
+    titulo: 'o que a casa publica',
+    itens: [
+      { slug: 'avisos', rotulo: 'o recado do topo', descricao: 'a tarja que aparece no site' },
+      { slug: 'trilha', rotulo: 'a trilha', descricao: 'as playlists da home' },
+      { slug: 'agenda', rotulo: 'a agenda', descricao: 'os encontros que a casa promove' },
+    ],
+  },
 ];
+
+const PERMISSOES = AREAS_PERMISSAO.flatMap((a) => a.itens);
 
 const ROTULO_PAPEL = {
   owner: 'adm do Casa',
@@ -2468,6 +2509,15 @@ async function carregarEquipe(corpo) {
   }
 }
 
+// Uma linha em cima dos checkboxes dizendo o que a pessoa alcança hoje. Com 19
+// permissões, ler a grade inteira pra descobrir isso é trabalho.
+function resumoDoAcesso(permissoes) {
+  const n = PERMISSOES.filter((x) => permissoes.includes(x.slug)).length;
+  if (!n) return 'ainda não enxerga nada por aqui.';
+  const abas = NAV.filter((item) => item.perm && permissoes.includes(item.perm)).map((i) => i.rotulo);
+  return `${n} de ${PERMISSOES.length} permissões${abas.length ? `, e enxerga: ${abas.join(', ')}` : ''}.`;
+}
+
 function cardEquipe(p) {
   const permissoes = Array.isArray(p.permissoes) ? p.permissoes : [];
   const euMesmo = p.id === estado.sessao?.user?.id;
@@ -2503,21 +2553,41 @@ function cardEquipe(p) {
 
       ${euMesmo ? '<div class="notice info"><p>essas são as tuas permissões. quem muda as tuas é outra pessoa do time.</p></div>' : ''}
 
-      <div class="ad-perms">
-        ${PERMISSOES.map((perm) => {
-          const marcado = permissoes.includes(perm.slug);
-          const soOwner = perm.slug === 'equipe' && !souOwner;
-          const travado = euMesmo || soOwner;
-          return `
-          <label class="ad-perm${travado ? ' is-travado' : ''}">
-            <input type="checkbox" value="${perm.slug}" ${marcado ? 'checked' : ''} ${travado ? 'disabled' : ''} />
-            <span>
-              <strong>${escapeHtml(perm.rotulo)}</strong>
-              <em>${escapeHtml(soOwner ? 'só o adm do Casa delega isso' : perm.descricao)}</em>
-            </span>
-          </label>`;
-        }).join('')}
-      </div>
+      <p class="ad-perm-resumo" data-resumo="${escapeHtml(p.id)}">${resumoDoAcesso(permissoes)}</p>
+
+      ${AREAS_PERMISSAO.map(
+        (area) => `
+        <section class="ad-perm-area">
+          <header class="ad-perm-area-topo">
+            <p class="lbl">${escapeHtml(area.titulo)}</p>
+            ${
+              euMesmo
+                ? ''
+                : `<span class="ad-perm-area-acoes">
+                     <button type="button" class="ad-perm-mini" data-area-marcar>marcar tudo</button>
+                     <button type="button" class="ad-perm-mini" data-area-limpar>limpar</button>
+                   </span>`
+            }
+          </header>
+          <div class="ad-perms">
+            ${area.itens
+              .map((perm) => {
+                const marcado = permissoes.includes(perm.slug);
+                const soOwner = perm.slug === 'equipe' && !souOwner;
+                const travado = euMesmo || soOwner;
+                return `
+              <label class="ad-perm${travado ? ' is-travado' : ''}">
+                <input type="checkbox" value="${perm.slug}" ${marcado ? 'checked' : ''} ${travado ? 'disabled' : ''} />
+                <span>
+                  <strong>${escapeHtml(perm.rotulo)}</strong>
+                  <em>${escapeHtml(soOwner ? 'só o adm do Casa delega isso' : perm.descricao)}</em>
+                </span>
+              </label>`;
+              })
+              .join('')}
+          </div>
+        </section>`,
+      ).join('')}
 
       ${
         euMesmo
@@ -2531,6 +2601,32 @@ function cardEquipe(p) {
 }
 
 function ligarCardsEquipe(corpo) {
+  // Marcar tudo / limpar por área, e o resumo se atualizando a cada clique: com
+  // 19 caixinhas, dar acesso "a tudo da loja" na mão é enfadonho e dá erro.
+  $$('[data-pessoa]', corpo).forEach((card) => {
+    if (card.dataset.ligado) return;
+    card.dataset.ligado = '1';
+    const atualizarResumo = () => {
+      const resumo = $('[data-resumo]', card);
+      if (!resumo) return;
+      const marcadas = $$('input[type="checkbox"]', card).filter((c) => c.checked).map((c) => c.value);
+      resumo.textContent = resumoDoAcesso(marcadas);
+    };
+    card.addEventListener('change', (ev) => {
+      if (ev.target.matches('input[type="checkbox"]')) atualizarResumo();
+    });
+    card.addEventListener('click', (ev) => {
+      const marcar = ev.target.closest('[data-area-marcar]');
+      const limpar = ev.target.closest('[data-area-limpar]');
+      if (!marcar && !limpar) return;
+      const area = ev.target.closest('.ad-perm-area');
+      $$('input[type="checkbox"]', area).forEach((c) => {
+        if (!c.disabled) c.checked = Boolean(marcar);
+      });
+      atualizarResumo();
+    });
+  });
+
   $$('[data-salvar]', corpo).forEach((botao) => {
     if (botao.dataset.ligado) return;
     botao.dataset.ligado = '1';
