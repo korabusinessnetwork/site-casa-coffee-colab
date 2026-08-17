@@ -1999,9 +1999,14 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .pauta-data-linha { display: flex; gap: 8px; margin-top: 6px }
 .pauta-data-linha input { flex: 1 1 auto; min-width: 0 }
 
-/* ---- o painel da pauta ---- */
-.pauta-painel-fundo { position: fixed; inset: 0; z-index: 60; background: rgba(20, 16, 11, .42); display: flex; justify-content: flex-end }
-.pauta-painel { width: min(520px, 100%); height: 100%; overflow-y: auto; background: var(--paper); padding: 22px 24px 40px; display: flex; flex-direction: column; gap: 16px; box-shadow: -18px 0 44px rgba(20, 16, 11, .16) }
+/* ---- o painel da pauta ----
+   Era gaveta colada na direita, de encostar no topo e no rodapé da janela; virou
+   uma caixa no meio da tela, com ar em volta, no mesmo desenho do `.ad-modal`
+   que o console já usa nas confirmações. A altura é a do conteúdo (`max-height:
+   100%` = a área do grid, que já desconta o ar do fundo), então pauta curta dá
+   caixa curta e pauta longa rola por dentro. */
+.pauta-painel-fundo { position: fixed; inset: 0; z-index: 60; background: rgba(20, 16, 11, .42); display: grid; place-items: center; padding: 28px 20px }
+.pauta-painel { width: min(560px, 100%); max-height: 100%; overflow-y: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px 26px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 20px 60px rgba(20, 16, 11, .3) }
 .pauta-painel-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px }
 .pauta-painel-titulo { margin: 0; overflow-wrap: anywhere }
 .pauta-painel-sub { margin: -8px 0 0; font-size: 13px; color: var(--muted) }
@@ -2046,8 +2051,109 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
      não no meio da tela. `dvh` e não `vh` por causa do teclado virtual. */
   .pauta-escolha { align-items: flex-end }
   .pauta-escolha-caixa { max-width: none; width: 100%; border-radius: 18px 18px 0 0; max-height: 82dvh; overflow-y: auto }
-  .pauta-painel { width: 100%; padding: 18px 18px 40px }
+  /* no celular o ar em volta encolhe, senão sobra moldura e falta pauta */
+  .pauta-painel-fundo { padding: 14px }
+  .pauta-painel { width: 100%; padding: 18px 18px 22px; border-radius: 16px }
 }
+
+/* ---- o polish do quadro (alinhamento, cartão contínuo e tipografia) ----
+   A tabela era feita de linhas soltas boiando (cada uma com 12px de raio e
+   ~5px de ar entre elas, que é o `gap` do grupo menos o 1px que a linha puxa
+   pra cima), e o cabeçalho não caía no prumo das células. Aqui as linhas viram
+   UM cartão contínuo, o cabeçalho espelha o padding real da célula e a
+   tipografia ganha hierarquia. Vem depois de tudo de propósito: é override das
+   mesmas classes, e ordem é o que decide empate de especificidade. */
+
+/* Só na largura em que a tabela É tabela. Abaixo de 861px ela já vira cartão
+   empilhado (o @media logo acima), e ali cada pauta PRECISA do próprio raio. */
+@media (min-width: 861px) {
+  /* era o `gap` do grupo que afastava as linhas; sem ele elas se costuram
+     pelo -1px que já existia, e o grupo respira pelo cabeçalho. */
+  .pauta-grupo { gap: 0 }
+  .pauta-grupo-topo { margin-bottom: 6px }
+
+  .pauta-linha { border-radius: 0 }
+  .pauta-grupo-topo + .pauta-linha { border-radius: 12px 12px 0 0 }
+  .pauta-linha:last-child { border-radius: 0 0 12px 12px }
+  /* grupo de uma pauta só e sem linha de escrever (o "sem grupo") */
+  .pauta-grupo-topo + .pauta-linha:last-child { border-radius: 12px }
+  .pauta-linha:hover { position: relative; z-index: 1; background: color-mix(in srgb, var(--paper-2) 55%, var(--card)) }
+
+  /* a linha de escrever gruda no pé do cartão em vez de boiar */
+  .pauta-nova { margin-top: -1px; border-radius: 0 0 12px 12px; border-style: solid; background: var(--card) }
+  .pauta-nova:focus-within { border-color: var(--coral) }
+  /* grupo vazio: aí ela é o cartão inteiro */
+  .pauta-grupo-topo + .pauta-nova { margin-top: 0; border-radius: 12px }
+
+  /* cabeçalho no prumo das células: a linha tem 14px de padding mais 1px de
+     borda (= 15px) e cada `.pauta-celula` tem 10px por dentro. */
+  .pauta-cabeca { padding: 0 15px 8px }
+  .pauta-cabeca > * { padding-inline: 10px }
+  .pauta-cabeca > *:first-child { padding-inline-start: 0 }
+  .pauta-cabeca, .pauta-linha { column-gap: 12px }
+}
+
+/* tipografia com mais hierarquia. O nome do grupo perdeu a pílula (a cor agora
+   é a barrinha), mas a MESMA classe serve de título de coluna no kanban, e lá
+   ela segue com `tag <cor>`: como `.tag.coral` tem especificidade maior, o
+   estado continua colorido e só a tabela fica com o rótulo quieto. */
+.pauta-grupo-nome { font-family: var(--sans); font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2) }
+.pauta-grupo-conta { font-size: 12px }
+.pauta-abrir-item { font-size: 14px; font-weight: 650; letter-spacing: .01em }
+/* O `background` aqui só pega o chip NEUTRO ("a fazer", "quando der"): os de cor
+   vêm de `.tag.coral` e companhia, que tem especificidade maior e passa na
+   frente. Sem isso, dois dos chips da coluna eram texto solto no meio de
+   pílulas, e a coluna deixava de se ler de um golpe. */
+.pauta-estado, .pauta-urg { border-radius: 999px; background: var(--paper-2); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase }
+.pauta-celula, .pauta-grupo-conta, .pl-coment { font-variant-numeric: tabular-nums }
+
+/* A cor do grupo num mapa só, dos mesmos seis slugs que o banco aceita (nada
+   de hex vindo do banco), servindo as duas peças: a barrinha do nome e o eco
+   no começo de cada linha, que é o que amarra a linha ao grupo dela. */
+.pauta-grupo { --grupo-cor: var(--cream-soft) }
+.pauta-grupo[data-cor="coral"] { --grupo-cor: var(--coral) }
+.pauta-grupo[data-cor="gold"] { --grupo-cor: var(--gold) }
+.pauta-grupo[data-cor="green"] { --grupo-cor: var(--green) }
+.pauta-grupo[data-cor="olive"] { --grupo-cor: var(--olive) }
+.pauta-grupo[data-cor="blue"] { --grupo-cor: var(--blue) }
+.pauta-grupo-cor { width: 4px; height: 16px; flex: 0 0 auto; border-radius: 999px; background: var(--grupo-cor) }
+.pl-titulo::before { content: ''; width: 3px; height: 22px; flex: 0 0 auto; border-radius: 999px; background: var(--grupo-cor); opacity: .55 }
+
+/* Os dois filtros da barra viram trilho (segmented control): eles escolhem UM
+   jeito de ver a mesma coisa, e duas pílulas soltas, uma delas coral cheia,
+   pesavam mais que o próprio quadro. Fica só no quadro, os outros filtros do
+   console (que são fila de status) seguem pílula. */
+.pauta-barra .ad-filtros { gap: 2px; padding: 3px; border-radius: 10px; background: var(--paper-2) }
+.pauta-barra .filtro { border: 0; border-radius: 8px; padding: 7px 15px; background: none; font-size: 13px; font-weight: 700; color: var(--muted) }
+.pauta-barra .filtro:not([aria-pressed="true"]):hover { background: none; color: var(--ink-2) }
+.pauta-barra .filtro[aria-pressed="true"] { background: var(--card); color: var(--coral); box-shadow: 0 1px 3px rgba(27, 22, 17, .12) }
+
+/* As ações do quadro viram botão quieto (sem caixa): são quatro, ficam sempre
+   na tela, e quatro caixas iguais competiam com o "novo grupo", que é a única
+   que se usa todo dia. A linha fecha com um fio, que é onde o quadro começa. */
+.pauta-topo-acoes { align-items: center; gap: 4px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line) }
+.pauta-topo-acoes .btn { padding: 7px 11px; border-color: transparent; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted) }
+/* sem a caixa em volta, o ícone de 24px do lucide fica maior que o próprio
+   rótulo; 15px é a medida que as outras barras do console já usam. */
+.pauta-topo-acoes .btn svg { width: 15px; height: 15px }
+.pauta-topo-acoes .btn:hover { transform: none; border-color: transparent; background: var(--paper-2); color: var(--ink) }
+.pauta-topo-acoes [data-novo-grupo] { position: relative; margin-right: 9px; font-weight: 700; color: var(--coral) }
+.pauta-topo-acoes [data-novo-grupo]::after { content: ''; position: absolute; right: -9px; top: 50%; width: 1px; height: 16px; transform: translateY(-50%); background: var(--line) }
+.pauta-topo-acoes [data-novo-grupo]:hover, .pauta-topo-acoes [data-apagar-quadro]:hover { background: color-mix(in srgb, var(--coral) 10%, var(--card)); color: var(--coral) }
+
+/* As ações da linha e do grupo viram ícone quieto, pelo mesmo motivo: dentro de
+   um cartão contínuo, três caixinhas com borda POR LINHA são mais desenho do
+   que o conteúdo da linha. O ícone de 24px do lucide vira 15px, que é o
+   tamanho do texto ao lado. (O X do painel segue com caixa: lá ele é o único
+   jeito de sair.) */
+.pl-acoes .pauta-ico, .pauta-grupo-acoes .pauta-ico { padding-inline: 8px; border-color: transparent; border-radius: 8px }
+.pl-acoes .pauta-ico:hover, .pauta-grupo-acoes .pauta-ico:hover { transform: none; border-color: transparent; background: var(--paper-2); color: var(--ink) }
+.pl-acoes [data-apagar-pauta]:hover, .pauta-grupo-acoes [data-apagar-grupo]:hover { background: color-mix(in srgb, var(--coral) 10%, var(--card)); color: var(--coral) }
+.pl-acoes .pauta-ico svg, .pauta-grupo-acoes .pauta-ico svg { width: 15px; height: 15px }
+
+/* o painel: o título é o assunto da conversa, então ele fala serifado */
+.pauta-painel .pauta-painel-titulo { font-size: 24px; font-weight: 600; line-height: 1.2 }
+.pauta-painel-campos .lbl { font-size: 10.5px; letter-spacing: .09em; font-weight: 700 }
 
 /* ---------- tabelas (pessoas e relatórios) ---------- */
 .ad-tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }
@@ -2076,6 +2182,10 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
    ninguém acha o que procura, e é justamente aqui que se decide quem vê o quê.
    O catálogo vem do banco (0047); esta folha só desenha o que chegou. */
 .ad-perm-resumo { margin: 0 0 4px; font-size: 13.5px; line-height: 1.5; color: var(--muted) }
+/* A caixa que o "editar permissões" abre e fecha. Ela existe pra um `hidden` só
+   esconder a grade inteira, mas precisa do próprio respiro: as seções eram
+   filhas diretas do `.ad-card` (que tem gap) e agora são filhas dela. */
+.ad-perm-caixa { display: flex; flex-direction: column; gap: 18px; margin: 4px 0 }
 .ad-perm-area { display: flex; flex-direction: column; gap: 10px; margin-top: 6px }
 .ad-perm-area-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px }
 .ad-perm-area-titulo { display: flex; flex-direction: column; gap: 1px; min-width: 0 }

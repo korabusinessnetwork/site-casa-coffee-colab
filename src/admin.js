@@ -693,8 +693,28 @@ function abrirDoHash() {
   const item = abas.find((a) => a.id === pedida) || abas[0];
   if (!item) return;
   estado.aba = item.id;
-  zerarEstadoDasAbas();
+  // Arrumação da casa nunca pode derrubar a tela: se isto estourar, a aba ainda
+  // tem que abrir.
+  try {
+    zerarEstadoDasAbas();
+  } catch (e) {
+    console.error('[console] não deu pra zerar o estado das abas:', e);
+  }
 
+  try {
+    marcarAbaEabrir(item);
+  } catch (e) {
+    // Qualquer tropeço AQUI (marcar a aba ativa, puxar a fila pra vista, montar
+    // o mapa de telas) deixava a área do conteúdo em branco, com a barra
+    // lateral inteira de pé: da tela, igualzinho a "essa aba não tem nada".
+    // Era o último lugar do console capaz de falhar calado.
+    const view = $('[data-view]');
+    if (view) falhaDaAba(view, item.id, e);
+    else console.error('[console] o roteador tropeçou e não achei onde escrever:', e);
+  }
+}
+
+function marcarAbaEabrir(item) {
   $$('[data-aba]').forEach((botao) => {
     const ativo = botao.dataset.aba === item.id;
     botao.classList.toggle('is-active', ativo);
@@ -736,7 +756,27 @@ function abrirDoHash() {
     agenda: viewAgenda,
     conta: viewConta,
   };
-  (telas[item.id] || viewPainel)(view);
+  // TODA view é `async`. Se uma delas estoura ANTES do try/catch que ela tem por
+  // dentro (um elemento que não veio, um helper que sumiu), a promise rejeita e
+  // a área do conteúdo fica EM BRANCO, sem uma linha dizendo o quê: a tela toda
+  // parece vazia e não há como saber de onde veio. Falha de tela tem que
+  // aparecer NA TELA.
+  const abrirAba = telas[item.id] || viewPainel;
+  try {
+    Promise.resolve(abrirAba(view)).catch((e) => falhaDaAba(view, item.id, e));
+  } catch (e) {
+    falhaDaAba(view, item.id, e);
+  }
+}
+
+function falhaDaAba(view, aba, e) {
+  console.error(`[console] a aba "${aba}" não abriu:`, e);
+  view.innerHTML = `
+    <div class="notice err">
+      <p><strong>essa aba não abriu.</strong></p>
+      <p>${escapeHtml(e?.message || String(e))}</p>
+      <p class="ad-dica">troca de aba pra seguir usando o resto do console, e me manda esse texto que eu conserto.</p>
+    </div>`;
 }
 
 function cabecalho(titulo, texto, extra = '') {
@@ -1131,7 +1171,8 @@ function grupoHTML(g, itens, semGrupo = false) {
                 aria-expanded="${!g.recolhido}" ${semGrupo ? 'disabled' : ''}>
           <i data-lucide="${g.recolhido ? 'chevron-right' : 'chevron-down'}"></i>
         </button>
-        <p class="pauta-grupo-nome tag ${escapeHtml(cor)}">${escapeHtml(g.nome)}</p>
+        <span class="pauta-grupo-cor" aria-hidden="true"></span>
+        <p class="pauta-grupo-nome">${escapeHtml(g.nome)}</p>
         <span class="pauta-grupo-conta">${formatNumero(itens.length)} ${itens.length === 1 ? 'pauta' : 'pautas'}${feitas ? ` · ${formatNumero(feitas)} feita${feitas > 1 ? 's' : ''}` : ''}</span>
         ${
           semGrupo
@@ -1657,7 +1698,7 @@ async function abrirPainelDaPauta(id, corpo) {
         }
         <form class="pauta-coment-form" data-form-coment>
           <label for="painel-coment" class="sr-only">escrever na conversa</label>
-          <input id="painel-coment" type="text" maxlength="2000" placeholder="escreve aqui o que aconteceu" autocomplete="off" />
+          <input id="painel-coment" class="inp" type="text" maxlength="2000" placeholder="escreve aqui o que aconteceu" autocomplete="off" />
           <button type="submit" class="btn solid sm">mandar</button>
         </form>
       </div>`;
@@ -2718,6 +2759,7 @@ function cardEquipe(p) {
 
       <p class="ad-perm-resumo" data-resumo="${escapeHtml(p.id)}">${resumoDoAcesso(permissoes)}</p>
 
+      <div class="ad-perm-caixa" data-perms ${p.novo ? '' : 'hidden'}>
       ${(catalogoPermissoes || [])
         .map(
           (secao) => `
@@ -2770,16 +2812,32 @@ function cardEquipe(p) {
         </section>`,
         )
         .join('')}
+      </div>
 
-      ${
-        euMesmo
-          ? ''
-          : `<div class="ad-card-acoes">
-               <button type="button" class="btn solid sm" data-salvar="${escapeHtml(p.id)}">salvar</button>
-               ${p.novo ? '' : `<button type="button" class="btn ghost sm" data-tirar="${escapeHtml(p.id)}" data-nome="${escapeHtml(p.nome || 'essa pessoa')}">tirar do console</button>`}
-             </div>`
-      }
+      <div class="ad-card-acoes">
+        <button type="button" class="btn ghost sm" data-editar-perms ${p.novo ? 'hidden' : ''}>
+          <i data-lucide="pencil"></i>${euMesmo ? 'ver as minhas permissões' : 'editar permissões'}
+        </button>
+        ${
+          euMesmo
+            ? `<button type="button" class="btn ghost sm" data-fechar-perms ${p.novo ? '' : 'hidden'}>fechar</button>`
+            : `<button type="button" class="btn solid sm" data-salvar="${escapeHtml(p.id)}" ${p.novo ? '' : 'hidden'}>salvar</button>
+               <button type="button" class="btn ghost sm" data-fechar-perms ${p.novo ? '' : 'hidden'}>cancelar</button>
+               ${p.novo ? '' : `<button type="button" class="btn ghost sm" data-tirar="${escapeHtml(p.id)}" data-nome="${escapeHtml(p.nome || 'essa pessoa')}">tirar do console</button>`}`
+        }
+      </div>
     </article>`;
+}
+
+// A grade tem 43 caixinhas (20 páginas × as ações de cada uma): deixá-la aberta
+// em todo mundo transforma a lista da equipe num paredão de checkbox, e depois
+// de salvar ela continuava escancarada como se ainda houvesse o que fazer. O
+// cartão fecha e mostra só o resumo; quem vai mexer abre no "editar permissões".
+function abrirCartaoDeEquipe(card, aberto) {
+  const caixa = $('[data-perms]', card);
+  if (caixa) caixa.hidden = !aberto;
+  $$('[data-editar-perms]', card).forEach((b) => (b.hidden = aberto));
+  $$('[data-salvar], [data-fechar-perms]', card).forEach((b) => (b.hidden = !aberto));
 }
 
 function ligarCardsEquipe(corpo) {
@@ -2825,6 +2883,24 @@ function ligarCardsEquipe(corpo) {
       });
       atualizarResumo();
     });
+  });
+
+  $$('[data-editar-perms]', corpo).forEach((botao) => {
+    if (botao.dataset.ligado) return;
+    botao.dataset.ligado = '1';
+    botao.addEventListener('click', () => {
+      const card = botao.closest('[data-pessoa]');
+      abrirCartaoDeEquipe(card, true);
+      $('input[type="checkbox"]:not([disabled])', card)?.focus();
+    });
+  });
+
+  // "cancelar" recarrega a lista de propósito: assim o que foi marcado sem
+  // salvar não fica na tela fingindo que valeu.
+  $$('[data-fechar-perms]', corpo).forEach((botao) => {
+    if (botao.dataset.ligado) return;
+    botao.dataset.ligado = '1';
+    botao.addEventListener('click', () => carregarEquipe(corpo));
   });
 
   $$('[data-salvar]', corpo).forEach((botao) => {
