@@ -1292,9 +1292,10 @@ de lugar nenhum do site público. Quem decide se a pessoa entra é o **banco**, 
 `pode_entrar_no_console()` + `tem_permissao(...)` (0017), e enquanto a senha inicial não
 for trocada de verdade a conta não tem privilégio nenhum (0032).
 
-**As 18 abas** (o `perm` de cada uma está no array `NAV` do `admin.js`; `tudo` = owner vê
-todas). Todas as 30 funções que o console chama foram rodadas contra um banco de verdade
-em 13/ago/2026, depois da `0042`, e todas respondem:
+**As 19 abas** (o `perm` de cada uma está no array `NAV` do `admin.js`; `tudo` = owner vê
+todas). Todas as funções que o console chama foram rodadas contra um banco de verdade em
+13/ago/2026 (depois da `0042`) e de novo em 17/ago (depois da `0043`/`0044`), e todas
+respondem:
 
 > **A auditoria anterior (mesma data) foi feita com as respostas do banco simuladas no
 > navegador**, e por isso deu tudo certo enquanto cinco abas estavam quebradas no banco de
@@ -1304,6 +1305,7 @@ em 13/ago/2026, depois da `0042`, e todas respondem:
 | Aba | Permissão | O que faz |
 |-----|-----------|-----------|
 | painel | `dashboard` | os números do dia (`admin_dashboard`) |
+| **pautas** | `pautas` | **novo:** o quadro de briefings da equipe (0043) |
 | pedidos | `pedidos` | fila da loja + baixa de retirada/entrega |
 | resgates | `resgates` | recompensas resgatadas, baixa em mãos |
 | aniversários | `resgates` | os brunches reservados (0025) |
@@ -1322,11 +1324,21 @@ em 13/ago/2026, depois da `0042`, e todas respondem:
 | agenda | `eventos` | encontros da casa (0026), **owner-only** |
 | tua conta | livre | trocar a própria senha |
 
-- **`mural`** é a única aba que **escreve direto pela RLS**, sem RPC: as policies da `0020`
-  já dão à equipe SELECT de tudo, UPDATE do `status` e DELETE, e a trigger da `0036`
-  impede que qualquer um reescreva `texto`/`autor_nome`/`user_id`. Ou seja, dá pra
-  esconder e apagar, **nunca** pra pôr na parede uma frase que a pessoa não escreveu.
-  "Esconder" é reversível e resolve quase tudo; "apagar" passa por confirmação.
+- **Permissão não é cargo, e isso tem consequência.** A `admin_definir_permissoes` grava
+  em `staff_permissions` e **nunca toca em `profiles.role`** (o princípio da casa é "cargo
+  não abre porta, permissão abre"). Então quem recebe acesso pelo console continua com
+  `role='cliente'`, e **`is_staff()` responde falso pra essa pessoa**. Toda aba do console
+  passa por `tem_permissao(...)` dentro de uma função `security definer`, então isso não
+  atrapalha, **com uma exceção que existiu até a `0044`**: o mural escrevia direto pela
+  RLS, que fala em `is_staff()`. Regra pra daqui em diante: **aba nova fala com o banco
+  por RPC gated em `tem_permissao`**, nunca por tabela direta. Hoje **nenhuma** aba escreve
+  direto (o `admin.js` não tem mais um `supabase.from(` sequer).
+- **`mural`** modera por três RPCs da `0044` (`admin_mural_listar`/`_status`/`_remover`),
+  gated por `tem_permissao('usuarios')`. A trigger da `0036` segue por baixo impedindo que
+  qualquer um reescreva `texto`/`autor_nome`/`user_id`: dá pra esconder e apagar, **nunca**
+  pra pôr na parede uma frase que a pessoa não escreveu. "Esconder" é reversível e resolve
+  quase tudo; "apagar" passa por confirmação e fica registrado no `audit_log` **com o texto
+  apagado** (apagar da parede não pode apagar também a memória do que era).
 - **`presentes`** é **só leitura** (RPC `admin_presentes`, 0041). O código do presente é
   **título ao portador**, então mora na permissão `resgates`, a mesma de quem já entrega
   recompensa em mãos, e não na mais larga do console. O **bilhete** que o comprador
@@ -1344,10 +1356,76 @@ em 13/ago/2026, depois da `0042`, e todas respondem:
   degradê da tirinha do `/cardapio` e a aba aberta **se puxa pra dentro da vista**
   (`scrollIntoView`, respeitando `prefers-reduced-motion`) — sem isso as últimas da fila
   nasciam fora da tela toda vez.
+- **Onde se dá acesso a alguém** (aba **equipe**, `perm: 'equipe'`, só quem é owner delega
+  a própria `equipe`): busca a pessoa por nome ou e-mail (`admin_buscar_pessoa`, mínimo 3
+  letras), "dar acesso", marca as permissões e salva (`admin_definir_permissoes`).
+  "Tirar do console" limpa todas. O adm do Casa e o master aparecem como intocáveis, e
+  ninguém edita as próprias permissões. **A pessoa precisa ter conta no site primeiro** (a
+  busca varre o `profiles`): não existe convite por e-mail, ela se cadastra em `/cadastro`
+  e aí aparece na busca. **Esta aba ficou quebrada da `0017` até a `0042`** (as duas
+  funções dela caíam no erro de tipo do e-mail), então ela nunca tinha funcionado de
+  verdade antes de 13/ago/2026.
+- **Trocar de aba zera o que a tela não mostra** (`zerarEstadoDasAbas`, chamada pelo
+  `abrirDoHash`). O id em edição e o texto de busca viviam em variável de módulo e
+  sobreviviam à remontagem da view, então a tela mentia de dois jeitos. O grave: clicar
+  "editar" num recado, sair da aba e voltar deixava o formulário limpo (botão "publicar")
+  com o id antigo na memória, e o próximo "publicar" **sobrescrevia o recado velho** em vez
+  de criar um novo. Na **agenda** era pior, porque o encontro reescrito leva junto as
+  presenças já confirmadas (as linhas de `event_rsvps` continuam na mesma `events.id`, e
+  quem confirmou presença passa a estar confirmado em outro evento). O leve: o campo de
+  busca voltava vazio e a lista continuava filtrada por um termo que não aparecia em lugar
+  nenhum. **O filtro de status não entra no reset** de propósito: ele tem um chip aceso na
+  tela, então ele não mente.
+- **Os modificadores certos são `.notice.err` e `data-tom="erro"`**, e o console usava o
+  par trocado: oito avisos de validação pediam `.notice.erro` (classe que não existe, então
+  o erro saía com cara de recado neutro) e um toast pedia `'err'` (que o CSS não pinta de
+  vermelho). Regra: **no `notice` é `err`, no `toast` é `erro`**.
 - **`/admin` e `/admin/` abrem os dois.** O middleware do dev só tentava
   `<caminho>.html`, então `/admin` (sem barra) não achava `admin.html` e caía no 404,
   enquanto `/admin/` funcionava. Agora ele também tenta `<caminho>/index.html`, que é como
   a Vercel já servia em produção.
+
+---
+
+## O quadro da casa (pautas da equipe)
+
+O console sabia tudo sobre o que a casa **vende** e nada sobre o que a equipe **combina**.
+O que a turma tinha que fazer no dia vivia em bilhete no balcão e em conversa de grupo,
+que é onde combinado some. A aba **pautas** (`/admin#pautas`, primeira depois do painel,
+porque é por onde o dia começa pra quem trabalha no salão) é o quadro: a casa escreve a
+pauta e o briefing, diz pra quem é e até quando, e quem trabalha move o cartão.
+
+- **Três colunas**, na ordem em que o trabalho anda: **a fazer**, **fazendo**, **feitas**.
+  Os botões do cartão são a única forma de mover (nada de arrastar: o console é usado no
+  celular no meio do turno, e drag-and-drop em tela pequena erra mais do que acerta).
+  "pegar pra mim" → fazendo; "concluir" → feita; "devolver"/"reabrir" → a fazer.
+- **O cartão** tem título, briefing (quebra de linha preservada), pra quem, prazo,
+  urgência e, quando concluída, quem entregou. **Urgente ganha uma faixa lateral, não um
+  fundo colorido** (quadro cheio de cartão colorido vira semáforo e ninguém enxerga mais o
+  que é urgente de verdade), e prazo vencido vira o selo "passou do prazo". O prazo é
+  `date` puro, formatado na mão (`dataDoPrazo`), porque `new Date('2026-08-20')` lê como
+  UTC e no Brasil voltaria um dia.
+- **Pra quem**: uma pessoa da equipe **ou** ninguém, que quer dizer "pra toda a equipe"
+  (o recado que vale pra casa inteira, tipo "sexta a gente abre 7h"). Só dá pra atribuir a
+  quem entra no console: a RPC recusa pauta pra cliente, e o `select` é montado pela
+  `admin_pautas_equipe`, que pede a permissão do **quadro**, não a de mexer no acesso dos
+  outros.
+- **Migration `0043_pautas` (PENDENTE):** tabela `pautas` **deny-by-default** (RLS ligada,
+  nenhuma policy) + 5 RPCs SECURITY DEFINER (`admin_pautas_listar`, `admin_pautas_equipe`,
+  `admin_pauta_salvar`, `admin_pauta_status`, `admin_pauta_remover`). É a **primeira
+  migration a mexer no whitelist fechado de permissões da `0017`**: acrescenta `'pautas'`
+  ao CHECK, e ela aparece na aba equipe como grantável. Precisou ser própria porque é a
+  única permissão que faz sentido dar a quem trabalha no salão e não mexe em caixa nem em
+  cadastro; enfiar a pauta em `relatorios` entregaria junto a lista de e-mails e o que a
+  casa vendeu.
+- **Quem pode o quê:** ver, criar, editar e mover → `tem_permissao('pautas')`. **Apagar →
+  só quem escreveu, ou o adm do Casa**: briefing é combinado escrito, quem escreveu pode
+  voltar atrás e os outros não apagam por cima (quem não pode apagar ainda pode marcar
+  como feita, então nada fica preso). Criar, editar e apagar ficam no `audit_log`.
+- **Editar não mexe no status** de propósito: quem move o cartão é a `admin_pauta_status`,
+  pra "salvar uma correção no briefing" nunca desfazer sem querer o andamento que alguém
+  deu. E ao voltar de "feita" o carimbo de conclusão é **limpo**, senão o quadro contaria
+  como entregue algo que voltou pra fila.
 
 ---
 
@@ -1380,6 +1458,12 @@ em 13/ago/2026, depois da `0042`, e todas respondem:
 ## Responsividade
 
 - **Mobile-first**, funcionando desde **~320px** (Galaxy Pocket) até **ultrawide (2560px+)**.
+- **Botão de rótulo comprido quebra linha embaixo de 430px** (`@media` logo abaixo do
+  `.btn` no `styles.css`). O `.btn` nasce com `white-space: nowrap`, que é certo pra
+  "comprar" e errado pra uma frase: o "o tour não abriu? dá a volta no Google Maps" do
+  `/o-casa` media **381px fixos** e o "segue a gente @casacoffeecolab" do `/colab`, 325px,
+  então **a página inteira ganhava scroll lateral** no celular. As 19 páginas foram
+  medidas de novo a 320, 360 e 390px depois disso: nenhuma estoura.
 - Breakpoints extras no Tailwind: `xs` 375, `3xl` 1920, `4xl` 2560 (mantendo `sm/md/lg/xl/2xl` padrão).
 - Sempre respeitar **`prefers-reduced-motion`**.
 
@@ -1489,9 +1573,10 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
 - **Banco em dia (13/ago/2026):** o humano aplicou **toda a leva `0017` → `0041`** no SQL
-  Editor (as `0040` e `0041` em 13/ago). A **`0042` está pendente** (conserta o
-  `structure of query does not match function result type` de cinco abas do console). O
-  front correspondente está na `main` e o
+  Editor (as `0040` e `0041` em 13/ago). Estão **pendentes** a **`0042`** (conserta o
+  `structure of query does not match function result type` de cinco abas do console), a
+  **`0043`** (o quadro de pautas) e a **`0044`** (moderação do mural pela permissão, não
+  pelo papel). Rodar nessa ordem. O front correspondente está na `main` e o
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
   da `0032` está destravada e o console responde. Pra conferir o banco a qualquer momento,
@@ -1741,6 +1826,22 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > Storage) e a `0028` (que depende da coluna `avatar_url` criada pela 0015) precisam do
   > Supabase de verdade. Erro de tipo em `returns table` **não aparece na criação da
   > função**, só na primeira chamada, então ler o SQL não basta: tem que chamar.
+- **`0043_pautas` — PENDENTE (rodar no SQL Editor).** O quadro da equipe: tabela `pautas`
+  (deny-by-default, RLS ligada e nenhuma policy) + 5 RPCs SECURITY DEFINER gated por
+  `tem_permissao('pautas')`, e a permissão `'pautas'` entrando no **whitelist fechado por
+  CHECK da `0017`** (a primeira vez que aquele CHECK muda; o `do $$` acha a constraint pelo
+  conteúdo em vez de confiar no nome). Apagar exige ser quem escreveu, ou o owner. Ver
+  "O quadro da casa" acima.
+- **`0044_mural_pela_permissao` — PENDENTE (rodar no SQL Editor).** A aba do mural
+  escrevia direto pela RLS, e as policies da `0020` falam em `is_staff()` — que é papel,
+  não permissão. Como o console **concede permissão sem nunca trocar o papel de ninguém**,
+  quem recebia `'usuarios'` via só os recados aprovados e batia na RLS ao tentar esconder
+  ou apagar: a aba funcionava apenas pro adm do Casa. Três RPCs
+  (`admin_mural_listar`/`_status`/`_remover`) gated por `tem_permissao('usuarios')`
+  resolvem na porta certa. **Promover a pessoa a `staff` NÃO era a saída**: abriria junto,
+  pela RLS, toda tabela que confia em `is_staff()` (pedidos, resgates, brindes), e
+  permissão de moderar mural não é permissão de ler o caixa. As policies da `0020` e a
+  trigger da `0036` seguem intactas.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

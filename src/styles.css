@@ -938,6 +938,16 @@ a.txt-link.gold { color: var(--gold) }
 /* ---------- botões editoriais ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: .06em; padding: 13px 26px; border-radius: 5px; border: 1px solid transparent; cursor: pointer; text-decoration: none; white-space: nowrap; transition: background .25s var(--e), color .2s var(--e), border-color .2s var(--e), transform .2s var(--e) }
 .btn:hover { transform: translateY(-1px) }
+/* No celular estreito, botão de rótulo comprido dava SCROLL LATERAL NA PÁGINA
+   INTEIRA: o `white-space: nowrap` acima é certo pra "comprar" e errado pra uma
+   frase, e o botão ficava com a largura fixa do texto (o "o tour não abriu? dá a
+   volta no Google Maps" do /o-casa media 381px, o "segue a gente
+   @casacoffeecolab" do /colab media 325px). Aqui o rótulo quebra em vez de
+   empurrar a página. Só embaixo de 430px: no desktop cabe e uma linha só é
+   melhor. */
+@media (max-width: 430px) {
+  .btn { max-width: 100%; white-space: normal; line-height: 1.35; text-align: center }
+}
 .btn.solid { background: var(--coral); color: #fff }
 .btn.solid:hover { background: var(--coral-2) }
 .btn.olive { background: var(--olive); color: var(--cream) }
@@ -1867,13 +1877,47 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 .ad-form-recado { display: flex; flex-direction: column; gap: 18px; margin-bottom: 24px }
 .ad-form-recado textarea { min-height: 70px }
 .ad-recado-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 18px }
-@media (max-width: 640px) { .ad-recado-linha { grid-template-columns: 1fr } }
+/* A linha da pauta tem três campos (pra quem / prazo / urgência); numa grade de
+   duas colunas o terceiro cairia sozinho numa fileira nova. */
+.ad-recado-linha.tres { grid-template-columns: 1.4fr 1fr 1fr }
+@media (max-width: 860px) { .ad-recado-linha.tres { grid-template-columns: 1fr 1fr } }
+@media (max-width: 640px) { .ad-recado-linha, .ad-recado-linha.tres { grid-template-columns: 1fr } }
 .ad-recado-emoji { flex: 0 0 auto }
 .ad-recado-emoji input { max-width: 120px }
 .ad-recado-ativo { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink-2); cursor: pointer }
 .ad-recado-ativo input { width: 18px; height: 18px; accent-color: var(--coral) }
 .ad-recado-lista { display: flex; flex-direction: column; gap: 14px }
 .ad-trilha-flags { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; align-self: end; padding-bottom: 4px }
+
+/* ---------- pautas (o quadro da equipe) ----------
+   Três colunas de verdade (a fazer / fazendo / feitas), porque o quadro só
+   cumpre o papel dele se der pra ver o dia inteiro de uma vez. Abaixo de 900px
+   a lateral do console já virou faixa e a tela ficou estreita: aí as colunas
+   viram uma embaixo da outra, na ordem em que o trabalho anda. */
+.pauta-quadro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start }
+@media (max-width: 900px) { .pauta-quadro { grid-template-columns: 1fr } }
+.pauta-col { display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+.pauta-col-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px }
+.pauta-col-nome { margin: 0; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--muted) }
+.pauta-col-conta { font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--muted); background: var(--paper-2); border-radius: 999px; padding: 2px 9px; font-variant-numeric: tabular-nums }
+.pauta-col-vazia { margin: 0; padding: 18px 16px; border: 1px dashed var(--line); border-radius: 14px; font-size: 13.5px; color: var(--muted); text-align: center }
+
+.pauta-card { display: flex; flex-direction: column; gap: 10px; padding: 16px }
+/* A urgente ganha uma faixa, não uma cor de fundo: o quadro cheio de cartão
+   colorido vira semáforo e ninguém enxerga mais o que é urgente de verdade. */
+.pauta-card.is-urgente { border-left: 3px solid var(--coral) }
+.pauta-titulo { margin: 0; font-family: var(--sans); font-size: 15.5px; font-weight: 650; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
+.pauta-briefing { margin: 0; padding: 11px 13px; border-radius: 10px; background: var(--paper-2); color: var(--ink-2); font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere }
+.pauta-meta { display: flex; flex-wrap: wrap; gap: 6px 14px }
+.pauta-meta-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere }
+.pauta-meta-item svg { width: 14px; height: 14px; flex: 0 0 auto }
+.pauta-acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 2px }
+.pauta-acoes .btn { flex: 0 0 auto }
+/* Editar e apagar viram só o ícone e encostam na direita: o cartão tem ~300px e
+   com os três botões escritos a fila quebrava em duas linhas em todo cartão. */
+.pauta-acoes-fim { display: inline-flex; gap: 6px; margin-left: auto }
+.pauta-ico { padding-inline: 10px }
+.pauta-ico svg { margin: 0 }
 
 /* ---------- tabelas (pessoas e relatórios) ---------- */
 .ad-tabela-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card) }

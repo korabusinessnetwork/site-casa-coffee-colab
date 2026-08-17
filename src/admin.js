@@ -46,6 +46,12 @@ import {
   StickyNote,
   Undo2,
   Trash2,
+  ClipboardList,
+  Play,
+  Flag,
+  UserRound,
+  CalendarClock,
+  Pencil,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -83,6 +89,12 @@ const LUCIDE_ICONS = {
   StickyNote,
   Undo2,
   Trash2,
+  ClipboardList,
+  Play,
+  Flag,
+  UserRound,
+  CalendarClock,
+  Pencil,
 };
 
 function renderIcons() {
@@ -246,6 +258,11 @@ function pode(slug) {
 // dentro de "pedidos".
 const NAV = [
   { id: 'painel', rotulo: 'painel', icone: 'layout-dashboard', perm: 'dashboard' },
+  // O quadro de pautas (0043) vem logo depois do painel porque é por onde o dia
+  // começa pra quem trabalha no salão: o que a casa combinou pra hoje. É a
+  // única aba com permissão PRÓPRIA e grantável ('pautas', que a 0043 abriu no
+  // whitelist), justamente pra poder existir sem dar junto pedido nem cadastro.
+  { id: 'pautas', rotulo: 'pautas', icone: 'clipboard-list', perm: 'pautas' },
   { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos' },
   { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates' },
   // Brunch de aniversário: quem confere/dá baixa no balcão é a mesma gente dos
@@ -299,6 +316,11 @@ const PERMISSOES = [
   { slug: 'resgates', rotulo: 'cuidar dos resgates', descricao: 'ver e entregar recompensas' },
   { slug: 'usuarios', rotulo: 'ver as pessoas', descricao: 'quem já passou por aqui' },
   { slug: 'relatorios', rotulo: 'ver relatórios', descricao: 'o que vendeu e o que saiu por pontos' },
+  // O quadro da equipe (0043). É a única permissão que faz sentido dar a quem
+  // trabalha no salão e não mexe em caixa nem em cadastro, então ela precisou
+  // ser própria: enfiar a pauta em 'relatorios' entregaria junto a lista de
+  // e-mails e o que a casa vendeu.
+  { slug: 'pautas', rotulo: 'o quadro de pautas', descricao: 'ler e escrever os briefings da equipe' },
   { slug: 'equipe', rotulo: 'cuidar da equipe', descricao: 'dar e tirar permissões' },
 ];
 
@@ -619,12 +641,36 @@ function montarShell(raiz) {
   abrirDoHash();
 }
 
+// Trocar de aba NÃO recarrega a página (é hash), e cada view remonta o HTML do
+// zero — mas o estado de edição e o texto de busca vivem em variáveis de módulo
+// e sobreviviam à remontagem. Isso fazia a tela mentir de dois jeitos:
+//   • clicar "editar" num recado, sair da aba e voltar deixava o formulário
+//     limpo (botão "publicar") com o id antigo ainda na memória, então o
+//     próximo "publicar" SOBRESCREVIA o recado velho em vez de criar um novo.
+//     Na agenda era pior: o encontro reescrito leva junto as presenças já
+//     confirmadas, que continuam na mesma linha de `events`.
+//   • o campo de busca voltava vazio mas a lista continuava filtrada pelo termo
+//     de antes, sem nada na tela dizendo por quê.
+// O filtro de STATUS não entra aqui de propósito: ele tem um chip aceso na
+// tela, então ele não mente.
+function zerarEstadoDasAbas() {
+  recadoEditando = null;
+  trilhaEditando = null;
+  agendaEditando = null;
+  pautaEditando = null;
+  [filtrosPautas, filtrosBrindes, filtrosPresentes, filtrosMural, filtrosLeads].forEach((f) => {
+    f.busca = '';
+  });
+  filtrosPautas.dequem = '';
+}
+
 function abrirDoHash() {
   const pedida = (window.location.hash || '').replace('#', '');
   const abas = NAV.filter((item) => item.perm === null || pode(item.perm));
   const item = abas.find((a) => a.id === pedida) || abas[0];
   if (!item) return;
   estado.aba = item.id;
+  zerarEstadoDasAbas();
 
   $$('[data-aba]').forEach((botao) => {
     const ativo = botao.dataset.aba === item.id;
@@ -646,6 +692,7 @@ function abrirDoHash() {
   view.scrollTop = 0;
   const telas = {
     painel: viewPainel,
+    pautas: viewPautas,
     pedidos: viewPedidos,
     resgates: viewResgates,
     aniversarios: viewAniversarios,
@@ -716,6 +763,339 @@ async function viewPainel(view) {
   } catch (e) {
     erroNaTela(corpo, e);
   }
+}
+
+// ===== PAUTAS (o quadro da equipe) ==================================
+// O console sabia tudo sobre o que a casa vende e nada sobre o que a equipe
+// combina. Aqui a casa escreve a pauta (título + briefing), diz pra quem é e
+// até quando, e quem trabalha move o cartão até "feita". Tudo passa pelas RPCs
+// da 0043 (a tabela é deny-by-default), com a permissão própria 'pautas'.
+const COLUNAS_PAUTA = [
+  { slug: 'aberta', rotulo: 'a fazer', dica: 'ainda ninguém pegou' },
+  { slug: 'fazendo', rotulo: 'fazendo', dica: 'alguém está nessa agora' },
+  { slug: 'feita', rotulo: 'feitas', dica: 'entregue' },
+];
+
+const PRIORIDADES = [
+  { slug: 'alta', rotulo: 'urgente' },
+  { slug: 'normal', rotulo: 'normal' },
+  { slug: 'baixa', rotulo: 'quando der' },
+];
+
+const filtrosPautas = { dequem: '', busca: '' };
+let pautaEditando = null;
+let equipeDasPautas = [];
+
+// O prazo vem como date puro (YYYY-MM-DD). `new Date` leria isso como UTC e no
+// Brasil voltaria um dia — por isso a data é montada na mão, sem fuso.
+function dataDoPrazo(iso) {
+  if (!iso) return '';
+  const [a, m, d] = String(iso).slice(0, 10).split('-');
+  return a && m && d ? `${d}/${m}` : '';
+}
+
+function prazoVencido(iso) {
+  if (!iso) return false;
+  const hoje = new Date();
+  const zero = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+  return String(iso).slice(0, 10) < zero;
+}
+
+async function viewPautas(view) {
+  view.innerHTML =
+    cabecalho(
+      'o quadro da casa',
+      'o que a gente combinou pra hoje. escreve a pauta, diz pra quem é, e quem pega vai movendo até ficar feita.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<form class="card ad-form-recado" data-form-pauta novalidate>
+       <input type="hidden" data-p-id />
+       <div class="field">
+         <label for="p-titulo">a pauta</label>
+         <input id="p-titulo" data-p-titulo maxlength="120" placeholder="conferir o estoque de leite vegetal" required />
+       </div>
+       <div class="field">
+         <label for="p-briefing">o briefing (opcional)</label>
+         <textarea id="p-briefing" data-p-briefing rows="3" maxlength="4000"
+           placeholder="o que precisa ser feito, onde, e o que fazer se der ruim."></textarea>
+         <p class="ad-dica">quanto mais claro aqui, menos pergunta no meio do turno.</p>
+       </div>
+       <div class="ad-recado-linha tres">
+         <div class="field">
+           <label for="p-quem">pra quem</label>
+           <select id="p-quem" data-p-quem></select>
+         </div>
+         <div class="field">
+           <label for="p-prazo">até quando (opcional)</label>
+           <input id="p-prazo" data-p-prazo type="date" />
+         </div>
+         <div class="field ad-recado-prio">
+           <label for="p-prio">urgência</label>
+           <select id="p-prio" data-p-prio>
+             ${PRIORIDADES.map((p) => `<option value="${p.slug}"${p.slug === 'normal' ? ' selected' : ''}>${escapeHtml(p.rotulo)}</option>`).join('')}
+           </select>
+         </div>
+       </div>
+       <div data-p-aviso></div>
+       <div class="ad-card-acoes">
+         <button type="submit" class="btn solid" data-p-salvar>colar no quadro</button>
+         <button type="button" class="btn ghost" data-p-cancelar hidden>cancelar edição</button>
+       </div>
+     </form>
+
+     <form class="ad-busca" data-busca-pauta>
+       <div class="field">
+         <label for="busca-pauta" class="sr-only">buscar por pauta ou por quem recebeu</label>
+         <input id="busca-pauta" type="search" placeholder="um trecho da pauta ou o nome de quem recebeu" autocomplete="off" />
+       </div>
+       <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
+     </form>
+     <div class="ad-filtros" role="group" aria-label="filtrar pautas">
+       <button type="button" class="filtro" data-f-quem="">de todo mundo</button>
+       <button type="button" class="filtro" data-f-quem="eu">minhas</button>
+     </div>
+     <div data-quadro></div>`;
+
+  const form = $('[data-form-pauta]', view);
+  const quadro = $('[data-quadro]', view);
+  const avisoForm = $('[data-p-aviso]', form);
+  const meuId = estado.sessao?.user?.id || '';
+
+  const marcar = () =>
+    $$('[data-f-quem]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String(b.dataset.fQuem === filtrosPautas.dequem)),
+    );
+  $$('[data-f-quem]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosPautas.dequem = b.dataset.fQuem;
+      marcar();
+      carregarQuadro();
+    }),
+  );
+  $('[data-busca-pauta]', view).addEventListener('submit', (e) => {
+    e.preventDefault();
+    filtrosPautas.busca = $('#busca-pauta', view).value.trim();
+    carregarQuadro();
+  });
+  $('[data-recarregar]', view).addEventListener('click', () => carregarQuadro());
+
+  const limparForm = () => {
+    pautaEditando = null;
+    form.reset();
+    $('[data-p-id]', form).value = '';
+    $('[data-p-prio]', form).value = 'normal';
+    $('[data-p-salvar]', form).textContent = 'colar no quadro';
+    $('[data-p-cancelar]', form).hidden = true;
+    avisoForm.innerHTML = '';
+  };
+
+  const preencherForm = (p) => {
+    pautaEditando = p.id;
+    $('[data-p-id]', form).value = p.id;
+    $('[data-p-titulo]', form).value = p.titulo || '';
+    $('[data-p-briefing]', form).value = p.briefing || '';
+    $('[data-p-quem]', form).value = p.atribuido_a || '';
+    $('[data-p-prazo]', form).value = p.prazo ? String(p.prazo).slice(0, 10) : '';
+    $('[data-p-prio]', form).value = p.prioridade || 'normal';
+    $('[data-p-salvar]', form).textContent = 'salvar a pauta';
+    $('[data-p-cancelar]', form).hidden = false;
+    view.scrollTop = 0;
+    $('[data-p-titulo]', form).focus();
+  };
+
+  // A lista de quem pode receber pauta vem da própria permissão do quadro
+  // (admin_pautas_equipe), não da aba equipe: quem escreve briefing não precisa
+  // ter o direito de mexer no acesso dos outros.
+  async function carregarEquipe() {
+    const select = $('[data-p-quem]', form);
+    try {
+      const gente = await rpc('admin_pautas_equipe');
+      equipeDasPautas = Array.isArray(gente) ? gente : [];
+    } catch {
+      equipeDasPautas = [];
+    }
+    select.innerHTML =
+      `<option value="">pra toda a equipe</option>` +
+      equipeDasPautas
+        .map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nome)}${p.id === meuId ? ' (tu)' : ''}</option>`)
+        .join('');
+  }
+
+  async function carregarQuadro() {
+    carregando(quadro, 'buscando o quadro…');
+    try {
+      const dados = await rpc('admin_pautas_listar', {
+        p_status: null,
+        p_de_quem: filtrosPautas.dequem === 'eu' ? meuId || null : null,
+        p_busca: filtrosPautas.busca || null,
+      });
+      const pautas = Array.isArray(dados) ? dados : [];
+      if (!pautas.length) {
+        quadro.innerHTML = vazio(
+          filtrosPautas.busca || filtrosPautas.dequem ? 'nada por aqui' : 'o quadro está limpo',
+          filtrosPautas.busca || filtrosPautas.dequem
+            ? 'tenta outro termo, ou olha o quadro de todo mundo.'
+            : 'escreve a primeira pauta aí em cima. o time vê na hora que entrar.',
+        );
+        return;
+      }
+      quadro.innerHTML = `
+        <div class="pauta-quadro">
+          ${COLUNAS_PAUTA.map((col) => {
+            const daColuna = pautas.filter((p) => p.status === col.slug);
+            return `
+            <section class="pauta-col" aria-label="${escapeHtml(col.rotulo)}">
+              <header class="pauta-col-topo">
+                <p class="pauta-col-nome">${escapeHtml(col.rotulo)}</p>
+                <span class="pauta-col-conta">${formatNumero(daColuna.length)}</span>
+              </header>
+              ${
+                daColuna.length
+                  ? daColuna.map((p) => cardPauta(p, meuId)).join('')
+                  : `<p class="pauta-col-vazia">${escapeHtml(col.dica)}</p>`
+              }
+            </section>`;
+          }).join('')}
+        </div>`;
+      ligarCardsPauta();
+      renderIcons();
+    } catch (e) {
+      erroNaTela(quadro, e);
+    }
+  }
+
+  function ligarCardsPauta() {
+    $$('[data-p-mover]', quadro).forEach((b) =>
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try {
+          const r = await rpc('admin_pauta_status', { p_id: b.dataset.pAlvo, p_status: b.dataset.pMover });
+          if (r && r.ok === false) throw new Error(r.erro || 'não deu pra mover');
+          carregarQuadro();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      }),
+    );
+
+    $$('[data-p-editar]', quadro).forEach((b) =>
+      b.addEventListener('click', async () => {
+        try {
+          const dados = await rpc('admin_pautas_listar', { p_busca: null });
+          const p = (Array.isArray(dados) ? dados : []).find((x) => x.id === b.dataset.pEditar);
+          if (p) preencherForm(p);
+        } catch (e) {
+          toast(e.message, 'erro');
+        }
+      }),
+    );
+
+    $$('[data-p-apagar]', quadro).forEach((b) =>
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: `apagar "${b.dataset.pTitulo}"?`,
+          texto: 'some do quadro pra todo mundo e não tem como voltar. se já foi feita, "concluir" guarda o registro.',
+          ok: 'apagar',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          const r = await rpc('admin_pauta_remover', { p_id: b.dataset.pApagar });
+          if (r && r.ok === false) throw new Error(r.erro || 'não deu pra apagar');
+          toast('pauta apagada');
+          if (pautaEditando === b.dataset.pApagar) limparForm();
+          carregarQuadro();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      }),
+    );
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    avisoForm.innerHTML = '';
+    const titulo = $('[data-p-titulo]', form).value.trim();
+    if (!titulo) {
+      avisoForm.innerHTML = '<div class="notice err"><p>escreve a pauta em uma linha 💛</p></div>';
+      $('[data-p-titulo]', form).focus();
+      return;
+    }
+    const botao = $('[data-p-salvar]', form);
+    botao.disabled = true;
+    try {
+      const r = await rpc('admin_pauta_salvar', {
+        p_id: pautaEditando || null,
+        p_titulo: titulo,
+        p_briefing: $('[data-p-briefing]', form).value.trim() || null,
+        p_atribuido_a: $('[data-p-quem]', form).value || null,
+        p_prazo: $('[data-p-prazo]', form).value || null,
+        p_prioridade: $('[data-p-prio]', form).value || 'normal',
+      });
+      if (r && r.ok === false) {
+        avisoForm.innerHTML = `<div class="notice err"><p>${escapeHtml(r.erro || 'não deu pra salvar')}</p></div>`;
+        return;
+      }
+      toast(pautaEditando ? 'pauta salva 💛' : 'pauta no quadro 💛');
+      limparForm();
+      carregarQuadro();
+    } catch (e2) {
+      avisoForm.innerHTML = `<div class="notice err"><p>${escapeHtml(e2.message)}</p></div>`;
+    } finally {
+      botao.disabled = false;
+    }
+  });
+
+  $('[data-p-cancelar]', form).addEventListener('click', limparForm);
+
+  marcar();
+  renderIcons();
+  await carregarEquipe();
+  carregarQuadro();
+}
+
+function cardPauta(p, meuId) {
+  const tags = [];
+  if (p.prioridade === 'alta') tags.push('<span class="tag coral">urgente</span>');
+  if (p.prioridade === 'baixa') tags.push('<span class="tag">quando der</span>');
+  if (p.status !== 'feita' && prazoVencido(p.prazo)) tags.push('<span class="tag gold">passou do prazo</span>');
+
+  const quem = p.atribuido_a
+    ? `${escapeHtml(p.atribuido_nome || 'alguém do time')}${p.atribuido_a === meuId ? ' (tu)' : ''}`
+    : 'toda a equipe';
+
+  const linhas = [`<span class="pauta-meta-item"><i data-lucide="user-round"></i>${quem}</span>`];
+  if (p.prazo) {
+    linhas.push(`<span class="pauta-meta-item"><i data-lucide="calendar-clock"></i>até ${escapeHtml(dataDoPrazo(p.prazo))}</span>`);
+  }
+  if (p.status === 'feita' && p.concluida_por_nome) {
+    linhas.push(`<span class="pauta-meta-item"><i data-lucide="check"></i>feita por ${escapeHtml(p.concluida_por_nome)}</span>`);
+  }
+
+  const mover = {
+    aberta: `<button type="button" class="btn solid sm" data-p-mover="fazendo" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="play"></i>pegar pra mim</button>`,
+    fazendo: `<button type="button" class="btn solid sm" data-p-mover="feita" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="check"></i>concluir</button>
+              <button type="button" class="btn ghost sm" data-p-mover="aberta" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="undo-2"></i>devolver</button>`,
+    feita: `<button type="button" class="btn ghost sm" data-p-mover="aberta" data-p-alvo="${escapeHtml(p.id)}"><i data-lucide="undo-2"></i>reabrir</button>`,
+  }[p.status];
+
+  return `
+    <article class="card pauta-card${p.prioridade === 'alta' ? ' is-urgente' : ''}" data-pauta="${escapeHtml(p.id)}">
+      ${tags.length ? `<div class="ad-card-tags">${tags.join('')}</div>` : ''}
+      <p class="pauta-titulo">${escapeHtml(p.titulo || '')}</p>
+      ${p.briefing ? `<p class="pauta-briefing">${escapeHtml(p.briefing)}</p>` : ''}
+      <div class="pauta-meta">${linhas.join('')}</div>
+      <div class="pauta-acoes">
+        ${mover || ''}
+        <span class="pauta-acoes-fim">
+          <button type="button" class="btn ghost sm pauta-ico" data-p-editar="${escapeHtml(p.id)}" aria-label="editar a pauta" title="editar"><i data-lucide="pencil"></i></button>
+          <button type="button" class="btn ghost sm pauta-ico" data-p-apagar="${escapeHtml(p.id)}" data-p-titulo="${escapeHtml(p.titulo || 'essa pauta')}" aria-label="apagar a pauta" title="apagar"><i data-lucide="trash-2"></i></button>
+        </span>
+      </div>
+    </article>`;
 }
 
 // ===== PEDIDOS ======================================================
@@ -1778,13 +2158,13 @@ async function viewRecados(view) {
     avisoForm.innerHTML = '';
     const texto = $('[data-r-texto]', form).value.trim();
     if (!texto) {
-      avisoForm.innerHTML = '<div class="notice erro"><p>escreve o recado 💛</p></div>';
+      avisoForm.innerHTML = '<div class="notice err"><p>escreve o recado 💛</p></div>';
       return;
     }
     const inicio = isoDeDtLocal($('[data-r-inicio]', form).value);
     const fim = isoDeDtLocal($('[data-r-fim]', form).value);
     if (inicio && fim && Date.parse(fim) <= Date.parse(inicio)) {
-      avisoForm.innerHTML = '<div class="notice erro"><p>o fim tem que ser depois do começo.</p></div>';
+      avisoForm.innerHTML = '<div class="notice err"><p>o fim tem que ser depois do começo.</p></div>';
       return;
     }
     const botao = $('[data-r-salvar]', form);
@@ -1983,11 +2363,11 @@ async function viewTrilha(view) {
     const nome = $('[data-t-nome]', form).value.trim();
     const url = $('[data-t-url]', form).value.trim();
     if (!nome) {
-      avisoForm.innerHTML = '<div class="notice erro"><p>dá um nome pra playlist 💛</p></div>';
+      avisoForm.innerHTML = '<div class="notice err"><p>dá um nome pra playlist 💛</p></div>';
       return;
     }
     if (!pareceSpotify(url)) {
-      avisoForm.innerHTML = '<div class="notice erro"><p>cola um link do Spotify (open.spotify.com/…).</p></div>';
+      avisoForm.innerHTML = '<div class="notice err"><p>cola um link do Spotify (open.spotify.com/…).</p></div>';
       return;
     }
     const botao = $('[data-t-salvar]', form);
@@ -2180,7 +2560,7 @@ async function viewAgenda(view) {
     avisoForm.innerHTML = '';
     const nome = $('[data-a-nome]', form).value.trim();
     if (!nome) {
-      avisoForm.innerHTML = '<div class="notice erro"><p>dá um nome pro encontro 💛</p></div>';
+      avisoForm.innerHTML = '<div class="notice err"><p>dá um nome pro encontro 💛</p></div>';
       return;
     }
     const vagasRaw = $('[data-a-vagas]', form).value.trim();
@@ -2493,7 +2873,7 @@ async function carregarPresentes(corpo) {
         <div class="stat card"><p class="n">${formatNumero(esperando)}</p><p class="l">esperando quem ganha</p></div>
         <div class="stat card"><p class="n">${formatNumero(abertos)}</p><p class="l">já resgatados</p></div>
       </div>
-      ${linhas.map(cardPresente).join('')}`;
+      <div class="ad-lista">${linhas.map(cardPresente).join('')}</div>`;
     renderIcons();
   } catch (e) {
     erroNaTela(corpo, e);
@@ -2538,16 +2918,20 @@ function cardPresente(g) {
 }
 
 // ===== MURAL (moderação) ============================================
-// O Mural do /o-casa é uma parede PÚBLICA, e até aqui não existia tela nenhuma
-// pra cuidar dela: um recado ofensivo só saía rodando SQL na mão. As policies da
-// 0020 já davam à equipe o direito de ver tudo, mudar o status e apagar, então
-// esta aba é só a tela que faltava — sem migration, sem RPC nova.
+// O Mural do /o-casa é uma parede PÚBLICA, e até esta aba existir um recado
+// ofensivo só saía rodando SQL na mão.
 //
-// Escrita DIRETA pela RLS de propósito: `mural_update_staff` e
-// `mural_delete_own_or_staff` são exatamente o que a moderação precisa, e a
-// trigger da 0036 impede que qualquer um (inclusive a equipe) reescreva
-// `texto`/`autor_nome`/`user_id`. Ou seja: dá pra esconder e apagar, nunca pra
-// pôr na parede uma frase que a pessoa não escreveu.
+// A aba nasceu escrevendo DIRETO pela RLS (as policies da 0020 falam em
+// `is_staff()`), e isso funcionava só pra quem é dono da casa: o console concede
+// PERMISSÃO e nunca troca o PAPEL de ninguém, então quem recebia 'usuarios'
+// continuava com role='cliente', via só os recados aprovados e batia na RLS ao
+// tentar esconder ou apagar. A 0044 pôs a moderação em três funções gated por
+// `tem_permissao('usuarios')`, como todas as outras abas — e nada foi promovido
+// a staff, porque promover abriria junto pedidos, resgates e brindes.
+//
+// A trigger da 0036 continua valendo por baixo: `texto`, `autor_nome` e
+// `user_id` são intocáveis. Dá pra esconder e apagar, nunca pra pôr na parede
+// uma frase que a pessoa não escreveu.
 const filtrosMural = { status: 'aprovado', busca: '' };
 
 async function viewMural(view) {
@@ -2597,24 +2981,14 @@ async function viewMural(view) {
 
 async function carregarMural(corpo) {
   carregando(corpo);
-  if (!supabase) return erroNaTela(corpo, new Error('o banco ainda não está configurado por aqui'));
   try {
-    let q = supabase
-      .from('mural_notes')
-      .select('id, autor_nome, texto, status, created_at')
-      .order('created_at', { ascending: false })
-      .limit(300);
-    if (filtrosMural.status) q = q.eq('status', filtrosMural.status);
-    if (filtrosMural.busca) {
-      // `or` com ilike nos dois campos que a moderação procura. O termo é
-      // sanitizado (vírgula e parêntese quebrariam a sintaxe do PostgREST).
-      const termo = filtrosMural.busca.replace(/[,()]/g, ' ');
-      q = q.or(`texto.ilike.%${termo}%,autor_nome.ilike.%${termo}%`);
-    }
-    const { data, error } = await q;
-    if (error) throw new Error(error.message);
+    const dados = await rpc('admin_mural_listar', {
+      p_busca: filtrosMural.busca || null,
+      p_status: filtrosMural.status || null,
+    });
+    const data = Array.isArray(dados) ? dados : [];
 
-    if (!data || !data.length) {
+    if (!data.length) {
       // O vazio precisa dizer QUAL recorte veio vazio. "nenhum recado ainda" com
       // o filtro "na parede" ligado faz quem procura um recado que existe (mas
       // está escondido) concluir que ele sumiu do banco.
@@ -2636,7 +3010,7 @@ async function carregarMural(corpo) {
 
     corpo.innerHTML = `
       <p class="lbl" style="margin-bottom: 14px">${formatNumero(data.length)} ${data.length === 1 ? 'recado' : 'recados'}</p>
-      ${data.map(cardRecadoMural).join('')}`;
+      <div class="ad-lista">${data.map(cardRecadoMural).join('')}</div>`;
     ligarAcoesMural(corpo);
     renderIcons();
   } catch (e) {
@@ -2681,10 +3055,12 @@ function ligarAcoesMural(corpo) {
       if (!id) return;
       botao.disabled = true;
       const novo = botao.dataset.muralStatus;
-      const { error } = await supabase.from('mural_notes').update({ status: novo }).eq('id', id);
-      if (error) {
+      try {
+        const r = await rpc('admin_mural_status', { p_id: id, p_status: novo });
+        if (r && r.ok === false) throw new Error(r.erro || 'não deu pra mudar agora');
+      } catch (e) {
         botao.disabled = false;
-        toast(error.message || 'não deu pra mudar agora', 'err');
+        toast(e.message || 'não deu pra mudar agora', 'erro');
         return;
       }
       toast(novo === 'oculto' ? 'recado escondido' : 'recado de volta na parede 💛');
@@ -2707,10 +3083,12 @@ function ligarAcoesMural(corpo) {
       });
       if (!certeza) return;
       botao.disabled = true;
-      const { error } = await supabase.from('mural_notes').delete().eq('id', id);
-      if (error) {
+      try {
+        const r = await rpc('admin_mural_remover', { p_id: id });
+        if (r && r.ok === false) throw new Error(r.erro || 'não deu pra apagar agora');
+      } catch (e) {
         botao.disabled = false;
-        toast(error.message || 'não deu pra apagar agora', 'err');
+        toast(e.message || 'não deu pra apagar agora', 'erro');
         return;
       }
       toast('recado apagado');
@@ -2789,7 +3167,7 @@ async function carregarLeadsEventos(corpo) {
     }
     corpo.innerHTML = `
       <p class="lbl" style="margin-bottom: 14px">${formatNumero(linhas.length)} ${linhas.length === 1 ? 'pedido' : 'pedidos'}</p>
-      ${linhas.map(cardLead).join('')}`;
+      <div class="ad-lista">${linhas.map(cardLead).join('')}</div>`;
     ligarAcoesLead(corpo);
     renderIcons();
   } catch (e) {
@@ -2869,7 +3247,7 @@ function ligarAcoesLead(corpo) {
         carregarLeadsEventos(corpo);
       } catch (e) {
         botao.disabled = false;
-        toast(e?.message || 'não deu pra mudar agora', 'err');
+        toast(e?.message || 'não deu pra mudar agora', 'erro');
       }
     }),
   );
