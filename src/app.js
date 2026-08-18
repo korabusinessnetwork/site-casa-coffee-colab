@@ -4882,7 +4882,7 @@ function authMobileLogado(nome, inicial) {
 // montada da fonte única CONTA_LINKS. Some sozinha fora da área logada.
 function renderContaNav() {
   const root = document.querySelector(
-    '[data-perfil-root], [data-pontos-root], [data-conquistas-root], [data-pedidos-root]',
+    '[data-perfil-root], [data-clube-root], [data-pontos-root], [data-conquistas-root], [data-pedidos-root]',
   );
   if (!root || document.querySelector('[data-conta-nav]')) return;
 
@@ -5975,6 +5975,12 @@ async function initPerfilPage() {
   const tiersUpgrade = ativa
     ? tiers.filter((t) => t.vendavel === true && (t.ordem ?? 0) > ordemAtual)
     : [];
+  // O que se COMPRA é sempre a categoria de entrada, nunca a categoria em que a
+  // pessoa estava. Reassinar com o `planoSlug` dela mandaria 'ouro'/'diamante' pra
+  // function, que recusa (não são vendáveis), e o "voltar pro plano" morria pra
+  // justamente quem tinha mais tempo de casa. E não se perde nada: o tempo fica
+  // guardado, então a categoria volta sozinha na primeira sincronização.
+  const slugVendavel = tiers.find((t) => t.vendavel === true)?.slug || '';
   // Desvio gentil de retenção: SÓ aparece dentro do fluxo de pausar, e SÓ se não
   // houver downgrade já agendado. Planos ATIVOS mais leves que o atual (ordem menor).
   const tiersDowngrade =
@@ -6105,7 +6111,7 @@ async function initPerfilPage() {
                   : emGraca
                     ? `<p class="mt-2 text-sm text-ink-2">teu <strong class="font-semibold text-ink">${plano}</strong> tá pausado. os benefícios seguem até <strong class="font-semibold text-ink">${ativoAte}</strong>, e a gente não te cobra de novo. quando quiser, é só retomar (sem pagar do zero).</p>`
                     : reassinavel
-                      ? `<p class="mt-2 text-sm text-ink-2">tua assinatura do <strong class="font-semibold text-ink">${plano}</strong> foi encerrada. quando quiser voltar, a porta tá aberta, é uma assinatura nova, começando um ciclo do zero.</p>`
+                      ? `<p class="mt-2 text-sm text-ink-2">tua assinatura foi encerrada. quando quiser voltar, a porta tá aberta: é uma assinatura nova, começando um ciclo do zero, e teu tempo de casa continua guardado, então tu volta pro <strong class="font-semibold text-ink">${plano}</strong> assim que a primeira cobrança passar.</p>`
                       : `<p class="mt-2 text-sm text-ink-2">teu plano tá pausado e o período já acabou. dá pra retomar quando quiser, reativando a mesma assinatura.</p>`
               }
 
@@ -6126,7 +6132,9 @@ async function initPerfilPage() {
                   ativa
                     ? `<button type="button" data-cancelar-assinatura class="btn ghost sm">pausar assinatura</button>`
                     : reassinavel
-                      ? `<button type="button" data-reassinar data-tier="${escapeHtml(planoSlug)}" class="btn solid sm"><i data-lucide="play-circle" class="h-4 w-4"></i>voltar pro ${plano}</button>`
+                      ? `<button type="button" data-reassinar data-tier="${escapeHtml(slugVendavel)}" class="btn solid sm"${
+                          slugVendavel ? '' : ' disabled'
+                        }><i data-lucide="play-circle" class="h-4 w-4"></i>voltar pro clube</button>`
                       : `<button type="button" data-retomar class="btn solid sm"><i data-lucide="play-circle" class="h-4 w-4"></i>retomar plano</button>`
                 }
               </div>
@@ -7099,8 +7107,10 @@ async function initPerfilPage() {
     }
   });
 
-  // Voltar pro plano (assinatura cancelada de vez no Asaas → não dá pra "retomar",
-  // então abre um checkout NOVO pro mesmo tier, assinatura nova, ciclo do zero).
+  // Voltar pro clube (assinatura cancelada de vez no Asaas → não dá pra "retomar",
+  // então abre um checkout NOVO, assinatura nova, ciclo do zero). O tier mandado é
+  // sempre o VENDÁVEL (a categoria de entrada), não a categoria em que a pessoa
+  // estava: categoria não se compra, ela volta pelo tempo de casa acumulado.
   const reassinarBtn = root.querySelector('[data-reassinar]');
   reassinarBtn?.addEventListener('click', async () => {
     if (!supabase) return;

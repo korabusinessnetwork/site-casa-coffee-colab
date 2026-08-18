@@ -202,3 +202,34 @@ loja", então ficou um percentual único, sem escada por categoria. É uma linha
 
 Fora do código, resta uma decisão de operação que é do humano: **ajustar no painel do Asaas o
 valor das assinaturas antigas** que estavam em outro preço.
+
+---
+
+## 10. Review (18/ago/2026)
+
+Auditoria dos 28 critérios contra o código no ar. **Dois furos achados e corrigidos**, os dois
+do mesmo tipo: coisas que só aparecem cruzando a leva nova com o que já existia.
+
+**(a) "voltar pro plano" quebrava pra quem não estava na categoria de entrada** (critério 18).
+O botão mandava `tier_slug` = a categoria da pessoa, e a `create-checkout-session` passou a
+recusar tudo que não é `vendavel`. Quem tinha assinatura encerrada e três meses ou mais de
+casa (`prata`, `ouro`, `diamante`) receberia "esse é um degrau do clube, não um plano à
+venda" ao tentar voltar, justamente quem tem mais tempo de casa. Agora o botão manda o slug
+**vendável** e o rótulo virou "voltar pro clube"; a copy explica que o tempo continua
+guardado, então a categoria volta sozinha quando a primeira cobrança passar.
+
+**(b) a tirinha das páginas da conta não aparecia na `/conta/clube`** (critério 21). O
+`renderContaNav` casa por uma lista de seletores e a página nova não estava nela. Provado
+contra o HTML real da página: o seletor antigo não casava, o novo casa, e a `<section>` com
+pai que a função precisa pra inserir a faixa está lá.
+
+**Não deu pra verificar no navegador:** este ambiente não tem Supabase configurado, então toda
+página de `/conta/` redireciona pro `/login` antes de dar pra observar qualquer coisa. Vale
+igual pras quatro páginas que já existiam, então é limite do ambiente, não regressão.
+
+**Duas observações que não viraram correção:**
+- O `data-tier="bronze"` do `/planos` é escrito à mão no HTML. Se um dia a casa mudar qual
+  categoria é vendável, o botão passa a mandar um slug recusado. Degrada **visível** (a
+  página mostra o recado em português da function), não em silêncio, então ficou como está.
+- Existe um travessão em copy visível no card do brunch de aniversário (`app.js`), que é
+  anterior a esta leva. Fora de escopo aqui, mas fica anotado.
