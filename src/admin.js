@@ -770,7 +770,9 @@ function marcarAbaEabrir(item) {
 }
 
 function falhaDaAba(view, aba, e) {
-  console.error(`[console] a aba "${aba}" não abriu:`, e);
+  // O nome da aba e o erro vão como ARGUMENTOS, não interpolados no texto: se
+  // um dia o rótulo vier de fora, um "%s" dentro dele forjaria a linha do log.
+  console.error('[console] a aba não abriu:', aba, e);
   view.innerHTML = `
     <div class="notice err">
       <p><strong>essa aba não abriu.</strong></p>

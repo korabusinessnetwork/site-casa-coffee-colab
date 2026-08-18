@@ -927,7 +927,9 @@ Deno.serve(async (req) => {
   } catch (err) {
     // Falhou → NÃO grava asaas_events; o Asaas reenvia e a gente reprocessa
     // (a idempotência dos créditos/pedidos protege contra duplicar). Responde 500.
-    console.error(`[asaas-webhook] erro processando ${eventType} (${eventId}):`, err);
+    // Tipo e id do evento vêm do CORPO que o Asaas manda, ou seja, de fora.
+    // Passados como argumentos, um "%s" plantado ali não forja a linha do log.
+    console.error('[asaas-webhook] erro processando:', eventType, eventId, err);
     return new Response('erro ao processar', { status: 500 });
   }
 

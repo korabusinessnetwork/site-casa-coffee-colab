@@ -1674,6 +1674,20 @@ node scripts/avatares-orfaos.mjs --apagar   # relata e limpa
 
 ## Segurança (regras obrigatórias — valem a partir da Fase 2)
 
+**Favicon em arquivo, não embutido no `href` (console).** As duas páginas de `/admin`
+traziam o SVG do favicon num `data:` URI percent-encoded, e o `xmlns='http://www.w3.org/2000/svg'`
+que o SVG precisa pra renderizar aparecia como texto legível dentro do atributo. Scanner de
+segurança (Semgrep `missing-integrity`) lê ali um recurso externo sem `integrity` e abre um
+alerta **que não tem como resolver**: SRI não se aplica a `data:` URI e o navegador ignora
+`integrity` em `rel="icon"`. Agora elas apontam pro `/favicon.svg` (em `src/assets/`, que é o
+`publicDir`). As 25 páginas do site seguem com o favicon embutido **sem** percent-encoding, e
+por isso não caem na mesma regra; se algum dia uma delas for codificada, aponta pro arquivo.
+
+**Nada de variável dentro do texto de `console.*`.** Valor que vem de fora (nome de aba,
+tipo de evento do webhook) vai como **argumento separado**, nunca interpolado na string: um
+`%s` plantado no valor forjaria a linha do log. Vale pro `admin.js` e pras Edge Functions.
+
+
 Segredos:
 - .env no .gitignore; .env.example (sem valores reais) versionado. NUNCA commitar segredo.
 - Só no client/Vercel: SUPABASE_URL, SUPABASE_ANON_KEY. (O checkout do Asaas é hospedado — NÃO existe chave pública de pagamento no bundle.)
