@@ -7,7 +7,7 @@
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☕</text></svg>"
     />
-    <title>Presentear um plano, Casa Coffee Colab</title>
+    <title>Presenteia um mês do Casa, Casa Coffee Colab</title>
     <meta
       name="description"
       content="Dá o Casa de presente: um mês de plano pra alguém que tu gosta. Café, afeto e comida boa, embrulhados num código."
@@ -16,7 +16,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Casa Coffee Colab" />
     <meta property="og:locale" content="pt_BR" />
-    <meta property="og:title" content="Presentear um plano" />
+    <meta property="og:title" content="Presenteia um mês do Casa" />
     <meta property="og:description" content="Dá um mês do Casa de presente pra quem tu gosta." />
     <meta property="og:url" content="https://casacoffeecolab.vercel.app/presentear" />
   </head>
@@ -32,13 +32,13 @@
         <div class="wrap">
           <div class="reveal">
             <span class="eyebrow coral">um mês do Casa, de presente</span>
-            <h1 class="title lg">Presentear um plano</h1>
+            <h1 class="title lg">Presenteia um mês do Casa</h1>
             <div class="rule coral"></div>
             <p class="lede">
-              café é afeto, e afeto se dá. Escolhe um plano, deixa um bilhete, e a
-              gente te devolve um código pra tu entregar pra quem tu quiser. Quem ganha
-              resgata na conta e aproveita um mês inteiro do Casa. Sem cartão da pessoa,
-              sem renovar escondido: é presente, e presente não cobra depois.
+              café é afeto, e afeto se dá. Deixa um bilhete e a gente te devolve um
+              código pra tu entregar pra quem tu quiser. Quem ganha resgata na conta e
+              aproveita um mês inteiro do Casa. Sem cartão da pessoa, sem renovar
+              escondido: é presente, e presente não cobra depois.
             </p>
           </div>
         </div>
@@ -49,54 +49,27 @@
            =================================================================== -->
       <section class="section">
         <div class="wrap">
-          <div class="gift-wrap reveal" data-presentear>
-            <!-- 1. Escolhe o plano -->
+          <div class="gift-wrap reveal" data-presentear data-gift-tier="bronze">
+            <!-- 1. O presente. O clube é uma assinatura só, então não há o que
+                 escolher: o cartão abaixo é informativo, e o slug da categoria de
+                 entrada viaja no data-gift-tier do bloco (o app.js lê dali quando
+                 não existe radio). O preço de verdade vem do BANCO na function. -->
             <div class="gift-step">
-              <span class="eyebrow coral">1 · o plano</span>
-              <h2 class="title md" style="margin-top: 8px">Qual mês tu quer dar?</h2>
+              <span class="eyebrow coral">1 · o presente</span>
+              <h2 class="title md" style="margin-top: 8px">Um mês inteiro de Casa</h2>
 
-              <div class="gift-tiers" role="radiogroup" aria-label="Escolhe o plano pra presentear">
-                <label class="gift-tier">
-                  <input type="radio" name="gift-tier" value="bronze" />
-                  <span class="gift-tier-card">
-                    <span class="eyebrow">Bronze</span>
-                    <span class="gift-tier-name">Vizinho de Sempre</span>
-                    <span class="gift-tier-price">R$29,90</span>
-                    <span class="tag coral">3% na loja · 1x pontos</span>
-                  </span>
-                </label>
-
-                <label class="gift-tier">
-                  <input type="radio" name="gift-tier" value="prata" />
-                  <span class="gift-tier-card">
-                    <span class="eyebrow">Prata</span>
-                    <span class="gift-tier-name">Frequentador</span>
-                    <span class="gift-tier-price">R$49,90</span>
-                    <span class="tag coral">6% na loja · 1,25x pontos</span>
-                  </span>
-                </label>
-
-                <label class="gift-tier">
-                  <input type="radio" name="gift-tier" value="ouro" checked />
-                  <span class="gift-tier-card">
-                    <span class="tag gold gift-tier-badge">favorito</span>
-                    <span class="eyebrow">Ouro</span>
-                    <span class="gift-tier-name">Gente do Casa</span>
-                    <span class="gift-tier-price">R$79,90</span>
-                    <span class="tag coral">10% na loja · 1,5x pontos</span>
-                  </span>
-                </label>
-
-                <label class="gift-tier">
-                  <input type="radio" name="gift-tier" value="diamante" />
-                  <span class="gift-tier-card">
-                    <span class="eyebrow">Diamante</span>
-                    <span class="gift-tier-name">Alma do Casa</span>
-                    <span class="gift-tier-price">R$129,90</span>
-                    <span class="tag coral">15% na loja · 2x pontos</span>
-                  </span>
-                </label>
+              <div class="gift-unico">
+                <span class="gift-unico-ico" aria-hidden="true"><i data-lucide="gift"></i></span>
+                <div class="gift-unico-txt">
+                  <strong>Casa Club, um mês</strong>
+                  <span class="gift-unico-preco">R$49,90</span>
+                  <span>10% na loja, 1 ponto a cada R$1, brunch de aniversário, e um lugar guardado nos encontros da casa.</span>
+                </div>
               </div>
+              <p style="margin-top: 12px; color: var(--muted); font-size: 13.5px; line-height: 1.6">
+                é cobrança única, não vira assinatura tua nem da pessoa. E o tempo desse
+                mês conta como tempo de casa pra ela, igualzinho a quem assina.
+              </p>
             </div>
 
             <!-- 2. O bilhete -->
@@ -173,6 +146,22 @@
 
     <!-- Estilos pontuais desta página -->
     <style>
+      .gift-unico {
+        display: flex; gap: 14px; align-items: flex-start; margin-top: 16px;
+        padding: 18px 20px; border-radius: 16px;
+        background: color-mix(in srgb, var(--coral) 7%, var(--card));
+        border: 1.5px solid color-mix(in srgb, var(--coral) 30%, transparent);
+      }
+      .gift-unico-ico {
+        flex: none; display: grid; place-items: center; width: 42px; height: 42px;
+        border-radius: 12px; color: #fff; background: var(--coral);
+      }
+      .gift-unico-ico i, .gift-unico-ico svg { width: 20px; height: 20px }
+      .gift-unico-txt { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+      .gift-unico-txt strong { color: var(--ink); font-size: 16px; font-weight: 600 }
+      .gift-unico-txt span { color: var(--ink-2); font-size: 14px; line-height: 1.55 }
+      .gift-unico-preco { font-family: var(--font-titulo, inherit); font-size: 22px; color: var(--coral) }
+
       .gift-wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px }
       .gift-tiers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px }
       @media (max-width: 560px) { .gift-tiers { grid-template-columns: 1fr } }

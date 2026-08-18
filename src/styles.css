@@ -2271,3 +2271,44 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
   .ad-card-acao { width: 100%; justify-content: space-between; margin-left: 0 }
   .ad-quem-nome, .ad-quem-papel { display: none }
 }
+
+/* =============================================================================
+   TEU CLUBE (/conta/clube) — a jornada das categorias
+   As quatro categorias em fila, com a atual em destaque. Grid de auto-fit em vez
+   de quatro colunas fixas: no celular vira uma coluna sozinho, e se um dia a casa
+   criar um quinto degrau a fila se reorganiza sem tocar no CSS.
+   ============================================================================= */
+.clube-passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.clube-passo {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+}
+/* Já passou: fica presente, mas quieta (é história, não o agora). */
+.clube-passo.feita { background: var(--paper-2) }
+/* Onde a pessoa está. A borda dupla é o único destaque, sem sombra: a tela toda
+   é de leitura calma, e um card saltando aqui competiria com o número do topo. */
+.clube-passo.atual {
+  border-color: var(--coral);
+  box-shadow: inset 0 0 0 1px var(--coral);
+  background: color-mix(in srgb, var(--coral) 7%, var(--card));
+}
+.clube-passo-marco {
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.clube-passo strong { font-family: var(--serif); font-size: 17px; color: var(--ink) }
+.clube-passo em { font-style: normal; font-size: 13px; color: var(--ink-2) }
+.clube-passo.atual em { color: var(--coral); font-weight: 500 }

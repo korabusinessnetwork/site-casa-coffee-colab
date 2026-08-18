@@ -62,6 +62,31 @@ Deno.serve(async (req) => {
   }
   const desfazer = body.acao === 'cancelar';
 
+  // DESLIGADO PELO CASA CLUB (ago/2026), não removido. O clube virou UMA
+  // assinatura e as categorias passaram a ser tempo de casa: não existe plano
+  // mais leve pra onde descer. O código do agendamento segue inteiro abaixo e
+  // volta a valer quando existir mais de uma categoria vendável.
+  //
+  // DESFAZER continua passando de propósito: quem agendou uma descida ANTES da
+  // virada precisa poder cancelar ela, senão a assinatura renovaria pelo valor
+  // baixo de um plano que não existe mais.
+  if (!desfazer) {
+    const { count: vendaveis } = await supabaseAdmin
+      .from('tiers')
+      .select('slug', { count: 'exact', head: true })
+      .eq('vendavel', true)
+      .eq('ativo', true);
+    if ((vendaveis ?? 0) <= 1) {
+      return jsonResponse(
+        {
+          error:
+            'agora o clube é uma assinatura só 💛 não tem plano mais leve pra onde descer, e o que tu já ficou de casa continua guardado contigo.',
+        },
+        400,
+      );
+    }
+  }
+
   // 3) Assinatura ATIVA do próprio usuário (a mais recente por período). O
   // downgrade só faz sentido numa assinatura que o Asaas ainda renova — por isso
   // 'ativa' (não 'pausada', que já é o fluxo de cancelar). Nunca id do client.
