@@ -640,7 +640,7 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 
 ## O CASA CLUB — uma assinatura, quatro categorias por tempo
 
-O clube deixou de ser **quatro planos pagos** e virou **uma assinatura só, de R$49,90/mês**
+O clube deixou de ser **quatro planos pagos** e virou **uma assinatura só, de R$88,90/mês**
 (documento "Projeto CASA CLUB", ago/2026; decisões fechadas com a casa em 18/ago/2026). Os
 quatro nomes que já existiam continuam, mas **trocaram de eixo**: eram PREÇO, viraram
 **TEMPO DE CASA**.
@@ -1811,6 +1811,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
+> **PENDENTE: a `0049_preco_do_clube`.** Sobe a assinatura de R$49,90 pra **R$88,90** (o
+> R$49,90 da 0048 era o "valor estratégico inicial, a validar" do próprio documento). Ela
+> mexe **só no banco**: as assinaturas que já existem no Asaas seguem com o `value` do dia em
+> que nasceram, então **quem já assina continua pagando o valor antigo** até a casa mudar no
+> painel do Asaas. Isso é decisão de quem vende, não de migration. O texto das telas
+> (`/planos`, `/presentear` e o recado da `/conta/clube`) já foi pro preço novo.
+
 - **Banco em dia (18/ago/2026):** o humano aplicou a **`0048_casa_club`** em 18/ago, e o
   front dela foi pra `main` no mesmo dia (as duas juntas de propósito, ver a lição da 0047
   logo abaixo). **Não há migration pendente**, e a numeração livre pra próxima é a **`0049`**.
@@ -2137,7 +2144,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - **`0048_casa_club` — APLICADA em 18/ago/2026.** O clube vira **uma
   assinatura só** e as quatro categorias passam a ser **tempo de casa**: colunas
   `tiers.vendavel` (só a de entrada é comprável, com índice único garantindo "uma só") e
-  `tiers.meses_min`; reseed das quatro (mesmo preço R$49,90, mesmo desconto 10%, mesmo
+  `tiers.meses_min`; reseed das quatro (mesmo preço, mesmo desconto 10%, mesmo
   `points_multiplier = 1.00`, as duas duplas de colunas de 0001 e 0004 andando juntas); e
   cinco funções: `dias_de_casa`/`meses_de_casa` (**união** dos períodos das assinaturas, não
   a soma crua), `categoria_por_tempo`, `sincronizar_categoria` (escreve o `tier_slug` só
@@ -2153,6 +2160,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > 11, 12, 400 e um negativo), a promoção passando pela trigger `prevent_points_tamper` numa
   > sessão `authenticated`, a segunda chamada não gerando linha nova de auditoria, e o índice
   > recusando uma segunda categoria vendável.
+- **`0049_preco_do_clube` — PENDENTE.** Uma linha: a assinatura passa de R$49,90 pra
+  **R$88,90** (`preco_centavos = 8890`). **As quatro categorias andam juntas**, porque elas
+  custam o mesmo desde a 0048 (categoria é tempo, não preço) e a `create-checkout-session` lê
+  o `preco_centavos` do tier pra montar o valor do checkout e do presente: deixar as três não
+  vendáveis com o preço velho criaria uma escada fantasma no banco, pronta pra cobrar errado
+  no dia em que alguma voltasse a ser vendável. **Não toca no Asaas**: assinatura viva mantém
+  o `value` com que nasceu.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

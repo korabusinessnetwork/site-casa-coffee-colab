@@ -7,7 +7,8 @@
 
 ## 1. Escopo
 
-Trocar os **4 planos pagos** do clube por **uma assinatura única de R$49,90/mês**, em que as
+Trocar os **4 planos pagos** do clube por **uma assinatura única** (R$49,90 na 0048,
+**R$88,90** desde a 0049), em que as
 quatro categorias existentes (Vizinho de Sempre, Frequentador, Gente do Casa, Alma do Casa)
 deixam de ser preço e passam a ser **tempo acumulado de casa** (0-3, 3-6, 6-12, 12+ meses),
 com pontos **1:1 sem multiplicador**, uma **tela do clube** na área logada, e os fluxos de
@@ -103,7 +104,7 @@ via um tipo de critério novo (`meses_de_casa`) no `check_achievements`.
 1. `tiers` tem as colunas `vendavel` (boolean, default false) e `meses_min` (integer), e as
    quatro linhas seguem com `ativo = true`.
 2. Exatamente **uma** linha de `tiers` tem `vendavel = true`, e é a categoria de entrada
-   (`bronze`, Vizinho de Sempre), com `preco_centavos = 4990`.
+   (`bronze`, Vizinho de Sempre), com o preço da assinatura em `preco_centavos`.
 3. As quatro linhas têm `points_multiplier = 1.00` e `discount_percent` **igual entre si**.
 4. `meses_de_casa(uuid)` devolve a **união** dos períodos, não a soma crua: duas assinaturas
    sobrepostas (ex.: presente durante assinatura ativa) contam o tempo **uma vez só**.

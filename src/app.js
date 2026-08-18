@@ -8193,7 +8193,7 @@ async function initClubePage() {
             tempoDeCasaTexto(dias, meses),
           )}. quando tu voltar, a contagem segue de onde parou.`
         : 'aqui é onde a tua história com o Casa fica registrada: o tempo de casa, os pontos e as conquistas.';
-    return semClube(`${guardado} o clube é uma assinatura só, de R$49,90 por mês.`);
+    return semClube(`${guardado} o clube é uma assinatura só, de R$88,90 por mês.`);
   }
 
   const nomeCategoria = escapeHtml(categoria?.nome || '');
