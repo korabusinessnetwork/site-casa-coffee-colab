@@ -99,6 +99,7 @@ export default defineConfig({
         checkoutSucesso: resolve(root, 'checkout-sucesso.html'),
         checkoutCancelado: resolve(root, 'checkout-cancelado.html'),
         perfil: resolve(root, 'conta/perfil.html'),
+        clube: resolve(root, 'conta/clube.html'),
         pontos: resolve(root, 'conta/pontos.html'),
         conquistas: resolve(root, 'conta/conquistas.html'),
         pedidos: resolve(root, 'conta/pedidos.html'),

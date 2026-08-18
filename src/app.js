@@ -60,6 +60,7 @@ import {
   Bell,
   BellOff,
   BellRing,
+  Hourglass,
   Ruler,
   Search,
   // ícones das seções do /cardapio (uma por seção do cardápio físico)
@@ -133,6 +134,7 @@ const LUCIDE_ICONS = {
   Bell,
   BellOff,
   BellRing,
+  Hourglass,
   Ruler,
   Search,
   Sandwich,
@@ -4117,7 +4119,7 @@ function initPlanosPage() {
       }
       if (vigente) {
         avisar(
-          'você já tem uma assinatura vigente por aqui 💛 pra trocar de plano, usa o "fazer upgrade" na tua conta, a gente cobra só a diferença dos dias que faltam.',
+          'tu já faz parte do Casa 💛 a assinatura é uma só, então não tem o que trocar: vê em que categoria tu está no teu clube, em /conta/clube.',
         );
         return;
       }
@@ -4157,7 +4159,11 @@ function initPresentearPage() {
     if (rolar) nota.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
-  const tierEscolhido = () => root.querySelector('input[name="gift-tier"]:checked')?.value || '';
+  // O clube virou uma assinatura só, então a página não pede escolha: o slug da
+  // categoria de entrada vem no data-gift-tier do bloco. O seletor de radio fica
+  // primeiro pra o dia em que houver mais de um presente pra dar.
+  const tierEscolhido = () =>
+    root.querySelector('input[name="gift-tier"]:checked')?.value || root.dataset.giftTier || '';
 
   // Rascunho do presente (plano + bilhete). A pessoa escolhe o tier e escreve o
   // bilhete, e só no "presentear" descobre que precisa entrar: sem isto, voltava
@@ -4219,7 +4225,7 @@ function initPresentearPage() {
 
   btn?.addEventListener('click', async () => {
     const tier = tierEscolhido();
-    if (!tier) return avisar('escolhe um plano pra presentear 💛');
+    if (!tier) return avisar('não deu pra montar teu presente agora, recarrega a página? 💛');
 
     if (!supabase) return avisar('presentear ainda não tá ligado por aqui (config pendente). 💛');
 
@@ -4737,6 +4743,7 @@ function iniciaisNome(str) {
 // que falava "meu perfil" enquanto a página dizia "teus dados".
 const CONTA_LINKS = [
   { href: '/conta/perfil', icone: 'user', rotulo: 'tua conta', curto: 'conta' },
+  { href: '/conta/clube', icone: 'sparkles', rotulo: 'teu clube', curto: 'clube' },
   { href: '/conta/pontos', icone: 'gift', rotulo: 'teus pontos', curto: 'pontos' },
   { href: '/conta/conquistas', icone: 'award', rotulo: 'tuas conquistas', curto: 'conquistas' },
   { href: '/conta/pedidos', icone: 'shopping-bag', rotulo: 'teus pedidos', curto: 'pedidos' },
@@ -5883,7 +5890,7 @@ async function initPerfilPage() {
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo').order('ordem'),
+      supabase.from('tiers').select('slug, nome, preco_centavos, ordem, ativo, vendavel').order('ordem'),
       supabase.from('profiles').select(PERFIL_CAMPOS_EXTRA).eq('id', session.user.id).maybeSingle(),
       // Só os que já foram pagos: 'pendente' é checkout que nunca fechou (e nem
       // tem código), 'cancelado' morreu na expiração. Tolerante: sem a 0019 o
@@ -5959,11 +5966,21 @@ async function initPerfilPage() {
   const temDowngradeAgendado = ativa && Boolean(agendadoSlug);
   // Upgrade faz sentido com assinatura ATIVA e tiers acima do atual, inclusive com
   // downgrade agendado (o upgrade tem prioridade e desfaz a descida).
-  const tiersUpgrade = ativa ? tiers.filter((t) => (t.ordem ?? 0) > ordemAtual) : [];
+  // O `vendavel` (0048) é o que decide, NÃO a `ordem`: desde o Casa Club as
+  // categorias acima da atual existem como tempo de casa, não como plano à venda.
+  // Filtrando só por ordem, a tela ofereceria "fazer upgrade" pras três categorias
+  // seguintes e a pessoa compraria o tempo que ainda não ficou (a function recusa,
+  // mas o botão não podia estar lá). Com uma categoria vendável só, a lista nasce
+  // vazia e o painel de upgrade some sozinho.
+  const tiersUpgrade = ativa
+    ? tiers.filter((t) => t.vendavel === true && (t.ordem ?? 0) > ordemAtual)
+    : [];
   // Desvio gentil de retenção: SÓ aparece dentro do fluxo de pausar, e SÓ se não
   // houver downgrade já agendado. Planos ATIVOS mais leves que o atual (ordem menor).
   const tiersDowngrade =
-    ativa && !agendadoSlug ? tiers.filter((t) => t.ativo !== false && (t.ordem ?? 0) < ordemAtual) : [];
+    ativa && !agendadoSlug
+      ? tiers.filter((t) => t.ativo !== false && t.vendavel === true && (t.ordem ?? 0) < ordemAtual)
+      : [];
 
   // Valores do formulário. Tudo que vem do banco é escapado antes de virar
   // atributo/texto no DOM (o site é JS vanilla, não tem escape automático).
@@ -8090,6 +8107,183 @@ async function initPerfilPage() {
   });
 }
 
+// --- Teu clube (área logada) ---------------------------------------------------
+// Responde as quatro perguntas do clube num lugar só: em que categoria tu está,
+// quanto falta pra próxima, quantos pontos tu tem e o que dá pra trocar.
+//
+// Tudo vem de UMA chamada (`meu_clube`, migration 0048), que usa auth.uid() e
+// recalcula o tempo de casa no BANCO: o client não diz quanto tempo tem, nem
+// qual é a categoria. A RPC também sincroniza a categoria de quem a abre, então
+// esta tela é a rede de segurança do webhook (se a promoção não caiu no
+// pagamento, cai aqui).
+//
+// Tolerante: sem a migration a RPC falha e a tela mostra o recado gentil, sem
+// quebrar nem sumir com o resto da conta.
+
+// "1 ano e 2 meses" / "5 meses" / "12 dias" — o tempo de casa em voz de gente.
+function tempoDeCasaTexto(dias, meses) {
+  const d = Math.max(0, Number(dias) || 0);
+  const m = Math.max(0, Number(meses) || 0);
+  if (m < 1) return d === 1 ? '1 dia de casa' : `${d} dias de casa`;
+  if (m < 12) return m === 1 ? '1 mês de casa' : `${m} meses de casa`;
+  const anos = Math.floor(m / 12);
+  const resto = m % 12;
+  const parteAnos = anos === 1 ? '1 ano' : `${anos} anos`;
+  if (resto === 0) return `${parteAnos} de casa`;
+  return `${parteAnos} e ${resto === 1 ? '1 mês' : `${resto} meses`} de casa`;
+}
+
+async function initClubePage() {
+  const root = document.querySelector('[data-clube-root]');
+  if (!root) return;
+
+  const session = await requireAuth();
+  if (!session) return; // já redirecionou pro login
+
+  const semClube = (recado) => {
+    root.innerHTML = `
+      <div class="mx-auto max-w-3xl">
+        <p class="decor text-2xl sm:text-3xl">teu clube</p>
+        <div class="mt-6 card">
+          <p class="text-ink-2">${recado}</p>
+          <a href="/planos" class="btn solid sm mt-4">conhecer o clube</a>
+        </div>
+      </div>`;
+    renderIcons();
+  };
+
+  if (!supabase) {
+    return semClube('o clube ainda não tá ligado por aqui (config pendente). 💛');
+  }
+
+  const { data, error } = await supabase.rpc('meu_clube');
+  if (error || !data) {
+    return semClube(
+      'a gente não conseguiu abrir teu clube agora. tenta de novo daqui a pouco? se continuar assim, chama a gente. 💛',
+    );
+  }
+
+  const temPlano = Boolean(data.tem_plano);
+  const dias = Number(data.dias || 0);
+  const meses = Number(data.meses || 0);
+  const saldo = Number(data.saldo || 0);
+  const categoria = data.categoria || null;
+  const proxima = data.proxima || null;
+  const categorias = Array.isArray(data.categorias) ? data.categorias : [];
+  const ehPresente = Boolean(data.eh_presente);
+  const pausada = data.status === 'pausada';
+
+  // Sem plano vigente, a pessoa não está em categoria nenhuma: o tempo dela fica
+  // guardado (a 0048 não apaga nada), mas mostrar "tu é Vizinho de Sempre" seria
+  // conceder na tela um pertencimento que o banco não concede.
+  if (!temPlano) {
+    const guardado =
+      dias > 0
+        ? `teu tempo de casa tá guardado do jeito que tu deixou, ${escapeHtml(
+            tempoDeCasaTexto(dias, meses),
+          )}. quando tu voltar, a contagem segue de onde parou.`
+        : 'aqui é onde a tua história com o Casa fica registrada: o tempo de casa, os pontos e as conquistas.';
+    return semClube(`${guardado} o clube é uma assinatura só, de R$49,90 por mês.`);
+  }
+
+  const nomeCategoria = escapeHtml(categoria?.nome || '');
+  const progresso = (() => {
+    if (!proxima) return null;
+    const alvoDias = Math.max(1, Number(proxima.meses_min || 0) * 30);
+    const faltam = Math.max(0, Number(proxima.dias_faltando || 0));
+    const pct = Math.max(3, Math.min(100, Math.round((dias / alvoDias) * 100)));
+    return { faltam, pct, nome: escapeHtml(proxima.nome || '') };
+  })();
+
+  const passos = categorias
+    .map((c) => {
+      const atual = categoria && c.slug === categoria.slug;
+      const feita = Boolean(c.atingida);
+      const marco = Number(c.meses_min || 0) === 0 ? 'na entrada' : `${c.meses_min} meses`;
+      const estado = atual ? 'tu tá aqui' : feita ? 'já passou' : 'vem por aí';
+      return `
+        <li class="clube-passo${atual ? ' atual' : ''}${feita ? ' feita' : ''}">
+          <span class="clube-passo-marco">${escapeHtml(marco)}</span>
+          <strong>${escapeHtml(c.nome || '')}</strong>
+          <em>${estado}</em>
+        </li>`;
+    })
+    .join('');
+
+  const recadoRelogio = pausada
+    ? 'tua assinatura tá pausada, então o relógio parou junto: o que tu já ficou continua guardado e volta a andar quando tu voltar.'
+    : ehPresente
+      ? 'esse mês veio de presente, e ele conta como tempo de casa igualzinho.'
+      : 'enquanto tu tá com a gente, o relógio anda sozinho. não tem o que fazer pra subir, só ficar.';
+
+  root.innerHTML = `
+    <div class="mx-auto max-w-4xl">
+      <p class="decor text-2xl sm:text-3xl">teu clube</p>
+
+      <div class="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
+        <p class="font-titulo text-4xl leading-tight text-coral sm:text-5xl">${nomeCategoria}</p>
+        <p class="pb-1 text-ink-2">${escapeHtml(tempoDeCasaTexto(dias, meses))}</p>
+      </div>
+      <p class="mt-2 text-sm text-muted">${recadoRelogio}</p>
+
+      ${
+        progresso
+          ? `<div class="mt-8 card">
+               <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="hourglass" class="h-4 w-4"></i> o que vem depois</p>
+               <p class="mt-2 font-titulo text-xl leading-snug text-ink">faltam <span class="text-coral">${progresso.faltam.toLocaleString(
+                 'pt-BR',
+               )}</span> ${progresso.faltam === 1 ? 'dia' : 'dias'} pra tu virar <span class="text-coral">${progresso.nome}</span></p>
+               <div class="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow="${dias}" aria-valuemin="0" aria-valuemax="${
+                 Number(proxima.meses_min || 0) * 30
+               }" aria-label="progresso pra ${progresso.nome}">
+                 <div class="h-full rounded-full bg-coral" style="width: ${progresso.pct}%"></div>
+               </div>
+             </div>`
+          : `<div class="mt-8 card">
+               <p class="flex items-center gap-2 text-sm font-medium text-olive"><i data-lucide="sparkles" class="h-4 w-4"></i> o topo da casa</p>
+               <p class="mt-2 font-titulo text-xl leading-snug text-ink">tu chegou onde tem mais casa 💛</p>
+               <p class="mt-1 text-sm text-muted">daqui não tem próxima categoria, tem convivência. obrigado por ficar.</p>
+             </div>`
+      }
+
+      <section class="mt-10">
+        <h2 class="font-titulo text-2xl">a tua jornada</h2>
+        <ol class="clube-passos mt-4">${passos}</ol>
+      </section>
+
+      <section class="mt-12 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
+        <div class="card">
+          <p class="text-sm font-medium text-olive">teus pontos</p>
+          <p class="mt-2 font-titulo text-4xl text-coral">${saldo.toLocaleString('pt-BR')}</p>
+          <p class="mt-2 text-sm text-ink-2">1 ponto a cada R$1, em qualquer categoria do clube.</p>
+          <p class="mt-1 text-sm text-muted">
+            hoje contam a nossa loja e a tua mensalidade. o que tu consome aqui no balcão
+            ainda não vira ponto, isso entra quando a nossa caixa souber conversar com o site.
+          </p>
+          <a href="/conta/pontos" class="btn ghost sm mt-4"><i data-lucide="gift" class="h-4 w-4"></i>ver o que dá pra trocar</a>
+        </div>
+
+        <aside class="card flat">
+          <h2 class="font-titulo text-xl">o que tu tem sendo do clube</h2>
+          <ul class="mt-3 space-y-2 text-sm text-ink-2">
+            <li>· 10% de desconto na nossa loja.</li>
+            <li>· 1 ponto a cada R$1, pra trocar por coisa boa.</li>
+            <li>· um brunch por nossa conta no mês do teu aniversário.</li>
+            <li>· teu recado no Mural do Casa e teu cantinho em /gente.</li>
+            <li>· lugar guardado nos encontros da casa.</li>
+          </ul>
+          <a href="/conta/perfil#assinatura" class="btn ghost sm mt-4"><i data-lucide="settings-2" class="h-4 w-4"></i>tua assinatura</a>
+        </aside>
+      </section>
+
+      <div class="mt-10 border-t border-line pt-6">
+        <a href="/conta/perfil" class="btn ghost"><i data-lucide="arrow-left" class="h-4 w-4"></i>voltar pra conta</a>
+      </div>
+    </div>`;
+
+  renderIcons();
+}
+
 // --- Pontos + Recompensas (área logada) ----------------------------------------
 // Saldo (cache profiles.points_balance, mantido em sincronia pelo ledger),
 // multiplicador do tier, extrato do ledger e grid de recompensas pra resgatar.
@@ -8122,18 +8316,17 @@ async function initPontosPage() {
     const saldo = Number(profile?.points_balance || 0);
 
     // Multiplicador do tier atual (tiers é leitura pública).
-    let mult = 1;
+    // O nome da CATEGORIA do clube (o multiplicador saiu: desde o Casa Club é
+    // 1 ponto por R$1 em qualquer categoria, então não há o que mostrar).
     let planoNome = null;
     if (profile?.tier_slug && supabase) {
       const { data: t } = await supabase
         .from('tiers')
-        .select('nome, points_multiplier')
+        .select('nome')
         .eq('slug', profile.tier_slug)
         .maybeSingle();
-      mult = Number(t?.points_multiplier || 1);
       planoNome = t?.nome || profile.tier_slug;
     }
-    const multTxt = String(mult).replace('.', ',');
 
     // Recompensas ativas (leitura pública) + extrato do ledger (RLS: só o próprio).
     const [{ data: rewards }, { data: ledger }] = await Promise.all([
@@ -8252,7 +8445,7 @@ async function initPontosPage() {
           <p class="pb-1 text-ink-2">
             ${
               planoNome
-                ? `teu plano <span class="font-medium">${escapeHtml(planoNome)}</span> rende <span class="font-medium">${multTxt}x</span> pontos`
+                ? `tu é <span class="font-medium">${escapeHtml(planoNome)}</span> e junta <span class="font-medium">1 ponto</span> a cada R$1`
                 : `os pontos são um agrado de quem tem plano, <a href="/planos" class="font-medium text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">ativa um pra começar a pontuar</a>`
             }
           </p>
@@ -8279,7 +8472,7 @@ async function initPontosPage() {
             <h2 class="font-titulo text-xl">como funciona</h2>
             <ul class="mt-3 space-y-2 text-sm text-ink-2">
               <li>· os pontos são um mimo de quem tem plano ativo.</li>
-              <li>· com plano, 1 ponto a cada R$1, e teu tier multiplica (Ouro rende 1,5x).</li>
+              <li>· com plano, 1 ponto a cada R$1, em qualquer categoria do clube.</li>
               <li>· na loja, contam sobre o valor já com teu desconto.</li>
               <li>· é só juntar e trocar por um agrado quando quiser.</li>
             </ul>
@@ -8926,6 +9119,7 @@ export function initSite() {
   initGoogleAuth(); // injeta o "continuar com o Google" nos [data-google-slot]
   initPerfilPage(); // só age se houver [data-perfil-root] (protege a rota)
   initPontosPage(); // só age se houver [data-pontos-root] (protege a rota)
+  initClubePage(); // só age se houver [data-clube-root] (protege a rota)
   initConquistasPage(); // só age se houver [data-conquistas-root] (protege a rota)
   initPedidosPage(); // só age se houver [data-pedidos-root] (protege a rota)
   initAchievementToast(); // toast de conquista nova (qualquer página, se logado)

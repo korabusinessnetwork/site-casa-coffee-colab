@@ -90,6 +90,27 @@ Deno.serve(async (req) => {
     // maior); downgrade fica fora de escopo por ora.
     // -------------------------------------------------------------------------
     if (typeof body.upgrade_to_tier === 'string' && body.upgrade_to_tier) {
+      // DESLIGADO PELO CASA CLUB (ago/2026), não removido. O clube virou UMA
+      // assinatura e as categorias passaram a ser tempo de casa, então não há
+      // pra onde subir pagando: comprar categoria seria comprar o tempo que a
+      // pessoa ainda não ficou. O código do upgrade proporcional segue inteiro
+      // logo abaixo, e volta a valer no dia em que existir mais de uma categoria
+      // vendável (o índice `idx_tiers_vendavel_unica` da 0048 é o que impede).
+      const { count: vendaveis } = await supabaseAdmin
+        .from('tiers')
+        .select('slug', { count: 'exact', head: true })
+        .eq('vendavel', true)
+        .eq('ativo', true);
+      if ((vendaveis ?? 0) <= 1) {
+        return jsonResponse(
+          {
+            error:
+              'agora o clube é uma assinatura só 💛 tu não sobe de categoria pagando, tu sobe ficando: o tempo de casa é que abre a próxima.',
+          },
+          400,
+        );
+      }
+
       const toSlug = body.upgrade_to_tier;
 
       // Assinatura vigente do PRÓPRIO usuário (gating por status/período; nunca id
@@ -464,12 +485,24 @@ Deno.serve(async (req) => {
 
     const { data: tier, error: tierErr } = await supabaseAdmin
       .from('tiers')
-      .select('slug, nome, preco_centavos, ativo')
+      .select('slug, nome, preco_centavos, ativo, vendavel')
       .eq('slug', tier_slug)
       .maybeSingle();
 
     if (tierErr) return jsonResponse({ error: 'erro ao buscar o plano' }, 500);
     if (!tier || !tier.ativo) return jsonResponse({ error: 'plano indisponível' }, 400);
+    // CASA CLUB: só a categoria de ENTRADA se compra. As outras três são tempo de
+    // casa, não preço — sem esta trava dava pra pedir `tier_slug: 'diamante'`
+    // direto na API e comprar em um mês a categoria de quem está há um ano.
+    if (!tier.vendavel) {
+      return jsonResponse(
+        {
+          error:
+            'esse é um degrau do clube, não um plano à venda. a assinatura do Casa é uma só, e as categorias vêm com o tempo de casa 💛',
+        },
+        400,
+      );
+    }
     if (!tier.preco_centavos || tier.preco_centavos <= 0) {
       return jsonResponse({ error: 'plano sem preço configurado' }, 400);
     }

@@ -645,6 +645,15 @@ async function handleSubscriptionPayment(payment: any): Promise<void> {
     await checkAchievements(userId); // conquistas de tempo de casa best-effort
   }
 
+  // CASA CLUB: a categoria é TEMPO DE CASA, e este é o único evento mensal que o
+  // site recebe de graça — por isso a promoção mora aqui, e não num cron. A RPC
+  // recalcula tudo pelo banco (união dos períodos), só escreve quando a categoria
+  // muda de verdade, e carimba a conquista do marco. A tela do clube refaz a mesma
+  // conta na leitura, então uma falha aqui se conserta na próxima visita: best-effort
+  // de propósito, não vale derrubar o processamento de um pagamento por causa disso.
+  const { error: catErr } = await supabaseAdmin.rpc('sincronizar_categoria', { p_user: userId });
+  if (catErr) console.error('[asaas-webhook] falha ao sincronizar a categoria do clube:', catErr);
+
   // INDICA UM AMIGO: se ESTE pagante entrou por indicação pendente, premia os dois.
   // Idempotente (a RPC só processa vínculo 'pendente' → 'premiado'); no caso normal
   // (sem indicação) retorna rewarded:false sem erro. Se der erro de DB, deixa

@@ -41,105 +41,85 @@
             <h1 class="title lg">Faz parte do Casa</h1>
             <div class="rule coral"></div>
             <p class="lede">
-              uma assinatura pra quem já sente o Casa como um segundo endereço. Tu ganha
-              desconto na loja, junta pontos a cada visita e desbloqueia conquistas pelo
-              caminho. Sem pegadinha, cancela quando quiser.
+              uma assinatura só, pra quem já sente o Casa como um segundo endereço. Tu ganha
+              desconto na loja, junta pontos e desbloqueia conquistas pelo caminho. E quanto
+              mais tempo tu fica, mais alto tu chega na casa. Sem pegadinha, cancela quando
+              quiser.
             </p>
           </div>
         </div>
       </section>
 
       <!-- ===================================================================
-           Os 4 tiers
+           A assinatura (uma só) + a jornada das categorias
            =================================================================== -->
-      <!-- id="planos": âncora de quem chega de fora já querendo escolher o plano
-           (o botão do Mural do Casa, no /o-casa). Sem ela o link cai no topo da
-           página e a pessoa tem que rolar até os cards. -->
+      <!-- id="planos": âncora de quem chega de fora já querendo assinar (o botão do
+           Mural do Casa, no /o-casa). A âncora e o arquivo continuam se chamando
+           "planos" mesmo agora que o plano é um só: mudar o endereço quebraria link
+           antigo em e-mail e successUrl de checkout já emitido. -->
       <section class="section" id="planos">
         <div class="wrap">
           <div class="section-head reveal">
             <div>
-              <span class="eyebrow coral">Os planos</span>
-              <h2 class="title md" style="margin-top: 10px">Escolhe o teu jeito de ficar por aqui</h2>
+              <span class="eyebrow coral">O clube</span>
+              <h2 class="title md" style="margin-top: 10px">Uma assinatura, e o resto vem com o tempo</h2>
             </div>
           </div>
 
-          <div class="plans-strip" id="planos-strip" data-drag-scroll>
-            <!-- Bronze -->
-            <article class="plan reveal" data-dot-rotulo="Bronze">
-              <span class="eyebrow">Bronze</span>
-              <p class="plan-name">Vizinho de Sempre</p>
-              <p class="plan-price">R$29,90<span class="per">/mês</span></p>
-              <div class="plan-chips">
-                <span class="tag coral">3% na loja</span>
-                <span class="tag green">1x pontos</span>
-              </div>
-              <ul class="feature-list">
-                <li>3% de desconto na loja</li>
-                <li>1 ponto a cada R$1</li>
-                <li>agenda dos eventos antes de todo mundo</li>
-              </ul>
-              <button type="button" data-assinar data-tier="bronze" class="btn solid block">assinar</button>
-            </article>
-
-            <!-- Prata -->
-            <article class="plan reveal" data-dot-rotulo="Prata">
-              <span class="eyebrow">Prata</span>
-              <p class="plan-name">Frequentador</p>
+          <div class="clube-oferta">
+            <article class="plan featured reveal clube-plano">
+              <span class="tag gold plan-badge">o Casa Club</span>
+              <span class="eyebrow">assinatura do Casa</span>
+              <p class="plan-name">Fazer parte muda tudo</p>
               <p class="plan-price">R$49,90<span class="per">/mês</span></p>
               <div class="plan-chips">
-                <span class="tag coral">6% na loja</span>
-                <span class="tag green">1,25x pontos</span>
-              </div>
-              <ul class="feature-list">
-                <li>6% de desconto na loja</li>
-                <li>1,25 ponto a cada R$1</li>
-                <li>um café cortesia no mês do teu aniversário</li>
-              </ul>
-              <button type="button" data-assinar data-tier="prata" class="btn solid block">assinar</button>
-            </article>
-
-            <!-- Ouro (favorito) -->
-            <article class="plan featured reveal" data-dot-rotulo="Ouro, o favorito">
-              <span class="tag gold plan-badge">favorito</span>
-              <span class="eyebrow">Ouro</span>
-              <p class="plan-name">Gente do Casa</p>
-              <p class="plan-price">R$79,90<span class="per">/mês</span></p>
-              <div class="plan-chips">
                 <span class="tag coral">10% na loja</span>
-                <span class="tag green">1,5x pontos</span>
+                <span class="tag green">1 ponto por R$1</span>
               </div>
               <ul class="feature-list">
-                <li>10% de desconto na loja</li>
-                <li>1,5 ponto a cada R$1</li>
-                <li>convite pros encontros da Residência Gente do Casa</li>
-                <li>prioridade nos produtos de colab</li>
+                <li>10% de desconto na nossa loja</li>
+                <li>1 ponto a cada R$1, pra trocar por coisa boa</li>
+                <li>um brunch por nossa conta no mês do teu aniversário</li>
+                <li>teu recado no Mural do Casa e teu cantinho em /gente</li>
+                <li>lugar guardado nos encontros da casa</li>
+                <li>conquistas pra desbloquear pelo caminho</li>
               </ul>
-              <button type="button" data-assinar data-tier="ouro" class="btn solid block">assinar</button>
+              <button type="button" data-assinar data-tier="bronze" class="btn solid block">entra, senta, fica um pouco</button>
             </article>
 
-            <!-- Diamante -->
-            <article class="plan reveal" data-dot-rotulo="Diamante">
-              <span class="eyebrow">Diamante</span>
-              <p class="plan-name">Alma do Casa</p>
-              <p class="plan-price">R$129,90<span class="per">/mês</span></p>
-              <div class="plan-chips">
-                <span class="tag coral">15% na loja</span>
-                <span class="tag green">2x pontos</span>
-              </div>
-              <ul class="feature-list">
-                <li>15% de desconto na loja</li>
-                <li>2 pontos a cada R$1</li>
-                <li>um lugar guardado nos eventos com casa cheia</li>
-                <li>voz nas próximas colabs e blends do Casa</li>
-              </ul>
-              <button type="button" data-assinar data-tier="diamante" class="btn solid block">assinar</button>
-            </article>
+            <div class="clube-jornada reveal">
+              <span class="eyebrow green">a tua jornada</span>
+              <h3 class="title sm" style="margin-top: 10px">tu não sobe pagando, tu sobe ficando</h3>
+              <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
+                todo mundo paga o mesmo e recebe o mesmo. o que muda com o tempo é como a
+                casa te chama, e o tempo fica guardado contigo: se um dia tu precisar
+                pausar, tua contagem espera por ti onde parou.
+              </p>
+
+              <ol class="jornada">
+                <li class="jornada-item">
+                  <span class="jornada-marco">agora</span>
+                  <strong>Vizinho de Sempre</strong>
+                  <em>tu chegou, e já faz parte.</em>
+                </li>
+                <li class="jornada-item">
+                  <span class="jornada-marco">3 meses</span>
+                  <strong>Frequentador</strong>
+                  <em>o Casa entrou na tua rotina.</em>
+                </li>
+                <li class="jornada-item">
+                  <span class="jornada-marco">6 meses</span>
+                  <strong>Gente do Casa</strong>
+                  <em>tu já é gente daqui.</em>
+                </li>
+                <li class="jornada-item">
+                  <span class="jornada-marco">1 ano</span>
+                  <strong>Alma do Casa</strong>
+                  <em>o que era visita virou história.</em>
+                </li>
+              </ol>
+            </div>
           </div>
-
-          <!-- Bolinhas de posição da tira (só aparecem quando ela rola de verdade;
-               preenchidas pelo setupStripDots do app.js). -->
-          <div class="strip-dots" data-strip-dots="planos-strip" role="group" aria-label="Ir pra um plano"></div>
 
           <!-- Área de aviso/erro do checkout (preenchida pelo app.js quando precisa) -->
           <p class="notice warn hidden" data-assinar-note role="status" aria-live="polite"></p>
@@ -149,11 +129,11 @@
             (Na loja, tu paga com Pix ou cartão.)
           </p>
 
-          <a href="/presentear" class="gift-cta reveal" aria-label="Presentear um plano">
+          <a href="/presentear" class="gift-cta reveal" aria-label="Presenteia um mês do Casa">
             <span class="gift-cta-icon" aria-hidden="true"><i data-lucide="gift"></i></span>
             <span class="gift-cta-text">
               <strong>Presenteia um mês do Casa</strong>
-              <span>dá um plano pra quem tu gosta, cobrança única, sem virar assinatura tua.</span>
+              <span>dá o clube pra quem tu gosta, cobrança única, sem virar assinatura tua.</span>
             </span>
             <span class="gift-cta-arrow" aria-hidden="true">→</span>
           </a>
@@ -181,8 +161,9 @@
               </span>
               <h3 class="title sm" style="margin-top: 16px">Ganha 1 ponto a cada R$1</h3>
               <p style="margin-top: 8px; color: var(--ink-2); font-size: 14px; line-height: 1.65">
-                em café, comida ou loja. O teu plano multiplica: no Ouro, cada R$1 vira
-                1,5 ponto; no Diamante, 2.
+                a conta é uma só e é fácil de guardar: R$1 vira 1 ponto, em qualquer
+                categoria. Por enquanto contam a loja e a tua mensalidade, o consumo aqui
+                no balcão entra assim que a nossa caixa souber conversar com o site.
               </p>
             </article>
 
@@ -276,6 +257,30 @@
     <!-- Estilos pontuais desta página (badge do plano em destaque, chips, grid de conquistas) -->
     <style>
       .plan-badge { position: absolute; top: -13px; left: 28px }
+
+      /* A oferta: o cartão da assinatura e a jornada lado a lado. Uma coluna só
+         no celular, com o cartão primeiro (é ele que responde "quanto custa"). */
+      .clube-oferta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 28px; align-items: start }
+      .clube-plano { position: relative }
+      .clube-jornada { padding-top: 6px }
+      @media (max-width: 900px) { .clube-oferta { grid-template-columns: 1fr; gap: 34px } }
+
+      /* A jornada: uma linha do tempo vertical, um marco por categoria. A linha é
+         um ::before da lista inteira, e cada item põe a bolinha por cima dela. */
+      .jornada { position: relative; margin-top: 22px; padding-left: 26px; list-style: none; display: grid; gap: 20px }
+      .jornada::before {
+        content: ''; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px;
+        background: linear-gradient(to bottom, var(--coral), color-mix(in srgb, var(--green) 70%, transparent));
+      }
+      .jornada-item { position: relative; display: grid; gap: 2px }
+      .jornada-item::before {
+        content: ''; position: absolute; left: -26px; top: 5px; width: 12px; height: 12px;
+        border-radius: 50%; background: var(--card); border: 2px solid var(--coral);
+      }
+      .jornada-marco { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted) }
+      .jornada-item strong { font-family: var(--serif); font-size: 17px; color: var(--ink) }
+      .jornada-item em { font-style: normal; font-size: 14px; color: var(--ink-2); line-height: 1.55 }
+
       .plan-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px }
       .plan .feature-list { flex: 1 }
       .plan > .btn { margin-top: 22px }

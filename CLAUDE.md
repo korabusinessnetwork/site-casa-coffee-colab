@@ -223,13 +223,14 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Cardápio      | `cardapio.html`     | `/cardapio`        | as 16 seções do cardápio impresso + tirinha de atalhos entre elas — informativo, **sem carrinho** |
 | Loja          | `loja.html`         | `/loja`            | catálogo + busca + ordenação + filtro por categoria (aceita `?categoria=`) |
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=`, trilha de migalhas + relacionados (conta como "Loja" na nav) |
-| Planos        | `planos.html`       | `/planos`          | 4 tiers, sistema de pontos, conquistas; "assinar" é placeholder    |
+| Clube         | `planos.html`       | `/planos`          | a assinatura única + a jornada das 4 categorias por tempo, pontos, conquistas |
 | Colab         | `colab.html`        | `/colab`           | Residência Gente do Casa; carrossel de colabs; convite (mailto/WhatsApp) |
 | Eventos       | `eventos.html`      | `/eventos`         | "faz teu evento aqui": tipos de evento + formulário que grava o pedido e leva pro WhatsApp |
 | Cadastro      | `cadastro.html`     | `/cadastro`        | criar conta (nome/telefone/e-mail/senha); estado "confirme seu e-mail" |
 | Login         | `login.html`        | `/login`           | entrar (e-mail/senha) + "esqueci a senha" (reset por e-mail)       |
 | Auth OK       | `auth-confirmado.html` | `/auth-confirmado` | retorno do link de confirmação; detecta a sessão na URL         |
 | Perfil        | `conta/perfil.html` | `/conta/perfil`    | área logada (protegida): dados, pontos, plano; editar nome/telefone |
+| Clube (conta) | `conta/clube.html`  | `/conta/clube`     | categoria, tempo de casa, quanto falta pra próxima, pontos e benefícios |
 | Privacidade   | `privacidade.html`  | `/privacidade`     | política de privacidade (LGPD); linkada no rodapé e no `/cadastro`  |
 | Termos        | `termos.html`       | `/termos`          | termos de uso (conta, assinatura, loja, pontos, mural); mesmo lugar |
 
@@ -400,6 +401,12 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 > partir de hoje. Assim ninguém "paga do zero" ao voltar. Só quando o Asaas responde
 > 404 (assinatura sumiu do gateway) é que tratamos como `cancelada` de fato e limpamos
 > o tier.
+
+> **DESLIGADOS PELO CASA CLUB (ago/2026): upgrade e downgrade.** As duas Edge Functions
+> seguem deployadas e com o código inteiro, e passaram a **recusar com recado em português**
+> enquanto existir **uma categoria vendável só** (`tiers.vendavel`). Os dois blocos abaixo
+> descrevem o que elas fazem quando religadas, e valem como referência, não como
+> comportamento de hoje. Pausar, retomar e reassinar **não** mudaram. Ver "O CASA CLUB".
 
 > **Upgrade = só a diferença proporcional.** Ao subir de tier, cobramos **apenas**
 > `floor((preço_novo − preço_atual) × diasRestantes / 30)` agora (os dias já usados do
@@ -631,6 +638,86 @@ Asaas** — a gente não guarda CPF. Toda a lógica sensível fica nas **Edge Fu
 
 ---
 
+## O CASA CLUB — uma assinatura, quatro categorias por tempo
+
+O clube deixou de ser **quatro planos pagos** e virou **uma assinatura só, de R$49,90/mês**
+(documento "Projeto CASA CLUB", ago/2026; decisões fechadas com a casa em 18/ago/2026). Os
+quatro nomes que já existiam continuam, mas **trocaram de eixo**: eram PREÇO, viraram
+**TEMPO DE CASA**.
+
+| Slug (interno) | Categoria | A partir de | Significado |
+|----------------|-----------|-------------|-------------|
+| `bronze`   | Vizinho de Sempre | na entrada | chegou, e já faz parte |
+| `prata`    | Frequentador      | 3 meses    | o Casa entrou na rotina |
+| `ouro`     | Gente do Casa     | 6 meses    | já é gente daqui |
+| `diamante` | Alma do Casa      | 12 meses   | o que era visita virou história |
+
+As quatro custam o mesmo, dão o **mesmo 10% na loja** e o **mesmo 1 ponto por R$1**. O que
+muda de uma pra outra é só o reconhecimento de quem fica. **Só a de entrada é comprável**
+(`tiers.vendavel`), e o índice `idx_tiers_vendavel_unica` garante que seja uma só.
+
+- **Os slugs `bronze`/`prata`/`ouro`/`diamante` NÃO mudaram, e isso é decisão.** O
+  `tier_slug` está em mais de trinta pontos entre front, Edge Functions e migrations, com FK
+  vindo de `subscriptions`, `gift_subscriptions` e `profiles`. Renomear pediria UPDATE em
+  dado histórico de produção pra ganhar só legibilidade interna, e o slug nunca aparece na
+  tela de ninguém. Quem ler o banco daqui pra frente precisa saber que **`ouro` quer dizer
+  "seis meses de casa"**, não "plano de setenta e nove reais".
+- **`vendavel` é coluna NOVA, e nunca o `ativo` que já existia.** O `getUserTierDiscount`
+  devolve `tier_slug` **nulo** pra tier `ativo = false`, e o `creditPoints` dá **zero ponto**
+  com slug nulo. Marcar as três categorias superiores como inativas faria quem sobe de
+  categoria **parar de pontuar e perder o desconto** no mesmo instante em que a casa quis
+  agradecer a permanência. As quatro seguem `ativo = true`.
+- **O relógio ACUMULA, não corre no calendário.** Quem ficou 4 meses, pausou 6 e voltou,
+  volta com **4** meses de casa, não com 10. O tempo é a **união dos intervalos** de todas as
+  linhas de `subscriptions` da pessoa (`created_at` → `least(current_period_end, now())`),
+  nunca a soma crua: um presente resgatado por cima de uma assinatura ativa contaria o mesmo
+  mês **duas vezes**. Assinatura `cancelada` conta pelo tempo que cobriu (o vivido não some),
+  e **um mês de presente conta igual**. Um mês = **30 dias**, arredondando a favor de quem
+  fica (a Asaas renova em ~30,44 dias, então 12 meses caem uns cinco dias antes).
+- **A categoria mora no `tier_slug`, não só na tela do clube.** Escrevendo a promoção lá, o
+  header, o painel do avatar, o cartão do `/gente`, o `/conta/perfil` e o console mostram a
+  categoria certa **sem uma linha de código nova nesses lugares**. Se fosse derivada só na
+  tela, o perfil diria "Vizinho de Sempre" pra quem tem dois anos de casa.
+- **Sem cron.** Quem promove é a `sincronizar_categoria`, chamada em dois lugares de
+  propósito: no **`asaas-webhook`**, a cada pagamento de renovação (é o único evento mensal
+  que o site já recebe de graça), e na **leitura da `/conta/clube`** (auto-cura: se o webhook
+  falhar, a próxima visita conserta). Ela só escreve quando a categoria muda de verdade,
+  então chamar duas vezes é inócuo, e acende a GUC `casa.trusted_points` porque a trigger
+  `prevent_points_tamper` barra escrita de `tier_slug` vinda de sessão autenticada.
+- **Sem plano vigente, a categoria é limpa** (mesma auto-cura do `getEffectiveSubscription`).
+  O tempo continua guardado no banco, mas categoria é benefício, e benefício não é vitalício.
+- **As conquistas não precisaram mudar.** A `gente-do-casa` e a `alma-do-casa` já tinham
+  critério `{"type":"tier","slug":"ouro"|"diamante"}` desde a 0009: como a categoria agora
+  mora no mesmo `tier_slug`, elas viraram sozinhas **o carimbo de chegada na categoria**, que
+  é o que o documento pede. Sem isso, o mesmo nome significaria duas coisas (a residência do
+  `/colab` já se chama "Gente do Casa").
+- **`/conta/clube`** (`initClubePage`, atrás do `requireAuth`) responde as quatro perguntas do
+  documento numa chamada só (`meu_clube`): em que categoria tu está, quanto falta pra próxima,
+  quantos pontos tu tem e o que dá pra trocar. E **diz na cara** que hoje os pontos vêm da
+  loja e da mensalidade, porque o consumo no balcão ainda não pontua (ver abaixo).
+- **Upgrade e downgrade foram DESLIGADOS, não removidos.** As Edge Functions
+  `create-checkout-session` (modo upgrade) e `downgrade-subscription` seguem deployadas e
+  intactas; as duas passaram a recusar com recado em português **quando existe uma categoria
+  vendável só**, então religar é dado, não código. No `/conta/perfil`, os painéis somem
+  sozinhos porque as listas passaram a filtrar por `vendavel` (o filtro do upgrade olhava só
+  a `ordem`, e teria oferecido as três categorias superiores como se fossem compráveis). O
+  **desfazer** do downgrade continua passando de propósito: quem agendou uma descida antes da
+  virada precisa poder cancelar, senão renovaria pelo valor de um plano que não existe mais.
+  "Pausar", "retomar" e "voltar pro plano" não mudaram.
+- **O que o balcão ainda não faz:** o documento assume que consumo no salão pontua, e o site
+  só enxerga o checkout (loja e mensalidade). A `pos_webhook_events` e o `POS_WEBHOOK_SECRET`
+  seguem reservados desde a Fase 3, e as 50 conquistas do cardápio (0038) seguem `ativo =
+  false` esperando o mesmo dia. Enquanto isso, o `/conta/clube` e o `/planos` falam a verdade
+  em vez de prometer.
+- **Ficou fora desta leva** (do documento, pra levas seguintes): CASA MAIL (o envio físico
+  mensal, com edições numeradas e logística), os mails de mudança de nível, PASS IT ON, CASA
+  Friends, o catálogo de recompensas novo (a escala 100→1.000, que pede CMV item a item) e os
+  "pontos em dobro" por campanha.
+- **Migração de quem já assinava:** o código trata todo mundo como uma assinatura só, e a
+  categoria é recalculada pelo tempo real de casa (quem já tinha um ano vira Alma do Casa na
+  primeira sincronização, sem ninguém mexer). **Ajustar o valor das assinaturas antigas no
+  painel do Asaas é trabalho do humano**, não desta leva.
+
 ## Fidelidade / Pontos (Fase 3)
 
 O `points_ledger` (0001, append-only) é a **fonte da verdade**; `profiles.points_balance`
@@ -638,12 +725,18 @@ O `points_ledger` (0001, append-only) é a **fonte da verdade**; `profiles.point
 só LÊ (RLS: cada um lê o próprio ledger).
 
 - **Regra (travada):** fidelidade é **exclusiva de assinante**. Só pontua quem tem plano
-  ATIVO no momento da compra — aí ganha 1 ponto por R$1 × `tiers.points_multiplier` do tier.
-  **Sem assinatura ativa = ZERO pontos** (a trava fica no `creditPoints`: `tierSlug` nulo →
-  0). Loja: sobre o total **já com desconto**. Sempre `floor`. Ex.: R$49,41 no Ouro (1,5x) →
-  `floor(74.115)` = 74; sem plano, a MESMA compra rende 0. A LOJA passa
-  `order.tier_slug_aplicado` (null quando não havia assinatura no checkout) e a ASSINATURA
-  sempre passa o tier vigente — então quem não tem plano não pontua.
+  ATIVO no momento da compra. **Sem assinatura ativa = ZERO pontos** (a trava fica no
+  `creditPoints`: `tierSlug` nulo → 0). **Desde o CASA CLUB (ago/2026) a conta é 1 ponto por
+  R$1, sem multiplicador**: as quatro categorias têm `points_multiplier = 1.00`, porque a
+  regra tinha que caber na cabeça de quem ouve no balcão. A coluna e o `getTierMultiplier`
+  continuam existindo (é o que permitiria uma campanha futura), só que hoje todas valem 1.
+  Loja: sobre o total **já com desconto**. Sempre `floor`. Ex.: R$49,41 rende 49 pontos com
+  plano, e 0 sem plano. A LOJA passa `order.tier_slug_aplicado` (null quando não havia
+  assinatura no checkout) e a ASSINATURA sempre passa a categoria vigente.
+  > **O balcão ainda não pontua.** O `creditPoints` só é chamado pelo `asaas-webhook`, então
+  > hoje pontuam a **loja** e a **mensalidade**. O consumo no salão entra quando a frente de
+  > caixa entrar (`pos_webhook_events` + `POS_WEBHOOK_SECRET`, reservados desde a Fase 3).
+  > O `/conta/clube` e o `/planos` dizem isso na tela, em vez de prometer ponto que não vem.
 - **Migration `0008_points`**: `points_ledger.ref_type/ref_id` (+ UNIQUE parcial pra
   anti-duplicação), trigger `update_points_balance` (soma o delta no cache; seta a GUC
   `casa.trusted_points` pra o `prevent_points_tamper` liberar o write server-side),
@@ -1133,7 +1226,8 @@ todas **só-leitura** de tabelas que já existem, cada uma lendo apenas o regist
 ## A tua área (menu da conta)
 
 As portas da área logada, nos quatro lugares em que elas aparecem. **Fonte única:
-`CONTA_LINKS` no `app.js`** (href, ícone, rótulo e um rótulo curto pras tirinhas) —
+`CONTA_LINKS` no `app.js`** (href, ícone, rótulo e um rótulo curto pras tirinhas; hoje são
+cinco: tua conta, **teu clube**, teus pontos, tuas conquistas, teus pedidos) —
 a fila estava escrita duas vezes e já tinha divergido, então página nova em
 `/conta/` era lembrar de três lugares. Tratamento em **"tu"** (tua conta, teus
 pontos, tuas conquistas, teus pedidos, tua assinatura): o menu era o único canto
@@ -1717,9 +1811,17 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
+- **Banco em dia (18/ago/2026):** o humano aplicou a **`0048_casa_club`** em 18/ago, e o
+  front dela foi pra `main` no mesmo dia (as duas juntas de propósito, ver a lição da 0047
+  logo abaixo). **Não há migration pendente**, e a numeração livre pra próxima é a **`0049`**.
+  **As três Edge Functions que a leva do clube tocou precisam de re-deploy**
+  (`create-checkout-session`, `downgrade-subscription`, `asaas-webhook`): sem isso o "assinar"
+  segue sem a trava do `vendavel`, o upgrade e o downgrade seguem aceitando, e a promoção de
+  categoria não cai no pagamento da renovação (a tela do clube ainda conserta na visita
+  seguinte, mas aí a categoria só anda pra quem abre a página).
 - **Banco em dia (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no
   SQL Editor (as `0040` e `0041` em 13/ago), a leva **`0042` → `0046`** e a **`0047`**, as
-  duas em 17/ago, então **não há migration pendente**. A numeração livre pra próxima é a
+  duas em 17/ago. A numeração livre pra próxima, naquele dia, era a
   **`0048`**. O
   front correspondente está **todo na `main`**, incluindo o da `0047` (entrou pelo merge
   `813bb88`). Houve uma janela, entre aplicar a `0047` e esse merge, em que quem NÃO era o
@@ -2033,6 +2135,25 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > funções do console foram **chamadas** por cinco pessoas de permissões diferentes: só
   > enxerga, mexe, arruma, o dono e um cliente sem nada. 230 chamadas, todas com o
   > allow/deny esperado.
+- **`0048_casa_club` — APLICADA em 18/ago/2026.** O clube vira **uma
+  assinatura só** e as quatro categorias passam a ser **tempo de casa**: colunas
+  `tiers.vendavel` (só a de entrada é comprável, com índice único garantindo "uma só") e
+  `tiers.meses_min`; reseed das quatro (mesmo preço R$49,90, mesmo desconto 10%, mesmo
+  `points_multiplier = 1.00`, as duas duplas de colunas de 0001 e 0004 andando juntas); e
+  cinco funções: `dias_de_casa`/`meses_de_casa` (**união** dos períodos das assinaturas, não
+  a soma crua), `categoria_por_tempo`, `sincronizar_categoria` (escreve o `tier_slug` só
+  quando muda, acende a GUC do `prevent_points_tamper`, carimba a conquista do marco e
+  registra no `audit_log`) e `meu_clube` (a leitura da tela, por `auth.uid()`). As três
+  primeiras ficam **fora do alcance do client** (recebem `user_id` por parâmetro; quem serve
+  o front é a `meu_clube`). Idempotente.
+  > **Como foi verificada:** as 49 migrations rodaram do zero num Postgres local (os mesmos
+  > stubs de `auth`/`storage` que a 0042 já descrevia), a 0048 rodou **duas vezes** pra provar
+  > idempotência, e as funções foram **chamadas** com dado de verdade: assinatura corrida,
+  > pausa e volta (união = 160 dias, não 340), presente sobreposto a assinatura ativa (100
+  > dias, não 130), quem nunca assinou (0), as bordas do `categoria_por_tempo` (0, 2, 3, 5, 6,
+  > 11, 12, 400 e um negativo), a promoção passando pela trigger `prevent_points_tamper` numa
+  > sessão `authenticated`, a segunda chamada não gerando linha nova de auditoria, e o índice
+  > recusando uma segunda categoria vendável.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
