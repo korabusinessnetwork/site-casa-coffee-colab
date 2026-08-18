@@ -53,6 +53,26 @@
               />
             </div>
 
+            <!-- O aniversário é pedido no cadastro (e não depois) porque ele vale um
+                 brunch por ano, pra qualquer pessoa com conta: se fosse editável, dava
+                 pra mover a data pra hoje toda vez que desse vontade de vir. A trava de
+                 verdade é a trigger da 0051; aqui é só a porta. -->
+            <div class="field">
+              <label for="cad-nascimento">Teu aniversário</label>
+              <input
+                id="cad-nascimento"
+                name="nascimento"
+                type="date"
+                autocomplete="bday"
+                class="inp"
+                required
+              />
+              <p class="cad-hint">
+                no teu aniversário tem brunch por nossa conta, é por isso que a gente
+                pergunta. essa data se escreve uma vez só, então confere com carinho.
+              </p>
+            </div>
+
             <div class="field">
               <label for="cad-email">E-mail</label>
               <input
@@ -163,6 +183,8 @@
 
     <!-- Estilos pontuais desta página (container estreito do formulário de auth) -->
     <style>
+      .cad-hint { margin-top: 6px; color: var(--muted); font-size: 12.5px; line-height: 1.5 }
+
       .auth-wrap { max-width: 460px; padding: 0 20px }
       .auth-head { text-align: center }
       .auth-head .lede { margin-left: auto; margin-right: auto }

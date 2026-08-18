@@ -991,6 +991,29 @@ console. Quem trabalha no salão aprende uma coisa e serve as duas.
   `admin_brinde_arrumar` (0025/0046/0047) continuam existindo e servindo só o aniversário. O
   console não as chama mais.
 
+### A data de aniversário se escreve uma vez (`0051`)
+
+Abrir o brunch de aniversário pra **qualquer pessoa com conta** só fecha se a data não for
+editável: o UNIQUE `(user_id, ano)` segura um por ANO, mas não segura quem **move a data**
+pra dentro da janela toda vez que quer vir. Então:
+
+- **O `/cadastro` passou a pedir o aniversário**, e ele vai no `raw_user_meta_data` →
+  `handle_new_user` grava no `profiles`. O parse é **tolerante**: data ilegível, futura ou de
+  mais de 120 anos atrás vira **nulo** em vez de derrubar o cadastro. Uma pessoa nova vale
+  mais que um campo de mimo.
+- **A trigger `prevent_nascimento_tamper`** é a trava de verdade (mesmo desenho do
+  `prevent_points_tamper`, porque a `profiles_update_self` libera a linha inteira e RLS não
+  restringe coluna). Depois de preenchida, a data não muda por sessão de cliente. **De nulo
+  pra uma data ainda passa**, senão as contas criadas antes desta regra nunca poderiam
+  preencher. O **owner passa sempre**: é a saída pra um dígito trocado, hoje pelo SQL Editor,
+  porque o console não tem campo pra isso.
+- **No `/conta/perfil` o campo nasce `readonly`** quando já existe data, e o salvamento
+  **nem manda a coluna** nesse caso: se mandasse nulo por qualquer tropeço, a trigger
+  derrubaria o salvamento inteiro, levando junto o nome e o telefone que a pessoa quis mudar.
+- **O cadastro pelo Google não passa por esse campo** (o fluxo é do provedor). Quem entra por
+  ali cai no site sem data e preenche uma vez no perfil, já travado dali em diante. A brecha
+  que importava, mudar a data todo mês, está fechada nos dois caminhos.
+
 ## Hoje o Casa é teu — brunch de aniversário (Fase 3)
 
 Cumpre a promessa que a 0014 já deixava no ar (`profiles.nascimento`: "no dia tem café
@@ -2228,6 +2251,16 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > pro dono. **Um bug foi pego aí:** a `admin_brunches_listar` criava sem reclamar e
   > estourava na primeira chamada (o `order by` do `jsonb_agg` olhava a chave do jsonb em vez
   > da coluna do subselect). Ler o SQL não teria pego.
+- **`0051_nascimento_travado` — PENDENTE.** O aniversário entra no cadastro e para de ser
+  editável: `handle_new_user` passa a gravar `nascimento` do metadata (com parse tolerante e
+  régua de sanidade) e a trigger `prevent_nascimento_tamper` barra a troca depois de
+  preenchido (nulo → data ainda passa; owner passa sempre). Ver "A data de aniversário se
+  escreve uma vez" acima.
+  > **Como foi verificada:** rodou no Postgres local e as regras foram **chamadas** com dado
+  > de verdade: metadata com data boa (grava), com lixo (nulo), com data futura (nulo) e sem
+  > o campo (nulo); cliente tentando trocar data existente (recusa), preenchendo pela primeira
+  > vez (passa), tentando trocar depois disso (recusa), mandando data futura (recusa) e data
+  > de 1700 (recusa); e salvar o resto do perfil sem tocar na data (passa).
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

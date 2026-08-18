@@ -5349,11 +5349,25 @@ function initCadastroPage() {
 
     const nome = form.nome.value.trim();
     const telefone = form.telefone.value.trim();
+    const nascimento = form.nascimento?.value || '';
     const email = form.email.value.trim();
     const senha = form.senha.value;
     const confirma = form.confirma.value;
 
     if (!nome) return mostrarErro('conta pra gente teu nome? 💛');
+    // O aniversário é obrigatório no cadastro e não muda depois (trigger da 0051):
+    // ele vale um brunch por ano pra qualquer pessoa com conta, então data editável
+    // seria brunch toda vez que desse vontade. A régua de verdade é no banco; aqui a
+    // gente confere antes pra ninguém descobrir o erro só depois de criar a conta.
+    if (!nascimento) return mostrarErro('conta pra gente teu aniversário? é ele que marca teu brunch 🎂');
+    {
+      const d = new Date(`${nascimento}T12:00:00`);
+      const hoje = new Date();
+      if (Number.isNaN(d.getTime())) return mostrarErro('essa data de aniversário não deu pra ler. confere pra gente?');
+      if (d > hoje) return mostrarErro('essa data ainda não chegou 💛');
+      const anos = (hoje - d) / (365.25 * 24 * 60 * 60 * 1000);
+      if (anos > 120) return mostrarErro('essa data parece longe demais. confere o ano?');
+    }
     if (!EMAIL_RE.test(email)) return mostrarErro('esse e-mail parece incompleto. dá uma conferida?');
     if (senha.length < 8) return mostrarErro('a senha precisa de pelo menos 8 caracteres.');
     if (senha !== confirma) return mostrarErro('as senhas não são iguais. confere pra gente?');
@@ -5369,8 +5383,11 @@ function initCadastroPage() {
         email,
         password: senha,
         options: {
-          // nome e telefone vão pro raw_user_meta_data → a trigger handle_new_user popula o profiles.
-          data: { full_name: nome, telefone },
+          // nome, telefone e aniversário vão pro raw_user_meta_data → a trigger
+          // handle_new_user popula o profiles. Se a data vier ilegível, a trigger
+          // guarda nulo em vez de derrubar o cadastro (uma pessoa nova vale mais
+          // que um campo de mimo).
+          data: { full_name: nome, telefone, nascimento },
           // link do e-mail de confirmação volta pra uma página do próprio site (env-driven).
           emailRedirectTo: `${siteBase()}/auth-confirmado`,
         },
@@ -6320,10 +6337,25 @@ async function initPerfilPage() {
             <span class="lbl">celular / whatsapp</span>
             <input id="pf-telefone" name="telefone" type="tel" value="${telefone}" inputmode="tel" autocomplete="tel" data-mask="phone" />
           </label>
+          <!-- O aniversário se escreve UMA vez (trigger da 0051): ele vale um brunch
+               por ano pra qualquer pessoa com conta, e data editável seria brunch
+               sempre que desse vontade. Quem já tem data vê o campo travado; quem
+               não tem (conta criada antes desta regra) preenche uma vez, avisado. -->
           <label class="field" for="pf-nascimento">
             <span class="lbl">aniversário</span>
-            <input id="pf-nascimento" name="nascimento" type="date" value="${val(extra?.nascimento)}" autocomplete="bday" />
-            <span class="hint">no teu dia tem café por nossa conta</span>
+            <input
+              id="pf-nascimento"
+              name="nascimento"
+              type="date"
+              value="${val(extra?.nascimento)}"
+              autocomplete="bday"
+              ${extra?.nascimento ? 'readonly aria-readonly="true"' : ''}
+            />
+            <span class="hint">${
+              extra?.nascimento
+                ? 'é a data que marca teu brunch, e ela se escreve uma vez só. se ficou errada, chama a gente 💛'
+                : 'no teu dia tem brunch por nossa conta. depois de salvar, essa data não muda mais.'
+            }</span>
           </label>
           <label class="field pf-wide" for="pf-email">
             <span class="lbl">e-mail</span>
@@ -7735,7 +7767,15 @@ async function initPerfilPage() {
         ok = false;
       }
       if (!ok) return null;
-      return { full_name: nomeNovo, telefone: tel, apelido: v('pf-apelido') || null, nascimento: nasc || null };
+      const dados = { full_name: nomeNovo, telefone: tel, apelido: v('pf-apelido') || null };
+      // O campo travado nem entra no payload. Se entrasse, o input readonly
+      // devolveria a mesma data (inofensivo) mas qualquer tropeço que mandasse
+      // nulo derrubaria o salvamento INTEIRO na trigger, levando junto o nome e o
+      // telefone que a pessoa quis mudar.
+      if (!campo('pf-nascimento')?.hasAttribute('readonly')) {
+        dados.nascimento = nasc || null;
+      }
+      return dados;
     }
 
     if (form.dataset.section === 'cafe') {
