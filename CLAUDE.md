@@ -1721,12 +1721,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   SQL Editor (as `0040` e `0041` em 13/ago), a leva **`0042` → `0046`** e a **`0047`**, as
   duas em 17/ago, então **não há migration pendente**. A numeração livre pra próxima é a
   **`0048`**. O
-  front correspondente está na `main` até a `0046`; **o da `0047` está na branch
-  `claude/permissions-system-sections-ielbyo` e ainda não foi pra produção**. Enquanto isso,
-  quem NÃO é o dono não enxerga aba nenhuma no console de produção: o front velho pergunta
-  por `pode('pedidos')` e a `admin_minhas_permissoes` já devolve `pedidos.ver` (o dono passa
-  porque o `tudo` dele curto-circuita a checagem). A ponte da `permissoes_legado` segura as
-  FUNÇÕES, não a lista de abas que o front monta. Deploy do front resolve. O
+  front correspondente está **todo na `main`**, incluindo o da `0047` (entrou pelo merge
+  `813bb88`). Houve uma janela, entre aplicar a `0047` e esse merge, em que quem NÃO era o
+  dono não enxergava aba nenhuma no console de produção: o front antigo perguntava por
+  `pode('pedidos')` enquanto a `admin_minhas_permissoes` já devolvia `pedidos.ver` (o dono
+  passava porque o `tudo` dele curto-circuita a checagem), e a ponte da `permissoes_legado`
+  segura as FUNÇÕES, não a lista de abas que o front monta. **Lição:** migration que muda o
+  formato do slug de permissão e o front que lê esse slug têm que ir juntos pra produção. O
   `asaas-webhook` foi re-deployado na mesma data (é ele quem usa o status `'estornado'` da
   `0035`). A **senha do adm master foi trocada de verdade em 12/ago/2026**, então a trava
   da `0032` está destravada e o console responde. Pra conferir o banco a qualquer momento,
