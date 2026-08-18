@@ -1811,15 +1811,17 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-> **PENDENTE HOJE: a `0048_casa_club`.** É a única migration não aplicada. O front dela
-> (assinatura única, `/conta/clube`, upgrade/downgrade desligados) **já está na branch**, e
-> os dois precisam ir juntos pra produção: com o front novo e a 0048 fora, a `/conta/clube`
-> cai no recado gentil e o "assinar" recusa (a function pede `tiers.vendavel`, que não
-> existe ainda). Mesma lição da 0047.
-
+- **Banco em dia (18/ago/2026):** o humano aplicou a **`0048_casa_club`** em 18/ago, e o
+  front dela foi pra `main` no mesmo dia (as duas juntas de propósito, ver a lição da 0047
+  logo abaixo). **Não há migration pendente**, e a numeração livre pra próxima é a **`0049`**.
+  **As três Edge Functions que a leva do clube tocou precisam de re-deploy**
+  (`create-checkout-session`, `downgrade-subscription`, `asaas-webhook`): sem isso o "assinar"
+  segue sem a trava do `vendavel`, o upgrade e o downgrade seguem aceitando, e a promoção de
+  categoria não cai no pagamento da renovação (a tela do clube ainda conserta na visita
+  seguinte, mas aí a categoria só anda pra quem abre a página).
 - **Banco em dia (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no
   SQL Editor (as `0040` e `0041` em 13/ago), a leva **`0042` → `0046`** e a **`0047`**, as
-  duas em 17/ago, então **não há migration pendente**. A numeração livre pra próxima é a
+  duas em 17/ago. A numeração livre pra próxima, naquele dia, era a
   **`0048`**. O
   front correspondente está **todo na `main`**, incluindo o da `0047` (entrou pelo merge
   `813bb88`). Houve uma janela, entre aplicar a `0047` e esse merge, em que quem NÃO era o
@@ -2133,7 +2135,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > funções do console foram **chamadas** por cinco pessoas de permissões diferentes: só
   > enxerga, mexe, arruma, o dono e um cliente sem nada. 230 chamadas, todas com o
   > allow/deny esperado.
-- **`0048_casa_club` — PENDENTE (o humano ainda precisa aplicar).** O clube vira **uma
+- **`0048_casa_club` — APLICADA em 18/ago/2026.** O clube vira **uma
   assinatura só** e as quatro categorias passam a ser **tempo de casa**: colunas
   `tiers.vendavel` (só a de entrada é comprável, com índice único garantindo "uma só") e
   `tiers.meses_min`; reseed das quatro (mesmo preço R$49,90, mesmo desconto 10%, mesmo

@@ -188,9 +188,14 @@ esquecido, com `npm run build` e `npm run security-check` passando, e sem regres
 que já estão no ar (pausar, retomar, reassinar, resgatar presente, resgatar recompensa, mural,
 cantinho, RSVP da agenda) — todos eles gated por `tier_slug`, que esta leva passa a mexer.
 
-## 8. Decisão pendente do humano
+## 8. Decisão que estava pendente, e foi tomada
 
-**O desconto na loja.** O documento pede pra não transformar o clube num programa de desconto,
-mas lista "benefícios selecionados na loja". Esta spec assume **um percentual único e igual pra
-todo membro**, e o valor é uma linha do seed da 0048. Falta o número. Enquanto não vier, o
-build usa **10%** (o que o Ouro dava, já que o preço novo fica entre o Prata e o Ouro antigos).
+**O desconto na loja: 10%, igual pra todo membro** (decidido em 18/ago/2026). O documento pede
+pra não transformar o clube num programa de desconto, mas lista "benefícios selecionados na
+loja", então ficou um percentual único, sem escada por categoria. É uma linha do seed da 0048.
+
+## 9. Estado
+
+Construído e aplicado em **18/ago/2026**: a migration `0048_casa_club` rodou no SQL Editor e o
+front foi pra `main` no mesmo dia. Falta o **re-deploy das três Edge Functions** que a leva
+tocou (`create-checkout-session`, `downgrade-subscription`, `asaas-webhook`).
