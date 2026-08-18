@@ -196,6 +196,9 @@ loja", então ficou um percentual único, sem escada por categoria. É uma linha
 
 ## 9. Estado
 
-Construído e aplicado em **18/ago/2026**: a migration `0048_casa_club` rodou no SQL Editor e o
-front foi pra `main` no mesmo dia. Falta o **re-deploy das três Edge Functions** que a leva
-tocou (`create-checkout-session`, `downgrade-subscription`, `asaas-webhook`).
+**No ar desde 18/ago/2026.** A migration `0048_casa_club` rodou no SQL Editor, o front foi pra
+`main` e as três Edge Functions da leva (`create-checkout-session`, `downgrade-subscription`,
+`asaas-webhook`) foram re-deployadas, tudo no mesmo dia. Nada da leva ficou pela metade.
+
+Fora do código, resta uma decisão de operação que é do humano: **ajustar no painel do Asaas o
+valor das assinaturas antigas** que estavam em outro preço.

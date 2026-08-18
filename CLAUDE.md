@@ -1814,11 +1814,10 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - **Banco em dia (18/ago/2026):** o humano aplicou a **`0048_casa_club`** em 18/ago, e o
   front dela foi pra `main` no mesmo dia (as duas juntas de propósito, ver a lição da 0047
   logo abaixo). **Não há migration pendente**, e a numeração livre pra próxima é a **`0049`**.
-  **As três Edge Functions que a leva do clube tocou precisam de re-deploy**
-  (`create-checkout-session`, `downgrade-subscription`, `asaas-webhook`): sem isso o "assinar"
-  segue sem a trava do `vendavel`, o upgrade e o downgrade seguem aceitando, e a promoção de
-  categoria não cai no pagamento da renovação (a tela do clube ainda conserta na visita
-  seguinte, mas aí a categoria só anda pra quem abre a página).
+  As três Edge Functions que a leva do clube tocou (`create-checkout-session`,
+  `downgrade-subscription`, `asaas-webhook`) foram **re-deployadas em 18/ago/2026**, então a
+  trava do `vendavel`, a recusa do upgrade/downgrade e a promoção de categoria no pagamento da
+  renovação já estão valendo em produção. **A leva do clube está inteira no ar.**
 - **Banco em dia (17/ago/2026):** o humano aplicou a leva `0017` → `0041` no
   SQL Editor (as `0040` e `0041` em 13/ago), a leva **`0042` → `0046`** e a **`0047`**, as
   duas em 17/ago. A numeração livre pra próxima, naquele dia, era a
