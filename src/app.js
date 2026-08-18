@@ -5064,7 +5064,7 @@ async function renderUserPanel(panel) {
         : `<a href="/planos" class="pnl-cta">
              <span>
                <b>vem ser do Casa</b>
-               <em>desconto na loja, pontos a cada compra e o brunch de aniversário por nossa conta</em>
+               <em>um platter brunch todo mês, uma caixa do Casa na tua porta, desconto na loja e pontos a cada compra</em>
              </span>
              <i data-lucide="arrow-right" class="h-4 w-4" aria-hidden="true"></i>
            </a>`
@@ -8276,9 +8276,10 @@ async function initClubePage() {
         <aside class="card flat">
           <h2 class="font-titulo text-xl">o que tu tem sendo do clube</h2>
           <ul class="mt-3 space-y-2 text-sm text-ink-2">
+            <li>· um platter brunch por nossa conta todo mês, que serve duas pessoas.</li>
+            <li>· uma caixa do Casa na tua porta todo mês, com uma surpresa dentro.</li>
             <li>· 10% de desconto na nossa loja.</li>
             <li>· 1 ponto a cada R$1, pra trocar por coisa boa.</li>
-            <li>· um brunch por nossa conta no mês do teu aniversário.</li>
             <li>· teu recado no Mural do Casa e teu cantinho em /gente.</li>
             <li>· lugar guardado nos encontros da casa.</li>
           </ul>

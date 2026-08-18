@@ -713,6 +713,20 @@ muda de uma pra outra é só o reconhecimento de quem fica. **Só a de entrada �
   mensal, com edições numeradas e logística), os mails de mudança de nível, PASS IT ON, CASA
   Friends, o catálogo de recompensas novo (a escala 100→1.000, que pede CMV item a item) e os
   "pontos em dobro" por campanha.
+- **DOIS BENEFÍCIOS SÃO PROMESSA DE VITRINE, SEM SOFTWARE POR BAIXO** (decisão da casa em
+  18/ago/2026): o **platter brunch mensal pra duas pessoas** e a **caixa do Casa na porta**
+  aparecem na lista do `/planos`, do `/conta/clube`, do `/presentear` e do convite do painel,
+  mas **nada no site controla os dois**. Quem controla é a casa, no balcão e na expedição.
+  Em concreto: não há resgate, não há código, não há baixa e não há como saber se a pessoa já
+  pegou o brunch deste mês nem se a caixa foi enviada. A **caixa** é o CASA MAIL do documento
+  e volta como leva própria (o endereço já está no `profiles` desde a 0014). O **brunch
+  mensal** pediria uma tabela de resgate por mês, no mesmo desenho da `brindes_aniversario`
+  (0025), trocando `(user_id, ano)` por `(user_id, ano, mês)`.
+  > **E cuidado com o brunch de aniversário:** a `0025` inteira segue no ar, com o card no
+  > `/conta/perfil`, a aba "aniversários" no console e códigos possivelmente já emitidos. Ela
+  > deixou de ser citada como benefício (o mensal ocupou o lugar), mas **continua
+  > funcionando**, então hoje quem faz aniversário pode resgatar os dois. Ou o mensal vira
+  > software e o de aniversário sai, ou os dois convivem de propósito. Está em aberto.
 - **Migração de quem já assinava:** o código trata todo mundo como uma assinatura só, e a
   categoria é recalculada pelo tempo real de casa (quem já tinha um ano vira Alma do Casa na
   primeira sincronização, sem ninguém mexer). **Ajustar o valor das assinaturas antigas no
