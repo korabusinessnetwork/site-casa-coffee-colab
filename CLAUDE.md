@@ -713,20 +713,13 @@ muda de uma pra outra é só o reconhecimento de quem fica. **Só a de entrada �
   mensal, com edições numeradas e logística), os mails de mudança de nível, PASS IT ON, CASA
   Friends, o catálogo de recompensas novo (a escala 100→1.000, que pede CMV item a item) e os
   "pontos em dobro" por campanha.
-- **DOIS BENEFÍCIOS SÃO PROMESSA DE VITRINE, SEM SOFTWARE POR BAIXO** (decisão da casa em
-  18/ago/2026): o **platter brunch mensal pra duas pessoas** e a **caixa do Casa na porta**
-  aparecem na lista do `/planos`, do `/conta/clube`, do `/presentear` e do convite do painel,
-  mas **nada no site controla os dois**. Quem controla é a casa, no balcão e na expedição.
-  Em concreto: não há resgate, não há código, não há baixa e não há como saber se a pessoa já
-  pegou o brunch deste mês nem se a caixa foi enviada. A **caixa** é o CASA MAIL do documento
-  e volta como leva própria (o endereço já está no `profiles` desde a 0014). O **brunch
-  mensal** pediria uma tabela de resgate por mês, no mesmo desenho da `brindes_aniversario`
-  (0025), trocando `(user_id, ano)` por `(user_id, ano, mês)`.
-  > **E cuidado com o brunch de aniversário:** a `0025` inteira segue no ar, com o card no
-  > `/conta/perfil`, a aba "aniversários" no console e códigos possivelmente já emitidos. Ela
-  > deixou de ser citada como benefício (o mensal ocupou o lugar), mas **continua
-  > funcionando**, então hoje quem faz aniversário pode resgatar os dois. Ou o mensal vira
-  > software e o de aniversário sai, ou os dois convivem de propósito. Está em aberto.
+- **O platter brunch mensal virou software na `0050`** (ver "Os dois brunches" abaixo): tem
+  resgate, código, validade e baixa no console, no mesmo desenho do brunch de aniversário.
+- **A CAIXA DO CASA AINDA É PROMESSA DE VITRINE, SEM SOFTWARE POR BAIXO.** Ela aparece na
+  lista do `/planos`, do `/conta/clube`, do `/presentear` e do convite do painel, mas **nada
+  no site a controla**: não há registro de envio, não dá pra saber se a caixa deste mês saiu
+  nem pra quem. Quem controla é a casa, na expedição. É o CASA MAIL do documento e volta como
+  leva própria (o endereço já está no `profiles` desde a 0014).
 - **Migração de quem já assinava:** o código trata todo mundo como uma assinatura só, e a
   categoria é recalculada pelo tempo real de casa (quem já tinha um ano vira Alma do Casa na
   primeira sincronização, sem ninguém mexer). **Ajustar o valor das assinaturas antigas no
@@ -959,6 +952,44 @@ desde", o "café de sempre" (dos campos do 0014) e os recados que deixou no Mura
   está na `main`.
 
 ---
+
+## Os dois brunches (voucher com código, `0050`)
+
+O platter brunch do clube e o brunch de aniversário são **a mesma mecânica**, de propósito: a
+pessoa resgata na conta, recebe um `CASA-XXXXXX`, mostra no balcão, e o staff dá baixa no
+console. Quem trabalha no salão aprende uma coisa e serve as duas.
+
+| | quem tem | quantos | janela | validade do código |
+|---|---|---|---|---|
+| **platter do mês** | só quem assina (`tier_slug`) | 1 por mês do calendário | o mês inteiro | até o fim do mês, com **piso de 7 dias** |
+| **aniversário** | **qualquer pessoa com conta**, plano ou não | 1 por ano | os **7 dias** que começam no dia | até o fim da própria janela |
+
+- **O de aniversário mudou de régua na `0050`.** A `0025` dava o **mês inteiro** e **exigia
+  plano**; agora é a semana do aniversário e não pede assinatura. A casa comemora com quem faz
+  aniversário, sendo do clube ou não, e a janela curta é o que faz a pessoa **vir**.
+- **O do mês não acumula.** Um por mês do calendário (UNIQUE `user+ano+mês`), e o de agosto
+  morre em agosto: sem isso dava pra juntar doze e sentar em dezembro. O **piso de 7 dias**
+  existe pra quem resgata no dia 30 não ganhar um voucher que vence amanhã (ele pode encostar
+  nos primeiros dias do mês seguinte, e tudo bem, aquele mês foi pago).
+- **`aniversario_no_ano(nascimento, ano)` existe por causa do 29/02:** `make_date(2027,2,29)`
+  **estoura** em vez de devolver nulo, então quem nasceu em ano bissexto veria um erro na cara
+  num ano comum. Cai pro 28/02.
+- **A janela do aniversário é contada a partir do aniversário MAIS RECENTE**, não do deste ano:
+  quem faz 30/dez e entra em 2/jan ainda está dentro dos 7 dias, e o `ano` do brinde continua
+  sendo o do aniversário.
+- **Tabela nova, não coluna nova.** A chave natural dos dois é diferente (ano vs ano+mês), e
+  juntar os dois numa tabela pediria um UNIQUE parcial por tipo mais um `mes` nulo pro
+  aniversário. `brunches_mensais` é irmã da `brindes_aniversario`, e **o console junta as duas
+  na leitura** (`admin_brunches_listar`, jsonb).
+- **Permissão: reusa a página `aniversarios`** do catálogo da 0047 (`.ver`/`.mexer`/`.arrumar`).
+  Não é permissão nova: quem confere brunch no balcão confere os dois. A aba passou a se
+  chamar **"brunches"** e ganhou um filtro de tipo.
+- **O sino ganhou a sexta fonte** (`meu_brunch_mensal`): avisa quem assina e ainda não pegou o
+  brunch do mês. E o aviso do aniversário passou a seguir a janela de 7 dias, senão mandaria
+  gente vir num dia em que o código já não sai.
+- **As funções velhas seguem no ar:** `admin_brindes_listar`, `admin_brinde_usar` e
+  `admin_brinde_arrumar` (0025/0046/0047) continuam existindo e servindo só o aniversário. O
+  console não as chama mais.
 
 ## Hoje o Casa é teu — brunch de aniversário (Fase 3)
 
@@ -2181,6 +2212,22 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   vendáveis com o preço velho criaria uma escada fantasma no banco, pronta pra cobrar errado
   no dia em que alguma voltasse a ser vendável. **Não toca no Asaas**: assinatura viva mantém
   o `value` com que nasceu.
+- **`0050_brunches` — PENDENTE.** Os dois brunches viram voucher com código: tabela
+  `brunches_mensais` (UNIQUE `user+ano+mês`, RLS dono/`aniversarios.ver`, escrita só por RPC),
+  as RPCs `meu_brunch_mensal`/`resgatar_brunch_mensal`, a **reescrita** de
+  `meu_brinde_aniversario`/`resgatar_brinde_aniversario` (sem exigir plano, janela de 7 dias),
+  o helper `aniversario_no_ano` (o 29/02) e três funções de console
+  (`admin_brunches_listar` em jsonb com os dois tipos, `admin_brunch_usar`,
+  `admin_brunch_arrumar`). Idempotente.
+  > **Como foi verificada:** rodou num Postgres local depois das 49 anteriores e as funções
+  > foram **chamadas** com dado de verdade: aniversário hoje sem plano nenhum (passa),
+  > 5 dias atrás (passa), 20 dias atrás e ainda no mês (recusa, que é a mudança da régua),
+  > o 29/02 em ano comum e bissexto, o mensal de quem assina e a recusa de quem não assina,
+  > a idempotência dos dois resgates, a lista do console juntando os dois tipos e filtrando
+  > por tipo, a baixa e o desfazer, o tipo inválido recusado, e a RLS mostrando o brunch só
+  > pro dono. **Um bug foi pego aí:** a `admin_brunches_listar` criava sem reclamar e
+  > estourava na primeira chamada (o `order by` do `jsonb_agg` olhava a chave do jsonb em vez
+  > da coluna do subselect). Ler o SQL não teria pego.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---

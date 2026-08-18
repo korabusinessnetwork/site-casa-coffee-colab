@@ -2102,13 +2102,14 @@ async function initReposicao() {
 
 // --- Sino de notificações (header) ---------------------------------------------
 // "O Casa te avisa": uma central que junta os avisos que já existiam espalhados,
-// num sino só no header (toda página). Cinco fontes, todas SÓ-LEITURA de tabelas
+// num sino só no header (toda página). Seis fontes, todas SÓ-LEITURA de tabelas
 // que já existem, cada uma lendo só o registro do PRÓPRIO usuário (RLS):
 //   1. voltou pra vitrine  — avisos_reposicao (0030) cujo produto voltou.
 //   2. indicação premiada  — referrals (0021) que a pessoa fez e viraram prêmio.
 //   3. presente resgatado  — gift_subscriptions (0019) que a pessoa deu e abriram.
-//   4. brunch de aniversário — meu_brinde_aniversario() diz que é o mês e falta pegar.
-//   5. encontro chegando   — agenda_proximos() onde a pessoa marcou "eu vou" e tá perto.
+//   4. brunch de aniversário — meu_brinde_aniversario() diz que é a SEMANA e falta pegar.
+//   5. platter brunch do mês — meu_brunch_mensal() (0050), pra quem assina e ainda não pegou.
+//   6. encontro chegando   — agenda_proximos() onde a pessoa marcou "eu vou" e tá perto.
 // Cada fonte é tolerante (erro/migration pendente → []): some sem quebrar. O
 // "voltou" dispensa apagando a linha (RLS-direct); as derivadas (sem linha pra
 // apagar) dispensam guardando o id no localStorage (casa_notif_lidas).
@@ -2186,18 +2187,39 @@ async function initNotificacoes() {
     } catch { return []; }
   };
 
+  // Aniversário: desde a 0050 não pede plano e a janela é a SEMANA que começa no
+  // dia, não o mês. Um aviso que aparecesse o mês inteiro pra uma janela de sete
+  // dias mandaria gente vir num dia em que o código já não sai.
   const fonteAniversario = async () => {
     try {
       const { data, error } = await supabase.rpc('meu_brinde_aniversario');
       if (error || !data) return [];
-      if (!data.assinante || !data.eh_mes || data.ja_resgatou) return [];
+      if (!data.na_janela || data.ja_resgatou) return [];
       return [{
         id: `aniversario:${new Date().getFullYear()}`,
         icone: 'cake',
         href: '/conta/perfil',
-        tag: 'teu mês 🎂',
-        nome: 'neste mês o Casa é teu',
+        tag: 'tua semana 🎂',
+        nome: 'essa semana o Casa é teu',
         sub: 'vem pegar teu brunch de aniversário, é por nossa conta',
+        dismiss: 'local',
+      }];
+    } catch { return []; }
+  };
+
+  // O platter brunch do mês: só avisa quem assina e ainda não pegou o deste mês.
+  const fonteBrunchDoMes = async () => {
+    try {
+      const { data, error } = await supabase.rpc('meu_brunch_mensal');
+      if (error || !data) return [];
+      if (!data.assinante || data.ja_resgatou) return [];
+      return [{
+        id: `brunch-mes:${data.ano}-${data.mes}`,
+        icone: 'cake',
+        href: '/conta/perfil',
+        tag: 'teu brunch 🥐',
+        nome: 'teu platter brunch do mês tá te esperando',
+        sub: 'serve duas pessoas, então traz alguém contigo',
         dismiss: 'local',
       }];
     } catch { return []; }
@@ -2226,7 +2248,7 @@ async function initNotificacoes() {
     } catch { return []; }
   };
 
-  // A busca das cinco fontes vem DEPOIS de o sino estar montado e clicável: são
+  // A busca das seis fontes vem DEPOIS de o sino estar montado e clicável: são
   // cinco idas ao banco, e esperar todas pra só então mostrar o ícone faz a barra
   // pular na cara de quem já está lendo a página. Aqui ele já nasce no lugar,
   // vazio, e se enche quando as respostas chegarem.
@@ -2339,6 +2361,7 @@ async function initNotificacoes() {
     fonteIndicacao(),
     fontePresente(),
     fonteAniversario(),
+    fonteBrunchDoMes(),
     fonteEncontros(),
   ]);
 
@@ -6226,16 +6249,31 @@ async function initPerfilPage() {
           : ''
       }
 
-      <!-- Hoje o Casa é teu 🎂: no mês do aniversário, o assinante reserva um brunch
-           (pra uma pessoa) por nossa conta. Preenchido pós-render (RPC
-           meu_brinde_aniversario). Escondido por padrão; o JS revela só quando faz
-           sentido (é o teu mês, ou tem código vivo). Migration 0025 pendente → some. -->
+      <!-- Os dois brunches, cada um no seu card e com a mesma mecânica: resgata
+           aqui, recebe um CASA-XXXXXX, mostra no balcão. Preenchidos pós-render
+           pelas RPCs (meu_brunch_mensal / meu_brinde_aniversario), escondidos por
+           padrão: o JS revela só quando faz sentido. Migration 0050 pendente → somem.
+
+           O do MÊS vem primeiro porque é o que acontece todo mês; o de aniversário
+           é uma vez por ano. -->
+      <section class="card pf-aniver" data-brunch-mes hidden>
+        <div class="pf-aniver-head">
+          <span class="pf-aniver-emoji" aria-hidden="true">🥐</span>
+          <div>
+            <p class="pf-script" data-brunch-mes-script>tem brunch te esperando</p>
+            <h2 class="pf-aniver-titulo" data-brunch-mes-titulo>teu platter brunch do mês</h2>
+          </div>
+        </div>
+        <p class="pf-aniver-txt" data-brunch-mes-txt></p>
+        <div class="pf-aniver-corpo" data-brunch-mes-corpo></div>
+      </section>
+
       <section class="card pf-aniver" data-aniversario hidden>
         <div class="pf-aniver-head">
           <span class="pf-aniver-emoji" aria-hidden="true">🎂</span>
           <div>
-            <p class="pf-script" data-aniver-script>é o teu mês</p>
-            <h2 class="pf-aniver-titulo" data-aniver-titulo>este mês, o Casa é teu</h2>
+            <p class="pf-script" data-aniver-script>é a tua semana</p>
+            <h2 class="pf-aniver-titulo" data-aniver-titulo>essa semana, o Casa é teu</h2>
           </div>
         </div>
         <p class="pf-aniver-txt" data-aniver-txt></p>
@@ -6866,81 +6904,143 @@ async function initPerfilPage() {
     }
   }
 
-  // ── Hoje o Casa é teu 🎂: brunch de aniversário ───────────────────────────
-  // Lê o estado (RPC meu_brinde_aniversario) e desenha o card só quando importa:
-  // é o mês do aniversário, ou existe um código ainda válido pra mostrar no balcão.
-  // Tolerante: sem a migration 0025, a RPC falha e o card fica escondido.
+  // ── Os dois brunches: o do mês (assinante) e o de aniversário ─────────────
+  // Mesma mecânica nos dois, e é de propósito: resgata aqui, recebe um código,
+  // mostra no balcão, o staff dá baixa no console. Por isso um montador só serve
+  // os dois cards, mudando só o texto.
+  //
+  // As réguas, que vêm do BANCO (o front é conforto, não porteiro):
+  //   • do MÊS  → é de quem tem plano, um por mês do calendário, vale até o fim
+  //               do mês (com piso de 7 dias pra quem resgata no dia 30).
+  //   • ANIVERSÁRIO → é de qualquer pessoa com conta, plano ou não, e vale só na
+  //               semana que começa no dia. Antes era o mês inteiro e exigia
+  //               plano; as duas coisas mudaram na 0050.
+  //
+  // Tolerante: sem a migration a RPC falha e o card fica escondido.
   {
+    const montarVoucher = ({ sec, prefixo, estado, textos, aoResgatar }) => {
+      const scriptEl = sec.querySelector(`[data-${prefixo}-script]`);
+      const titEl = sec.querySelector(`[data-${prefixo}-titulo]`);
+      const txtEl = sec.querySelector(`[data-${prefixo}-txt]`);
+      const corpo = sec.querySelector(`[data-${prefixo}-corpo]`);
+      if (!txtEl || !corpo) return;
+
+      if (scriptEl && textos.script) scriptEl.textContent = textos.script;
+      if (titEl && textos.titulo) titEl.textContent = textos.titulo;
+
+      const pintarCodigo = (codigo, validoAte) => {
+        txtEl.textContent = textos.reservado;
+        corpo.innerHTML =
+          `<div class="pf-aniver-codebox"><span class="pf-aniver-code">${escapeHtml(codigo)}</span></div>` +
+          `<p class="pf-aniver-val">vale até ${escapeHtml(dataDiaMes(validoAte))} · é só pra ti 💛</p>`;
+      };
+
+      const temCodigo = Boolean(estado.codigo);
+      if (temCodigo && estado.situacao === 'usado') {
+        txtEl.textContent = textos.usado;
+        corpo.innerHTML = '';
+      } else if (temCodigo && estado.situacao === 'expirado') {
+        txtEl.textContent = textos.expirado;
+        corpo.innerHTML = '';
+      } else if (temCodigo && estado.situacao === 'ativo') {
+        pintarCodigo(estado.codigo, estado.valido_ate);
+      } else {
+        txtEl.textContent = textos.disponivel;
+        corpo.innerHTML =
+          `<button type="button" class="btn solid sm" data-voucher-btn>${escapeHtml(textos.botao)}</button>` +
+          `<p class="hidden text-sm" data-voucher-msg aria-live="polite"></p>`;
+        const btn = corpo.querySelector('[data-voucher-btn]');
+        const msg = corpo.querySelector('[data-voucher-msg]');
+        const erroMsg = (txt) => {
+          if (!msg) return;
+          msg.textContent = txt;
+          msg.className = 'text-sm text-coral';
+          msg.hidden = false;
+        };
+        btn?.addEventListener('click', async () => {
+          btn.disabled = true;
+          if (msg) msg.hidden = true;
+          try {
+            const r = await aoResgatar();
+            if (!r?.ok) {
+              erroMsg(r?.erro || 'não deu pra reservar agora. tenta de novo? 💛');
+              btn.disabled = false;
+              return;
+            }
+            pintarCodigo(r.codigo, r.valido_ate);
+          } catch {
+            erroMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
+            btn.disabled = false;
+          }
+        });
+      }
+
+      sec.hidden = false;
+      renderIcons();
+    };
+
+    // O platter brunch do mês (perk de assinante).
+    const mesSec = root.querySelector('[data-brunch-mes]');
+    if (mesSec && supabase) {
+      (async () => {
+        const { data: st, error } = await supabase.rpc('meu_brunch_mensal');
+        if (error || !st) return; // migration pendente / erro → card fica hidden
+        // Sem plano e sem código vivo, o card não aparece: quem convida pro clube
+        // é a célula "teu plano" logo acima, e dois convites na mesma tela cansam.
+        if (!st.assinante && !st.codigo) return;
+
+        montarVoucher({
+          sec: mesSec,
+          prefixo: 'brunch-mes',
+          estado: st,
+          textos: {
+            script: 'tem brunch te esperando',
+            titulo: 'teu platter brunch do mês',
+            reservado: 'teu platter brunch tá reservado, pra ti e pra mais alguém. mostra esse código no balcão:',
+            usado: 'esse mês a gente já sentou junto 💛 no mês que vem tem outro te esperando.',
+            expirado: 'o brunch desse mês acabou vencendo, mas no mês que vem tem outro, sem falta 💛',
+            disponivel:
+              'todo mês tem um platter brunch por nossa conta, e ele serve duas pessoas. traz alguém contigo.',
+            botao: 'quero meu brunch 🥐',
+          },
+          aoResgatar: async () => {
+            const { data: r } = await supabase.rpc('resgatar_brunch_mensal');
+            return r;
+          },
+        });
+      })();
+    }
+
+    // O brunch de aniversário (de todo mundo, na semana do aniversário).
     const aniverSec = root.querySelector('[data-aniversario]');
     if (aniverSec && supabase) {
       (async () => {
         const { data: st, error } = await supabase.rpc('meu_brinde_aniversario');
-        if (error || !st) return; // migration pendente / erro → card fica hidden
+        if (error || !st) return;
 
         const temCodigo = Boolean(st.codigo);
-        const mostrar = st.eh_mes || (temCodigo && st.situacao === 'ativo');
-        if (!mostrar) return; // fora do mês e sem código vivo → nem aparece
+        // Fora da semana e sem código vivo, o card nem aparece.
+        if (!st.na_janela && !(temCodigo && st.situacao === 'ativo')) return;
 
-        const scriptEl = aniverSec.querySelector('[data-aniver-script]');
-        const titEl = aniverSec.querySelector('[data-aniver-titulo]');
-        const txtEl = aniverSec.querySelector('[data-aniver-txt]');
-        const corpo = aniverSec.querySelector('[data-aniver-corpo]');
-
-        if (scriptEl) scriptEl.textContent = st.eh_dia ? 'feliz aniversário' : 'é o teu mês';
-        if (titEl) titEl.textContent = st.eh_dia ? 'hoje o Casa é teu' : 'este mês, o Casa é teu';
-
-        // Desenha a caixa do código (reutilizada no resgate feito na hora).
-        const pintarCodigo = (codigo, validoAte) => {
-          txtEl.textContent = 'teu brunch de aniversário tá reservado — pra ti, por nossa conta. mostra esse código no balcão:';
-          corpo.innerHTML =
-            `<div class="pf-aniver-codebox"><span class="pf-aniver-code">${escapeHtml(codigo)}</span></div>` +
-            `<p class="pf-aniver-val">vale até ${escapeHtml(dataDiaMes(validoAte))} · é só pra ti 💛</p>`;
-        };
-
-        if (temCodigo && st.situacao === 'usado') {
-          txtEl.textContent = 'já comemoramos juntos esse ano 💛 até o teu próximo aniversário!';
-          corpo.innerHTML = '';
-        } else if (temCodigo && st.situacao === 'expirado') {
-          txtEl.textContent = 'teu brunch desse ano acabou vencendo — fica pro próximo, e a gente comemora dobrado 💛';
-          corpo.innerHTML = '';
-        } else if (temCodigo && st.situacao === 'ativo') {
-          pintarCodigo(st.codigo, st.valido_ate);
-        } else if (!st.assinante) {
-          txtEl.textContent = 'no teu mês, quem é do Casa (tem plano) ganha um brunch de aniversário por nossa conta. bora fazer parte?';
-          corpo.innerHTML = `<a class="btn solid sm" href="/planos">conhecer os planos</a>`;
-        } else {
-          txtEl.textContent = 'tem um brunch de aniversário te esperando — pra ti, por nossa conta. quando quiser, é teu.';
-          corpo.innerHTML =
-            `<button type="button" class="btn solid sm" data-aniver-btn>quero meu brunch 🎂</button>` +
-            `<p class="hidden text-sm" data-aniver-msg aria-live="polite"></p>`;
-          const btn = corpo.querySelector('[data-aniver-btn]');
-          const msg = corpo.querySelector('[data-aniver-msg]');
-          const erroMsg = (txt) => {
-            if (!msg) return;
-            msg.textContent = txt;
-            msg.className = 'text-sm text-coral';
-            msg.hidden = false;
-          };
-          btn?.addEventListener('click', async () => {
-            btn.disabled = true;
-            if (msg) msg.hidden = true;
-            try {
-              const { data: r, error: e } = await supabase.rpc('resgatar_brinde_aniversario');
-              if (e || !r?.ok) {
-                erroMsg(r?.erro || 'não deu pra reservar agora. tenta de novo? 💛');
-                btn.disabled = false;
-                return;
-              }
-              pintarCodigo(r.codigo, r.valido_ate);
-            } catch {
-              erroMsg('a gente não conseguiu falar com o servidor agora. confere tua conexão?');
-              btn.disabled = false;
-            }
-          });
-        }
-
-        aniverSec.hidden = false;
-        renderIcons();
+        montarVoucher({
+          sec: aniverSec,
+          prefixo: 'aniver',
+          estado: st,
+          textos: {
+            script: st.eh_dia ? 'feliz aniversário' : 'é a tua semana',
+            titulo: st.eh_dia ? 'hoje o Casa é teu' : 'essa semana, o Casa é teu',
+            reservado: 'teu brunch de aniversário tá reservado, por nossa conta. mostra esse código no balcão:',
+            usado: 'já comemoramos juntos esse ano 💛 até o teu próximo aniversário!',
+            expirado: 'teu brunch desse ano acabou vencendo, fica pro próximo, e a gente comemora dobrado 💛',
+            disponivel:
+              'tem um brunch de aniversário te esperando, por nossa conta. tu tem uma semana pra vir pegar, então vem com calma.',
+            botao: 'quero meu brunch 🎂',
+          },
+          aoResgatar: async () => {
+            const { data: r } = await supabase.rpc('resgatar_brinde_aniversario');
+            return r;
+          },
+        });
       })();
     }
   }
@@ -8276,8 +8376,8 @@ async function initClubePage() {
         <aside class="card flat">
           <h2 class="font-titulo text-xl">o que tu tem sendo do clube</h2>
           <ul class="mt-3 space-y-2 text-sm text-ink-2">
-            <li>· um platter brunch por nossa conta todo mês, que serve duas pessoas.</li>
-            <li>· uma caixa do Casa na tua porta todo mês, com uma surpresa dentro.</li>
+            <li>· um platter brunch por nossa conta todo mês, que serve duas pessoas. tu pega o código na <a href="/conta/perfil" class="text-coral underline decoration-coral/40 underline-offset-2 hover:decoration-coral">tua conta</a>.</li>
+            <li>· uma caixa do Casa na tua porta, todo mês.</li>
             <li>· 10% de desconto na nossa loja.</li>
             <li>· 1 ponto a cada R$1, pra trocar por coisa boa.</li>
             <li>· teu recado no Mural do Casa e teu cantinho em /gente.</li>

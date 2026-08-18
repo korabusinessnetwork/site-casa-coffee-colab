@@ -293,7 +293,7 @@ const NAV = [
   { id: 'pautas', rotulo: 'pautas', icone: 'clipboard-list', perm: 'pautas.ver' },
   { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos.ver' },
   { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates.ver' },
-  { id: 'aniversarios', rotulo: 'aniversários', icone: 'cake', perm: 'aniversarios.ver' },
+  { id: 'aniversarios', rotulo: 'brunches', icone: 'cake', perm: 'aniversarios.ver' },
   // Presentes vendidos (0041). O código é título ao portador, quem tem o texto
   // resgata um mês de plano, então a página tem permissão própria.
   { id: 'presentes', rotulo: 'presentes', icone: 'gift', perm: 'presentes.ver' },
@@ -2181,13 +2181,13 @@ async function desfazerResgate(botao, corpo) {
 // O brunch de aniversário que a pessoa reservou no /conta/perfil. Aqui o balcão
 // confere o código e dá baixa. Trava por `tem_permissao('resgates')` no banco
 // (0025) — aqui é só a tela. Um brunch por pessoa por ano.
-const filtrosBrindes = { status: 'ativo', busca: '' };
+const filtrosBrindes = { status: 'ativo', busca: '', tipo: '' };
 
 async function viewAniversarios(view) {
   view.innerHTML =
     cabecalho(
-      'aniversários do Casa',
-      'os brunchs de aniversário reservados. confere o código de quem chega e dá a baixa.',
+      'brunches do Casa',
+      'os brunches reservados, o platter do mês e o de aniversário. confere o código de quem chega e dá a baixa.',
       `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
     ) +
     `<form class="ad-busca" data-busca>
@@ -2197,23 +2197,39 @@ async function viewAniversarios(view) {
       </div>
       <button type="submit" class="btn ghost sm"><i data-lucide="search"></i>buscar</button>
     </form>
-    <div class="ad-filtros" role="group" aria-label="filtrar brindes">
+    <div class="ad-filtros" role="group" aria-label="filtrar brunches">
       <button type="button" class="filtro" data-f-status="ativo">a validar</button>
       <button type="button" class="filtro" data-f-status="usado">já usados</button>
       <button type="button" class="filtro" data-f-status="expirado">vencidos</button>
       <button type="button" class="filtro" data-f-status="">todos</button>
     </div>
+    <div class="ad-filtros" role="group" aria-label="filtrar por tipo de brunch">
+      <button type="button" class="filtro" data-f-tipo="">os dois</button>
+      <button type="button" class="filtro" data-f-tipo="mensal">do mês</button>
+      <button type="button" class="filtro" data-f-tipo="aniversario">de aniversário</button>
+    </div>
     <div data-corpo></div>`;
 
   const corpo = $('[data-corpo]', view);
   const form = $('[data-busca]', view);
-  const marcar = () =>
+  const marcar = () => {
     $$('[data-f-status]', view).forEach((b) =>
       b.setAttribute('aria-pressed', String((b.dataset.fStatus || '') === filtrosBrindes.status)),
     );
+    $$('[data-f-tipo]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String((b.dataset.fTipo || '') === filtrosBrindes.tipo)),
+    );
+  };
   $$('[data-f-status]', view).forEach((b) =>
     b.addEventListener('click', () => {
       filtrosBrindes.status = b.dataset.fStatus || '';
+      marcar();
+      carregarBrindes(corpo);
+    }),
+  );
+  $$('[data-f-tipo]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      filtrosBrindes.tipo = b.dataset.fTipo || '';
       marcar();
       carregarBrindes(corpo);
     }),
@@ -2232,15 +2248,21 @@ async function viewAniversarios(view) {
 async function carregarBrindes(corpo) {
   carregando(corpo);
   try {
-    const linhas = await rpc('admin_brindes_listar', {
+    // A `admin_brunches_listar` (0050) devolve jsonb com os DOIS tipos numa lista
+    // só. É jsonb e não `returns table` pela lição da 0042: leitura composta com
+    // uma dúzia de colunas é onde varchar declarado como text derruba a função
+    // inteira, e só na primeira chamada.
+    const resp = await rpc('admin_brunches_listar', {
       p_busca: filtrosBrindes.busca || null,
       p_status: filtrosBrindes.status || null,
+      p_tipo: filtrosBrindes.tipo || null,
       p_limite: 200,
     });
-    if (!linhas || !linhas.length) {
+    const linhas = Array.isArray(resp?.itens) ? resp.itens : [];
+    if (!linhas.length) {
       corpo.innerHTML = vazio(
         'nenhum brunch por aqui',
-        'quando um aniversariante reservar o brunch dele, o código aparece nesta lista.',
+        'quando alguém reservar o platter do mês ou o brunch de aniversário, o código aparece nesta lista.',
       );
       return;
     }
@@ -2263,12 +2285,18 @@ function cardBrinde(b) {
   // Os dois consertos do brunch: a baixa dada no código errado, e a pessoa que
   // não conseguiu vir dentro dos 30 dias.
   const podeArrumar = pode('aniversarios.arrumar');
+  const ehMensal = b.tipo === 'mensal';
   const tag =
     b.situacao === 'usado'
       ? '<span class="tag">usado</span>'
       : b.situacao === 'expirado'
         ? '<span class="tag">vencido</span>'
         : '<span class="tag gold">a validar</span>';
+  // Quem está no balcão precisa saber QUAL brunch é antes de servir: o do mês
+  // serve duas pessoas, o de aniversário é uma vez por ano.
+  const tagTipo = ehMensal
+    ? '<span class="tag coral">platter do mês</span>'
+    : '<span class="tag green">aniversário</span>';
   return `
     <article class="card ad-card">
       <div class="ad-card-topo">
@@ -2276,11 +2304,15 @@ function cardBrinde(b) {
           <p class="ad-codigo">${escapeHtml(b.codigo)}</p>
           <p class="ad-card-nome">${escapeHtml(b.cliente_nome || 'sem nome')}${b.cliente_email ? ' · ' + escapeHtml(b.cliente_email) : ''}</p>
         </div>
-        <div class="ad-card-tags">${tag}</div>
+        <div class="ad-card-tags">${tagTipo}${tag}</div>
       </div>
       <div class="ad-card-rodape">
         <div class="ad-card-info">
-          ${b.aniversario ? `<p class="ad-card-meta">🎂 faz aniversário em ${escapeHtml(b.aniversario)}</p>` : ''}
+          ${
+            b.referencia
+              ? `<p class="ad-card-meta">${ehMensal ? '🥐 brunch de ' : '🎂 faz aniversário em '}${escapeHtml(b.referencia)}${ehMensal ? ', serve duas pessoas' : ''}</p>`
+              : ''
+          }
           <p class="ad-card-meta">reservado em ${escapeHtml(formatData(b.criado_em))} · vale até ${escapeHtml(b.valido_ate_label || '—')}</p>
           ${
             b.usado_em
@@ -2291,17 +2323,17 @@ function cardBrinde(b) {
         <div class="ad-card-acao">
           ${
             podeBaixar
-              ? `<button type="button" class="btn solid sm" data-brinde-usar="${escapeHtml(b.id)}"><i data-lucide="cake"></i>brunch entregue</button>`
+              ? `<button type="button" class="btn solid sm" data-brinde-usar="${escapeHtml(b.id)}" data-tipo="${escapeHtml(b.tipo)}"><i data-lucide="cake"></i>brunch entregue</button>`
               : ''
           }
           ${
             podeArrumar && b.situacao === 'usado'
-              ? `<button type="button" class="btn ghost sm" data-brinde-arrumar="${escapeHtml(b.id)}" data-acao="desfazer"><i data-lucide="undo-2"></i>desfazer a baixa</button>`
+              ? `<button type="button" class="btn ghost sm" data-brinde-arrumar="${escapeHtml(b.id)}" data-tipo="${escapeHtml(b.tipo)}" data-acao="desfazer"><i data-lucide="undo-2"></i>desfazer a baixa</button>`
               : ''
           }
           ${
             podeArrumar && b.situacao !== 'usado'
-              ? `<button type="button" class="btn ghost sm" data-brinde-arrumar="${escapeHtml(b.id)}" data-acao="esticar"><i data-lucide="calendar-clock"></i>esticar 30 dias</button>`
+              ? `<button type="button" class="btn ghost sm" data-brinde-arrumar="${escapeHtml(b.id)}" data-tipo="${escapeHtml(b.tipo)}" data-acao="esticar"><i data-lucide="calendar-clock"></i>esticar 30 dias</button>`
               : ''
           }
         </div>
@@ -2312,13 +2344,16 @@ function cardBrinde(b) {
 async function darBaixaBrinde(botao, corpo) {
   const ok = await confirmar({
     titulo: 'a pessoa aproveitou o brunch?',
-    texto: 'isso marca o brunch de aniversário como usado. não dá pra desfazer por aqui.',
+    texto: 'isso marca o brunch como usado. quem tem "arrumar" consegue desfazer depois.',
     ok: 'sim, entregue',
   });
   if (!ok) return;
   botao.disabled = true;
   try {
-    const r = await rpc('admin_brinde_usar', { p_id: botao.dataset.brindeUsar });
+    const r = await rpc('admin_brunch_usar', {
+      p_tipo: botao.dataset.tipo,
+      p_id: botao.dataset.brindeUsar,
+    });
     if (r?.ok === false) {
       toast(r.erro || 'não deu pra dar baixa nesse brinde', 'erro');
       botao.disabled = false;
@@ -2345,7 +2380,11 @@ async function arrumarBrinde(botao, corpo) {
   if (!ok) return;
   botao.disabled = true;
   try {
-    const r = await rpc('admin_brinde_arrumar', { p_id: botao.dataset.brindeArrumar, p_acao: acao });
+    const r = await rpc('admin_brunch_arrumar', {
+      p_tipo: botao.dataset.tipo,
+      p_id: botao.dataset.brindeArrumar,
+      p_acao: acao,
+    });
     if (r?.ok === false) {
       toast(r.erro || 'não deu pra arrumar esse brunch', 'erro');
       botao.disabled = false;
