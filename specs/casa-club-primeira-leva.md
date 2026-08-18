@@ -234,3 +234,24 @@ igual pras quatro páginas que já existiam, então é limite do ambiente, não 
   página mostra o recado em português da function), não em silêncio, então ficou como está.
 - Existe um travessão em copy visível no card do brunch de aniversário (`app.js`), que é
   anterior a esta leva. Fora de escopo aqui, mas fica anotado.
+
+---
+
+## 11. O que veio depois da primeira leva (18/ago/2026)
+
+A leva foi seguida, no mesmo dia, por quatro pedidos da casa, todos já no ar:
+
+- **`0049`** — a assinatura sobe de R$49,90 pra **R$88,90**. As quatro categorias andam
+  juntas (categoria é tempo, não preço), e assinatura viva no Asaas mantém o valor com que
+  nasceu.
+- **A lista de benefícios mudou:** entra o **platter brunch mensal pra duas pessoas** e a
+  **caixa do Casa na porta**, e o brunch de aniversário sai da lista (o mensal ocupou o
+  lugar).
+- **`0050`** — os dois brunches viram **voucher com código**, a mesma mecânica pros dois. O
+  de aniversário deixou de exigir plano e ganhou janela de **7 dias**; o do mês é de quem
+  assina, um por mês, e não acumula.
+- **`0051`** — o aniversário passa a ser pedido no **cadastro** e **não se troca depois**,
+  que é o que fecha a conta de abrir o brunch de aniversário pra qualquer pessoa com conta.
+
+**Segue sem software por baixo:** a caixa do Casa (o CASA MAIL do documento). Ela aparece na
+vitrine, mas nada no site registra envio.
