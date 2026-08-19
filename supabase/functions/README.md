@@ -303,7 +303,7 @@ fica no estado gentil. Deployada sem os secrets, a function responde
 
 Function **independente do Asaas** (não importa o `_shared/lib.ts`, que exige
 `ASAAS_API_KEY` no topo). Quem chama **não é o navegador, é o banco**: a trigger da
-migration `0051` dispara pelo `pg_net` logo depois do INSERT na `leads_evento`, e esta
+migration `0052` dispara pelo `pg_net` logo depois do INSERT na `leads_evento`, e esta
 function manda a mensagem no Telegram da equipe. No caminho, ela pede uma **leitura
 rápida do pedido pro Gemini** (resumo em uma frase, urgência e uma sugestão de primeira
 resposta no tom da casa).
@@ -359,7 +359,7 @@ funcionando como se nada fosse.
 
    npx supabase functions deploy avisar-lead-evento --no-verify-jwt
    ```
-6. **Aplica a migration** `0051_aviso_lead_evento.sql` no SQL Editor.
+6. **Aplica a migration** `0052_aviso_lead_evento.sql` no SQL Editor.
 7. **Cadastra os dois segredos no Vault** (é assim que a trigger sabe pra onde mandar,
    sem que a URL nem o token fiquem escritos no repo). No SQL Editor:
    ```sql

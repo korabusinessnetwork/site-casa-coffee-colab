@@ -1123,9 +1123,9 @@ quantos nem do quê.
   só cresce.
 - **No ar:** migration aplicada em 13/ago/2026, front na `main`. Naquela leva não houve
   secret nem Edge Function nova (o formulário falava com o banco pela RPC e com o WhatsApp
-  por link). **A `0051` mudou isso** — ver logo abaixo.
+  por link). **A `0052` mudou isso** — ver logo abaixo.
 
-### O pedido toca o sino da equipe (Telegram + uma leitura do Gemini, `0051`)
+### O pedido toca o sino da equipe (Telegram + uma leitura do Gemini, `0052`)
 
 A `0040` resolveu metade do problema: o pedido **sobrevive ao canal**. Ficou faltando a
 outra metade, que é **alguém saber que ele chegou**. Até aqui o lead caía na tabela e
@@ -2287,7 +2287,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > pro dono. **Um bug foi pego aí:** a `admin_brunches_listar` criava sem reclamar e
   > estourava na primeira chamada (o `order by` do `jsonb_agg` olhava a chave do jsonb em vez
   > da coluna do subselect). Ler o SQL não teria pego.
-- **`0051_aviso_lead_evento` — PENDENTE.** O pedido de evento passa a tocar o sino no
+- **`0052_aviso_lead_evento` — APLICADA em 19/ago/2026.** O pedido de evento passa a tocar o sino no
   Telegram da equipe: extensão `pg_net`, coluna `leads_evento.aviso_em` (rastro de quando o
   aviso saiu), a `aviso_lead_config()` (lê URL e token do **Vault**, e devolve zero linhas se
   não estiverem cadastrados) e a trigger `avisar_lead_evento` no INSERT, que chama a Edge

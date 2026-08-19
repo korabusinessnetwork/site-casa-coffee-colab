@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0051_aviso_lead_evento.sql — o pedido de evento toca o sino da casa 🔔
+-- 0052_aviso_lead_evento.sql — o pedido de evento toca o sino da casa 🔔
 --
 -- A 0040 resolveu o "o lead sobrevive ao canal": o pedido fica guardado mesmo
 -- que a conversa do WhatsApp se perca. Ficou faltando o outro lado da mesma

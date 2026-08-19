@@ -1,7 +1,7 @@
 // =============================================================================
 // Casa Coffee Colab — avisar-lead-evento (Edge Function, Deno)
 // Toca o sino no Telegram da equipe quando alguém pede um evento na /eventos.
-// Quem chama é o BANCO (trigger da 0051 via pg_net), logo depois do INSERT na
+// Quem chama é o BANCO (trigger da 0052 via pg_net), logo depois do INSERT na
 // `leads_evento`. Antes de mandar, pede uma leitura rápida do pedido pro Gemini
 // (o modelo mais barato deles) pra a mensagem já chegar mastigada.
 //
@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
     return json({ error: 'telegram recusou a mensagem' }, 500);
   }
 
-  // Carimbo do rastro (coluna aviso_em da 0051). Best-effort: se não gravar, o
+  // Carimbo do rastro (coluna aviso_em da 0052). Best-effort: se não gravar, o
   // aviso JÁ chegou, e devolver erro aqui faria parecer que não chegou.
   try {
     const url = Deno.env.get('SUPABASE_URL');
