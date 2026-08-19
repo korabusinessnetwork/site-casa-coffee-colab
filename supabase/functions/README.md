@@ -296,3 +296,110 @@ importa o `_shared/lib.ts` (aquele exige `ASAAS_API_KEY` no topo); é auto-conti
 Enquanto a flag está `false` (padrão atual), o front **nem chama** a function — o painel
 fica no estado gentil. Deployada sem os secrets, a function responde
 `{ tocando:false, configurado:false }` e o front para de sondar sozinho.
+
+---
+
+## Apêndice — `avisar-lead-evento` (o pedido de evento toca o sino no Telegram)
+
+Function **independente do Asaas** (não importa o `_shared/lib.ts`, que exige
+`ASAAS_API_KEY` no topo). Quem chama **não é o navegador, é o banco**: a trigger da
+migration `0051` dispara pelo `pg_net` logo depois do INSERT na `leads_evento`, e esta
+function manda a mensagem no Telegram da equipe. No caminho, ela pede uma **leitura
+rápida do pedido pro Gemini** (resumo em uma frase, urgência e uma sugestão de primeira
+resposta no tom da casa).
+
+**Por que o gatilho é o INSERT, e não o front:** chamar do navegador exigiria as chaves
+do Telegram/Gemini no bundle, e o aviso morreria junto com a aba de quem preenche e sai
+correndo, que é exatamente o lead que não dá pra perder. E o anti-flood de 30s que a
+`registrar_lead_evento` já tem passa a valer pro sino de graça.
+
+**Nada aqui pode falhar pra cima.** Quando esta function roda, o lead JÁ está salvo.
+Gemini fora do ar ou sem chave manda o aviso cru (só perde a leitura); a trigger inteira
+roda dentro de um `exception when others`, então extensão faltando ou segredo não
+cadastrado viram um `warning` no log do Postgres e o formulário da `/eventos` segue
+funcionando como se nada fosse.
+
+> **Custo:** o Telegram Bot API é grátis. O `gemini-2.5-flash-lite` custa frações de
+> centavo por pedido, e o tier gratuito do Google cobre o volume de um café com folga.
+> **O Gemini é opcional:** sem `GEMINI_API_KEY` a function manda o aviso do mesmo jeito,
+> só sem o bloco de leitura.
+
+**Secrets (só nesta function, nunca no client/repo):** `LEAD_WEBHOOK_TOKEN`,
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, e os opcionais `GEMINI_API_KEY` /
+`GEMINI_MODEL`. O `SITE_URL`, que as outras functions já usam, vira o botão
+"ver no console" da mensagem.
+
+**Ligar (uma vez):**
+
+1. **Cria o bot.** No Telegram, fala com o **@BotFather** → `/newbot` → escolhe nome e
+   username. Ele devolve o **token** (`123456789:AA...`). Esse é o `TELEGRAM_BOT_TOKEN`.
+2. **Descobre pra onde mandar** (o `TELEGRAM_CHAT_ID`):
+   - **Grupo da equipe** (recomendado, todo mundo vê): põe o bot no grupo, manda
+     qualquer mensagem lá, e abre
+     `https://api.telegram.org/bot<TOKEN>/getUpdates` no navegador. O `chat.id` do grupo
+     é um número **negativo** (ex.: `-1001234567890`).
+   - **Conversa direta**: manda um `/start` pro bot e lê o `chat.id` no mesmo endereço.
+   > O bot **não consegue** puxar conversa com ninguém: alguém precisa falar com ele (ou
+   > adicioná-lo ao grupo) primeiro. É regra do Telegram, não da gente.
+3. **Chave do Gemini** (opcional): pega em https://aistudio.google.com/apikey.
+4. **Escolhe o token da ponte** (`LEAD_WEBHOOK_TOKEN`): qualquer string longa e
+   aleatória, do mesmo naipe do `ASAAS_WEBHOOK_TOKEN`. É o que prova pra function que o
+   POST veio do nosso banco.
+   ```bash
+   openssl rand -hex 24
+   ```
+5. **Seta os secrets e faz o deploy** (sem JWT: quem chama é o `pg_net`, que não tem
+   sessão de usuário; a porta é o token do header):
+   ```bash
+   npx supabase secrets set \
+     LEAD_WEBHOOK_TOKEN=<o token do passo 4> \
+     TELEGRAM_BOT_TOKEN=<o token do BotFather> \
+     TELEGRAM_CHAT_ID=<o chat id do passo 2> \
+     GEMINI_API_KEY=<a chave do AI Studio>
+
+   npx supabase functions deploy avisar-lead-evento --no-verify-jwt
+   ```
+6. **Aplica a migration** `0051_aviso_lead_evento.sql` no SQL Editor.
+7. **Cadastra os dois segredos no Vault** (é assim que a trigger sabe pra onde mandar,
+   sem que a URL nem o token fiquem escritos no repo). No SQL Editor:
+   ```sql
+   select vault.create_secret(
+     'https://<REF-DO-PROJETO>.supabase.co/functions/v1/avisar-lead-evento',
+     'casa_aviso_lead_url'
+   );
+   select vault.create_secret('<o MESMO token do passo 4>', 'casa_aviso_lead_token');
+   ```
+   Conferir que a ponte está de pé (uma linha, token abreviado):
+   ```sql
+   select url, left(token, 4) || '…' as token from public.aviso_lead_config();
+   ```
+
+**Testar de ponta a ponta:** preenche o formulário da `/eventos` no site. O aviso deve
+chegar no Telegram em poucos segundos, e o pedido aparece na aba **eventos** do console
+com a coluna `aviso_em` carimbada:
+```sql
+select nome, tipo, created_at, aviso_em from public.leads_evento order by created_at desc limit 5;
+```
+
+**Se não chegar**, nesta ordem:
+- `select url, left(token,4) from public.aviso_lead_config();` devolveu linha? Se não,
+  o Vault não tem os dois segredos com esses nomes exatos.
+- `select * from net._http_response order by created desc limit 5;` mostra o que o
+  pg_net recebeu de volta (401 = os tokens dos dois lados não batem).
+- `npx supabase functions logs avisar-lead-evento` mostra o lado da function.
+- Os `warning` da trigger aparecem no log do Postgres (Logs → Postgres no painel).
+
+**Trocar um segredo do Vault** (o `create_secret` recusa nome repetido):
+```sql
+select vault.update_secret(
+  (select id from vault.secrets where name = 'casa_aviso_lead_token'),
+  '<token novo>'
+);
+```
+
+**Teto de segurança:** a `registrar_lead_evento` é aberta a `anon` (quem pede evento
+raramente tem conta) e o anti-flood dela é **por contato**, então quem variar o telefone
+consegue gerar pedido à vontade. Por isso a trigger tem um **teto de 20 avisos por
+hora**: acima disso o pedido entra normalmente e aparece no console como sempre, só não
+vira ping. É muito acima de um dia cheio de verdade, e evita o celular da equipe tocando
+a noite inteira por causa de um script.

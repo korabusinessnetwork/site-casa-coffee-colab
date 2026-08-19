@@ -1121,8 +1121,67 @@ quantos nem do quê.
   **link de WhatsApp**, pra quem atende abrir a conversa dali mesmo. O botão "já falei" é
   o que tira da fila: lista de pedidos sem onde riscar o que já foi atendido é pilha que
   só cresce.
-- **No ar:** migration aplicada em 13/ago/2026, front na `main`. Nenhum secret ou Edge
-  Function novo (o formulário fala com o banco pela RPC e com o WhatsApp por link).
+- **No ar:** migration aplicada em 13/ago/2026, front na `main`. Naquela leva não houve
+  secret nem Edge Function nova (o formulário falava com o banco pela RPC e com o WhatsApp
+  por link). **A `0051` mudou isso** — ver logo abaixo.
+
+### O pedido toca o sino da equipe (Telegram + uma leitura do Gemini, `0051`)
+
+A `0040` resolveu metade do problema: o pedido **sobrevive ao canal**. Ficou faltando a
+outra metade, que é **alguém saber que ele chegou**. Até aqui o lead caía na tabela e
+esperava alguém abrir o console e lembrar de olhar a aba "eventos", e quem pede um evento
+está pedindo pra três casas ao mesmo tempo: responder no dia seguinte é responder depois de
+a pessoa já ter fechado com outro lugar.
+
+- **O gatilho é o INSERT, e isso é a decisão central.** Nada disso mora no front. Chamar do
+  navegador exigiria a chave do Telegram/Gemini no bundle (proibido, ver "Segurança") e o
+  aviso morreria junto com a aba de quem preenche e sai correndo, que é exatamente o lead
+  que não dá pra perder. Uma trigger `after insert` na `leads_evento` chama a Edge Function
+  pelo **`pg_net`**, que enfileira a requisição e devolve na hora (a transação não espera o
+  Telegram responder) — e como a fila é uma tabela, um rollback leva o aviso junto: ninguém
+  é avisado de um pedido que não existe.
+- **O anti-flood da 0040 virou o freio do sino de graça:** pedido repetido sem querer não
+  vira linha nova, então também não vira ping repetido.
+- **A trigger inteira roda dentro de um `exception when others`.** É a peça mais importante
+  do arquivo: extensão faltando, segredo não cadastrado ou Telegram fora do ar viram um
+  `warning` no log do Postgres e nada mais. O lead entra do mesmo jeito. É a mesma regra que
+  a página já seguia ("o banco nunca barra a pessoa"), um degrau abaixo. **Perder um aviso é
+  ruim; perder o lead é pior.**
+- **Os segredos moram no Vault, não neste repo e não numa tabela de config em texto.** A
+  migration sobe sem saber a URL nem o token (`casa_aviso_lead_url` / `casa_aviso_lead_token`,
+  lidos pela `aviso_lead_config()`); enquanto os dois não forem cadastrados, a trigger não
+  faz nada, nem erro. Aplicar a migration antes de configurar é seguro.
+- **Edge Function `avisar-lead-evento`** (deploy com `--no-verify-jwt`): a porta é o token
+  compartilhado no header `x-casa-token` comparado em **tempo constante** com
+  `LEAD_WEBHOOK_TOKEN` — mesmo desenho do `asaas-webhook` (não é HMAC, e não precisa ser, os
+  dois lados são nossos). **Não importa o `_shared/lib.ts`**, que exige `ASAAS_API_KEY` no
+  topo; é auto-contida, igual à `spotify-now-playing`.
+- **O Gemini é conforto, não requisito.** Ele devolve resumo em uma frase, urgência e uma
+  sugestão de primeira resposta no tom da casa (saída estruturada por `responseSchema`, então
+  não há parsing criativo). Sem chave, com quota estourada ou com timeout, **o aviso sai do
+  mesmo jeito**, só sem o bloco de leitura. Modelo default `gemini-2.5-flash-lite`, trocável
+  pelo secret `GEMINI_MODEL` — o Google renomeia modelo mais rápido do que a gente faz deploy.
+  Custo real no volume de um café: o tier gratuito cobre, e o Telegram Bot API é grátis.
+- **O recado da pessoa é entrada não confiável em dois lugares, e os dois estão tratados:**
+  vai pro Gemini **delimitado** (`<<<RECADO … RECADO>>>`) com a instrução explícita de que
+  ali é pedido de cliente e nunca ordem pro modelo; e vai pro Telegram com **escape de HTML
+  em todo valor de fora**, inclusive no texto que o Gemini devolveu (o `parse_mode` é HTML, e
+  um `<` solto num recado quebraria a mensagem inteira).
+- **A mensagem tem botão de responder.** Responder é a única coisa que se faz com esse aviso,
+  então ela fica a um toque: um `inline_keyboard` com o link do WhatsApp da pessoa (o telefone
+  é guardado formatado, então vira dígitos com o DDI 55) e, se o `SITE_URL` estiver setado, um
+  atalho pro `/admin#eventos`.
+- **Teto de 20 avisos por hora.** A `registrar_lead_evento` é aberta a `anon` e o anti-flood
+  dela é **por contato**, então quem variar o telefone gera pedido à vontade. Isso já era
+  verdade antes, só que o estrago parava na tabela; com o sino ligado, viraria o celular de
+  quem atende tocando a noite inteira. Acima do teto **o pedido entra normalmente e aparece
+  no console**, só não vira ping.
+- **Rastro:** a coluna `leads_evento.aviso_em` é carimbada pela function depois que o Telegram
+  aceita a mensagem, pra responder "o sino tocou?" sem cavar log. O carimbo é best-effort: se
+  não gravar, o aviso já chegou, e devolver erro ali faria parecer que não.
+- **Ligar pede config, não código:** bot no @BotFather, `chat_id` do grupo, chave do AI Studio,
+  quatro secrets e os dois segredos do Vault. Passo a passo (com o que olhar quando não chega)
+  no apêndice do `supabase/functions/README.md`.
 
 ---
 
@@ -2228,6 +2287,23 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > pro dono. **Um bug foi pego aí:** a `admin_brunches_listar` criava sem reclamar e
   > estourava na primeira chamada (o `order by` do `jsonb_agg` olhava a chave do jsonb em vez
   > da coluna do subselect). Ler o SQL não teria pego.
+- **`0051_aviso_lead_evento` — PENDENTE.** O pedido de evento passa a tocar o sino no
+  Telegram da equipe: extensão `pg_net`, coluna `leads_evento.aviso_em` (rastro de quando o
+  aviso saiu), a `aviso_lead_config()` (lê URL e token do **Vault**, e devolve zero linhas se
+  não estiverem cadastrados) e a trigger `avisar_lead_evento` no INSERT, que chama a Edge
+  Function nova `avisar-lead-evento`. **A trigger inteira vive dentro de um `exception when
+  others`**, então nada no caminho do aviso pode derrubar o formulário. Teto de 20 avisos por
+  hora. Idempotente. Ver "O pedido toca o sino da equipe" acima.
+  > **Como foi verificada:** rodou num Postgres local com stubs de `auth`, `vault` e uma
+  > extensão `pg_net` falsa que **captura o payload** em vez de mandar, aplicada **duas vezes**
+  > pra provar idempotência, e as funções foram **chamadas** com dado de verdade, como `anon`:
+  > sem os segredos no Vault (lead entra, nenhum aviso, nenhum erro), com os segredos (payload
+  > e header conferidos um a um), o anti-flood da 0040 segurando o segundo pedido do mesmo
+  > contato, o teto (25 pedidos → 25 leads gravados, 20 avisos) e **a prova de fogo: com o
+  > `net.http_post` estourando exceção, o lead entra igual e sobra só um `warning`**. A Edge
+  > Function passou por `deno check` e por 24 asserções com Gemini e Telegram dublados, entre
+  > elas o 401 de token errado, o escape de `<script>` no nome, e o Gemini com 429 e com
+  > timeout **sem impedir o aviso**.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
