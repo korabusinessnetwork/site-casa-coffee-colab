@@ -1144,8 +1144,67 @@ quantos nem do quê.
   **link de WhatsApp**, pra quem atende abrir a conversa dali mesmo. O botão "já falei" é
   o que tira da fila: lista de pedidos sem onde riscar o que já foi atendido é pilha que
   só cresce.
-- **No ar:** migration aplicada em 13/ago/2026, front na `main`. Nenhum secret ou Edge
-  Function novo (o formulário fala com o banco pela RPC e com o WhatsApp por link).
+- **No ar:** migration aplicada em 13/ago/2026, front na `main`. Naquela leva não houve
+  secret nem Edge Function nova (o formulário falava com o banco pela RPC e com o WhatsApp
+  por link). **A `0052` mudou isso** — ver logo abaixo.
+
+### O pedido toca o sino da equipe (Telegram + uma leitura do Gemini, `0052`)
+
+A `0040` resolveu metade do problema: o pedido **sobrevive ao canal**. Ficou faltando a
+outra metade, que é **alguém saber que ele chegou**. Até aqui o lead caía na tabela e
+esperava alguém abrir o console e lembrar de olhar a aba "eventos", e quem pede um evento
+está pedindo pra três casas ao mesmo tempo: responder no dia seguinte é responder depois de
+a pessoa já ter fechado com outro lugar.
+
+- **O gatilho é o INSERT, e isso é a decisão central.** Nada disso mora no front. Chamar do
+  navegador exigiria a chave do Telegram/Gemini no bundle (proibido, ver "Segurança") e o
+  aviso morreria junto com a aba de quem preenche e sai correndo, que é exatamente o lead
+  que não dá pra perder. Uma trigger `after insert` na `leads_evento` chama a Edge Function
+  pelo **`pg_net`**, que enfileira a requisição e devolve na hora (a transação não espera o
+  Telegram responder) — e como a fila é uma tabela, um rollback leva o aviso junto: ninguém
+  é avisado de um pedido que não existe.
+- **O anti-flood da 0040 virou o freio do sino de graça:** pedido repetido sem querer não
+  vira linha nova, então também não vira ping repetido.
+- **A trigger inteira roda dentro de um `exception when others`.** É a peça mais importante
+  do arquivo: extensão faltando, segredo não cadastrado ou Telegram fora do ar viram um
+  `warning` no log do Postgres e nada mais. O lead entra do mesmo jeito. É a mesma regra que
+  a página já seguia ("o banco nunca barra a pessoa"), um degrau abaixo. **Perder um aviso é
+  ruim; perder o lead é pior.**
+- **Os segredos moram no Vault, não neste repo e não numa tabela de config em texto.** A
+  migration sobe sem saber a URL nem o token (`casa_aviso_lead_url` / `casa_aviso_lead_token`,
+  lidos pela `aviso_lead_config()`); enquanto os dois não forem cadastrados, a trigger não
+  faz nada, nem erro. Aplicar a migration antes de configurar é seguro.
+- **Edge Function `avisar-lead-evento`** (deploy com `--no-verify-jwt`): a porta é o token
+  compartilhado no header `x-casa-token` comparado em **tempo constante** com
+  `LEAD_WEBHOOK_TOKEN` — mesmo desenho do `asaas-webhook` (não é HMAC, e não precisa ser, os
+  dois lados são nossos). **Não importa o `_shared/lib.ts`**, que exige `ASAAS_API_KEY` no
+  topo; é auto-contida, igual à `spotify-now-playing`.
+- **O Gemini é conforto, não requisito.** Ele devolve resumo em uma frase, urgência e uma
+  sugestão de primeira resposta no tom da casa (saída estruturada por `responseSchema`, então
+  não há parsing criativo). Sem chave, com quota estourada ou com timeout, **o aviso sai do
+  mesmo jeito**, só sem o bloco de leitura. Modelo default `gemini-2.5-flash-lite`, trocável
+  pelo secret `GEMINI_MODEL` — o Google renomeia modelo mais rápido do que a gente faz deploy.
+  Custo real no volume de um café: o tier gratuito cobre, e o Telegram Bot API é grátis.
+- **O recado da pessoa é entrada não confiável em dois lugares, e os dois estão tratados:**
+  vai pro Gemini **delimitado** (`<<<RECADO … RECADO>>>`) com a instrução explícita de que
+  ali é pedido de cliente e nunca ordem pro modelo; e vai pro Telegram com **escape de HTML
+  em todo valor de fora**, inclusive no texto que o Gemini devolveu (o `parse_mode` é HTML, e
+  um `<` solto num recado quebraria a mensagem inteira).
+- **A mensagem tem botão de responder.** Responder é a única coisa que se faz com esse aviso,
+  então ela fica a um toque: um `inline_keyboard` com o link do WhatsApp da pessoa (o telefone
+  é guardado formatado, então vira dígitos com o DDI 55) e, se o `SITE_URL` estiver setado, um
+  atalho pro `/admin#eventos`.
+- **Teto de 20 avisos por hora.** A `registrar_lead_evento` é aberta a `anon` e o anti-flood
+  dela é **por contato**, então quem variar o telefone gera pedido à vontade. Isso já era
+  verdade antes, só que o estrago parava na tabela; com o sino ligado, viraria o celular de
+  quem atende tocando a noite inteira. Acima do teto **o pedido entra normalmente e aparece
+  no console**, só não vira ping.
+- **Rastro:** a coluna `leads_evento.aviso_em` é carimbada pela function depois que o Telegram
+  aceita a mensagem, pra responder "o sino tocou?" sem cavar log. O carimbo é best-effort: se
+  não gravar, o aviso já chegou, e devolver erro ali faria parecer que não.
+- **Ligar pede config, não código:** bot no @BotFather, `chat_id` do grupo, chave do AI Studio,
+  quatro secrets e os dois segredos do Vault. Passo a passo (com o que olhar quando não chega)
+  no apêndice do `supabase/functions/README.md`.
 
 ---
 
@@ -1879,14 +1938,31 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
+- **Banco em dia (19/ago/2026):** a **`0052_aviso_lead_evento`** foi aplicada no SQL Editor
+  em 19/ago, e a numeração livre pra próxima é a **`0053`**. Diferente da leva anterior,
+  **esta pede Edge Function**: a `avisar-lead-evento` foi deployada no mesmo dia com
+  `--no-verify-jwt` (quem chama é o `pg_net`, que não tem sessão de usuário). O resto do que
+  ela precisa é **configuração, não código** — os dois segredos do Vault
+  (`casa_aviso_lead_url` / `casa_aviso_lead_token`) e os secrets da function
+  (`LEAD_WEBHOOK_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GEMINI_API_KEY`,
+  `SITE_URL`). **Aviso que não chega quase sempre é um desses valores, não a migration:** na
+  estreia foram dois, em sequência — a URL do Vault apontando pro endereço do *painel* em vez
+  do endpoint da function (o `pg_net` registra isso como `status_code` **nulo** com
+  `error_msg` "Couldn't resolve host name", não como 404) e o `TELEGRAM_CHAT_ID` apontando pra
+  um chat que o bot não enxergava (`400 chat not found`, que a function devolve como 500). O
+  caminho de diagnóstico está no apêndice do `supabase/functions/README.md`.
+  > **Pendência conhecida:** o `gemini-2.5-flash-lite` do default responde **404** pra chave
+  > em uso, então o aviso chega **sem** o bloco de leitura da IA. Não impede nada (o Gemini é
+  > opcional por desenho) e o conserto é secret, não código: `GEMINI_MODEL` com um nome que a
+  > chave aceite.
 - **Banco em dia (18/ago/2026, fim do dia):** a leva **`0049` → `0051`** foi aplicada no
   mesmo dia da `0048`, com o front indo junto pra `main`. **Não há migration pendente**, e a
-  numeração livre pra próxima é a **`0052`**. As três (preço do clube, os dois brunches como
-  voucher, e o aniversário travado) **não pedem re-deploy de Edge Function nenhuma**: elas
-  vivem inteiras no banco e no front, e nenhuma function chama as RPCs delas. O que ficou
-  fora do código, e é decisão da casa: **ajustar no painel do Asaas o valor das assinaturas
-  antigas** (assinatura viva mantém o `value` do dia em que nasceu, então quem entrou antes
-  segue pagando R$49,90 até alguém mudar lá).
+  numeração livre pra próxima, naquele dia, era a **`0052`**. As três (preço do clube, os
+  dois brunches como voucher, e o aniversário travado) **não pedem re-deploy de Edge
+  Function nenhuma**: elas vivem inteiras no banco e no front, e nenhuma function chama as
+  RPCs delas. O que ficou fora do código, e é decisão da casa: **ajustar no painel do Asaas
+  o valor das assinaturas antigas** (assinatura viva mantém o `value` do dia em que nasceu,
+  então quem entrou antes segue pagando R$49,90 até alguém mudar lá).
 - **Banco em dia (18/ago/2026):** o humano aplicou a **`0048_casa_club`** em 18/ago, e o
   front dela foi pra `main` no mesmo dia (as duas juntas de propósito, ver a lição da 0047
   logo abaixo).
@@ -2262,6 +2338,23 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > o campo (nulo); cliente tentando trocar data existente (recusa), preenchendo pela primeira
   > vez (passa), tentando trocar depois disso (recusa), mandando data futura (recusa) e data
   > de 1700 (recusa); e salvar o resto do perfil sem tocar na data (passa).
+- **`0052_aviso_lead_evento` — APLICADA em 19/ago/2026.** O pedido de evento passa a tocar o sino no
+  Telegram da equipe: extensão `pg_net`, coluna `leads_evento.aviso_em` (rastro de quando o
+  aviso saiu), a `aviso_lead_config()` (lê URL e token do **Vault**, e devolve zero linhas se
+  não estiverem cadastrados) e a trigger `avisar_lead_evento` no INSERT, que chama a Edge
+  Function nova `avisar-lead-evento`. **A trigger inteira vive dentro de um `exception when
+  others`**, então nada no caminho do aviso pode derrubar o formulário. Teto de 20 avisos por
+  hora. Idempotente. Ver "O pedido toca o sino da equipe" acima.
+  > **Como foi verificada:** rodou num Postgres local com stubs de `auth`, `vault` e uma
+  > extensão `pg_net` falsa que **captura o payload** em vez de mandar, aplicada **duas vezes**
+  > pra provar idempotência, e as funções foram **chamadas** com dado de verdade, como `anon`:
+  > sem os segredos no Vault (lead entra, nenhum aviso, nenhum erro), com os segredos (payload
+  > e header conferidos um a um), o anti-flood da 0040 segurando o segundo pedido do mesmo
+  > contato, o teto (25 pedidos → 25 leads gravados, 20 avisos) e **a prova de fogo: com o
+  > `net.http_post` estourando exceção, o lead entra igual e sobra só um `warning`**. A Edge
+  > Function passou por `deno check` e por 24 asserções com Gemini e Telegram dublados, entre
+  > elas o 401 de token errado, o escape de `<script>` no nome, e o Gemini com 429 e com
+  > timeout **sem impedir o aviso**.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
