@@ -225,7 +225,7 @@ confirmação do Supabase, `successUrl` de checkouts já emitidos).
 | Produto       | `produto.html`      | `/produto?slug=`   | detalhe via `?slug=`, trilha de migalhas + relacionados (conta como "Loja" na nav) |
 | Clube         | `planos.html`       | `/planos`          | a assinatura única + a jornada das 4 categorias por tempo, pontos, conquistas |
 | Colab         | `colab.html`        | `/colab`           | Residência Gente do Casa; carrossel de colabs; convite (mailto/WhatsApp) |
-| Eventos       | `eventos.html`      | `/eventos`         | "faz teu evento aqui": tipos de evento + formulário que grava o pedido e leva pro WhatsApp |
+| Eventos       | `eventos.html`      | `/eventos`         | "faz teu evento aqui": tipos de evento + formulário que grava o pedido e toca o sino no Telegram |
 | Cadastro      | `cadastro.html`     | `/cadastro`        | criar conta (nome/telefone/e-mail/senha); estado "confirme seu e-mail" |
 | Login         | `login.html`        | `/login`           | entrar (e-mail/senha) + "esqueci a senha" (reset por e-mail)       |
 | Auth OK       | `auth-confirmado.html` | `/auth-confirmado` | retorno do link de confirmação; detecta a sessão na URL         |
@@ -1115,18 +1115,24 @@ quantos nem do quê.
   a foto é o argumento. Campos do formulário: nome e whatsapp
   (obrigatórios), tipo (select), data, quantas pessoas, e-mail e um "conta um pouco"
   (todos opcionais) — pedir pouco é o ponto, o resto se acerta na conversa.
-- **`initEventosPage()` faz duas coisas, nessa ordem, e a ordem importa:** grava o pedido
-  (RPC `registrar_lead_evento`) e **depois** abre o WhatsApp da casa com a mensagem já
-  escrita (`wa.me/<MARCA.contato.whatsappNumero>?text=…`, uma linha por informação).
-  Gravar antes é o que faz o lead **sobreviver ao canal**: quem preenche e não aperta
-  enviar, quem está num aparelho sem WhatsApp ou quem some no meio da conversa continua na
-  fila do console.
-  > **O banco NUNCA barra a pessoa.** Se a RPC falhar (migration pendente, sem rede, o que
-  > for), o WhatsApp abre do mesmo jeito, com um recado honesto de que o pedido pode não
-  > ter sido guardado. Perder um lead é ruim; impedir alguém de falar com a casa é pior.
-  > E o `window.open` depois de um `await` pode cair no bloqueador de pop-up (o navegador
-  > já não vê o clique como origem), então quando ele volta `null` a tela mostra o **link**
-  > da conversa: aí o toque é gesto de gente de novo e abre sempre.
+- **`initEventosPage()` faz UMA coisa: grava o pedido** (RPC `registrar_lead_evento`).
+  Nada de abrir o WhatsApp. **O redirecionamento automático saiu em 20/ago/2026, a pedido:**
+  a casa não tem um WhatsApp só pra eventos, então jogar quem acabou de preencher numa
+  conversa genérica confundia mais do que ajudava — a pessoa já tinha dito tudo no
+  formulário e era mandada a dizer tudo de novo. O pedido vai pro console e o aviso toca no
+  Telegram da equipe (ver "O pedido toca o sino da equipe"); quem abre a conversa é a casa,
+  pelo botão que já vem na mensagem do Telegram. O botão da página deixou de ser "chamar a
+  gente no WhatsApp" e virou **"enviar meu pedido"**.
+  > **A INVERSÃO QUE ISSO CAUSA, e que vale entender antes de mexer aqui:** enquanto o
+  > WhatsApp era o canal, o banco era a rede de segurança, e por isso a função engolia erro
+  > da RPC em silêncio ("o banco nunca barra a pessoa"). Agora **o banco é o caminho
+  > inteiro**, então falhar ali não é contratempo, é o pedido perdido sem ninguém saber. O
+  > caminho de erro parou de ser silencioso: os campos ficam preenchidos (dá pra tentar de
+  > novo sem redigitar) e a tela mostra o telefone e o e-mail da casa. É um `tel:`, uma
+  > ligação, **não** o `wa.me` — reabrir o link do WhatsApp ali traria de volta justamente
+  > a confusão que se quis tirar.
+  > **E no sucesso o formulário limpa:** sem a aba do WhatsApp abrindo, era a única coisa na
+  > tela dizendo "foi", senão o estado de sucesso fica idêntico ao de antes de apertar.
 - **Migration `0040_leads_evento` (APLICADA em 13/ago/2026):** tabela `leads_evento`
   **deny-by-default** (RLS ligada e **nenhuma policy** — o client não lê nem escreve
   direto). Diferente da `0031`, que nasceu com policy de INSERT pro client e precisou da
@@ -2202,9 +2208,10 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   `registrar_lead_evento(...)` (granted a **anon**, valida no corpo, anti-flood de 30s pelo
   mesmo contato) e `admin_leads_evento`/`admin_lead_evento_status` (gated por
   `tem_permissao('relatorios')`, sem permissão nova). Front: página `/eventos` +
-  `initEventosPage` + aba "eventos" no console. O front é tolerante por desenho: se a RPC
-  falhar por qualquer motivo, a página segue mandando pro WhatsApp, só não guarda. Ver
-  "Faz teu evento aqui" acima.
+  `initEventosPage` + aba "eventos" no console. **A tolerância descrita aqui mudou em
+  20/ago/2026:** com o redirecionamento pro WhatsApp fora, a RPC virou o único caminho, então
+  falhar nela mostra o contato da casa e mantém o formulário preenchido, em vez de seguir
+  adiante em silêncio. Ver "Faz teu evento aqui" acima.
 - **`0041_admin_presentes` — APLICADA em 13/ago/2026.** A aba "presentes" do
   console: RPC `admin_presentes(busca, status, limite)` (SECURITY DEFINER, gated por
   `tem_permissao('resgates')`, sem permissão nova). Existe porque a `gift_select_own` da

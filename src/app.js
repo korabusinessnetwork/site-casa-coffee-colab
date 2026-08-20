@@ -2620,13 +2620,6 @@ function initEventosPage() {
     aviso.hidden = false;
   };
 
-  // Data do <input type="date"> vem como AAAA-MM-DD. Formatar na mão evita o
-  // drift de fuso do new Date (o mesmo motivo do dataDiaMes).
-  const dataBonita = (v) => {
-    const p = String(v || '').split('-');
-    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : '';
-  };
-
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -2684,44 +2677,35 @@ function initEventosPage() {
         }
         guardou = true;
       } catch (err) {
-        // Migration 0040 pendente, sem rede, o que for: segue pro WhatsApp.
+        // Sem o WhatsApp como segunda porta, aqui é o fim da linha: falhar
+        // significa PERDER o pedido. Por isso o aviso lá embaixo dá o contato da
+        // casa, em vez de só registrar no console e seguir em frente.
         console.warn('lead de evento:', err?.message || err);
       }
     }
 
-    // A mensagem que já vai escrita na conversa. Uma linha por informação, pra
-    // quem atende no balcão ler de relance sem rolar a tela do celular.
-    const linhas = [
-      'Oi, gente do Casa! Quero fazer um evento aí 🎉',
-      '',
-      `nome: ${nome}`,
-      `tipo: ${tipo}`,
-      data ? `quando: ${dataBonita(data)}` : 'quando: ainda não sei, quero pensar junto',
-      pessoas ? `quantas pessoas: cerca de ${pessoas}` : null,
-      `meu whatsapp: ${contato}`,
-      email ? `meu e-mail: ${email}` : null,
-      mensagem ? '' : null,
-      mensagem ? `o que eu tenho em mente:\n${mensagem}` : null,
-    ].filter((l) => l !== null);
-
-    const numero = MARCA.contato.whatsappNumero;
-    const url = `https://wa.me/${numero}?text=${encodeURIComponent(linhas.join('\n'))}`;
-
-    // Abrir por window.open depois de um await pode cair no bloqueador de pop-up
-    // (o navegador já não vê mais o clique como origem). Por isso o botão fica na
-    // tela de qualquer jeito: se a aba não abrir sozinha, ela está a um toque, e
-    // aí o clique é gesto de gente de novo.
-    const abriu = window.open(url, '_blank', 'noopener,noreferrer');
-    dizer(
-      `<strong>${guardou ? 'anotado 💛' : 'quase lá 💛'}</strong> ` +
-        (abriu
-          ? 'a conversa abriu numa aba nova, é só apertar enviar por lá.'
-          : `<a class="form-link" href="${url}" target="_blank" rel="noopener noreferrer">abre a conversa no WhatsApp</a> e é só apertar enviar.`) +
-        (guardou
-          ? ''
-          : ' (a gente não conseguiu guardar teu pedido aqui no site agora, então esse envio no WhatsApp é o que vale.)'),
-      guardou ? 'ok' : 'warn',
-    );
+    if (guardou) {
+      // Sem a aba do WhatsApp abrindo, o formulário limpo é o que diz "foi" pra
+      // quem enviou. Sem isso a tela fica idêntica à de antes de apertar.
+      form.reset();
+      contar();
+      dizer(
+        '<strong>anotado 💛</strong> teu pedido já está aqui com a gente. ' +
+          'A gente te chama pra combinar o resto, no horário da casa.',
+        'ok',
+      );
+    } else {
+      // O banco era a rede de segurança e virou o caminho inteiro. Os campos
+      // ficam preenchidos de propósito (dá pra tentar de novo sem redigitar), e o
+      // contato da casa fica na tela pra quem não quiser esperar.
+      dizer(
+        '<strong>não deu pra guardar teu pedido agora 💛</strong> tenta de novo daqui a pouco, ' +
+          `ou fala com a gente direto: <a class="form-link" href="tel:+${MARCA.contato.whatsappNumero}">` +
+          `${escapeHtml(MARCA.contato.telefone)}</a> ou ` +
+          `<a class="form-link" href="mailto:${MARCA.contato.email}">${escapeHtml(MARCA.contato.email)}</a>.`,
+        'warn',
+      );
+    }
     botao.disabled = false;
   });
 }
