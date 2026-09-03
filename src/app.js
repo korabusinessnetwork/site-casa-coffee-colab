@@ -9217,6 +9217,302 @@ function initCarousels() {
     .forEach((track) => setupCarousel(track, { dots: false, autoplay: false }));
 }
 
+// =============================================================================
+// RASTROS (por onde a pessoa andou, e onde ela largou o site)
+// Migration 0053. O console tinha o que a casa VENDEU e nada do que a pessoa
+// FEZ antes de comprar (ou de desistir): não dava pra saber em que tela ela
+// estava quando fechou a aba, nem que seção ninguém toca.
+//
+// O QUE ISTO MANDA, E O QUE NÃO MANDA:
+//   Manda o CAMINHO da página, o NOME da seção e o RÓTULO do que foi tocado.
+//   Não manda IP, não manda o que a pessoa digitou, não manda o que ela leu, e
+//   não guarda nada entre um dia e outro: o id da visita nasce no
+//   `sessionStorage` e morre quando a aba fecha. Quem está logado é reconhecido
+//   pelo BANCO, por `auth.uid()` — o corpo da chamada não diz quem é ninguém
+//   (a 0053 ignora um `user_id` que venha daqui, de propósito).
+//
+// POR QUE OS EVENTOS VÃO EM LOTE:
+//   O site é multi-página: cada link recarrega tudo. Uma requisição por clique
+//   seria uma dúzia de viagens por visita, e a última, a mais importante, sairia
+//   no meio da página sendo destruída. Então os eventos ficam num balde e o
+//   balde é despejado em três momentos: a cada 12s, quando a aba some
+//   (`visibilitychange`) e no `pagehide`, que é o último instante em que o
+//   navegador ainda deixa mandar alguma coisa. É por isso que o envio usa
+//   `keepalive` (e o `sendBeacon` como reserva): sem isso o navegador cancela a
+//   requisição junto com a página, e a saída, que é o dado que a casa mais quer,
+//   é exatamente a que nunca chegaria.
+//
+// A "vista" de seção é a outra metade do pedido. Contar só clique responde qual
+// seção é quente; não responde qual é FRIA, porque seção sem clique não gera
+// linha nenhuma e some do relatório. Com a vista, "todo mundo passa e ninguém
+// toca" e "ninguém chega até lá" deixam de ser a mesma ausência.
+// =============================================================================
+const RASTRO_CHAVE = 'casa_rastro';
+const RASTRO_MAX_EVENTOS = 40; // o mesmo teto por chamada que a 0053 aplica
+const RASTRO_INTERVALO = 12000;
+
+// Um rótulo curto e legível pro que foi tocado. Ordem de preferência: o que a
+// casa escreveu à mão (`data-rastro`), o que o leitor de tela lê, e só então o
+// texto visível. Nada de `value` de campo: rótulo é o que a pessoa TOCOU, nunca
+// o que ela digitou.
+function rastroRotulo(el) {
+  if (!el) return null;
+  const bruto =
+    el.getAttribute?.('data-rastro') ||
+    el.getAttribute?.('aria-label') ||
+    el.querySelector?.('img[alt]')?.getAttribute('alt') ||
+    (el.textContent || '').replace(/\s+/g, ' ').trim() ||
+    el.getAttribute?.('title') ||
+    el.tagName?.toLowerCase();
+  const limpo = String(bruto || '').replace(/\s+/g, ' ').trim();
+  return limpo ? limpo.slice(0, 80) : null;
+}
+
+// O nome da seção sai do PRÓPRIO HTML, sem precisar marcar as 25 páginas na
+// mão: sobe até o container mais próximo e usa o `data-rastro-secao` se a casa
+// tiver escrito um, senão o título dele, senão o id. É a mesma ideia dos chips
+// do /cardapio e dos slugs dos favoritos — seção nova no site já aparece no
+// relatório sem tocar no JS.
+const RASTRO_CAIXAS =
+  // O `footer` do drawer do carrinho fica de fora: sem isso, "finalizar
+  // compra", que é o clique mais importante da loja, saía atribuído ao
+  // rodapé do site. Pulado ele, o closest sobe até o <aside> do carrinho e
+  // a seção passa a se chamar "Teu carrinho".
+  '[data-rastro-secao], section, header, footer:not([data-cart-footer]), aside, main';
+// Seção sem título nenhum não pode virar "section" no relatório: o nome da
+// seção É o relatório, e "section" não diz nada pra quem vai decidir o que
+// mexer no site.
+const RASTRO_SEM_TITULO = { header: 'o topo', footer: 'o rodapé', aside: 'a lateral', main: 'a página', section: 'sem título' };
+
+function rastroSecao(el) {
+  const caixa = el?.closest?.(RASTRO_CAIXAS);
+  if (!caixa) return 'a página';
+  const escrito = caixa.getAttribute('data-rastro-secao');
+  if (escrito) return escrito.slice(0, 80);
+  const rotulado = caixa.getAttribute('aria-labelledby');
+  // O título quase nunca é filho DIRETO da seção (o `.wrap` e mais uma div
+  // costumam ficar no meio), então a busca é funda; o que a mantém honesta é
+  // exigir que o título encontrado pertença a ESTA seção e não a uma aninhada.
+  const titulo =
+    (rotulado && document.getElementById(rotulado)) ||
+    [...caixa.querySelectorAll('h1, h2, h3')].find(
+      // Não pode ser o título de um CARD de dentro da seção: numa vitrine, o
+      // primeiro `h3` é o nome do primeiro produto, e a seção inteira acabava
+      // batizada com ele. Foi o navegador que mostrou isso, com a grade da
+      // /loja se chamando "Café em grão · Alma do Casa · 250g".
+      (h) => h.closest(RASTRO_CAIXAS) === caixa && !h.closest('article, li, .card, [data-produto]'),
+    );
+  const nome =
+    ((titulo?.innerText ?? titulo?.textContent) || '').replace(/\s+/g, ' ').trim() ||
+    caixa.getAttribute('aria-label') ||
+    caixa.id ||
+    RASTRO_SEM_TITULO[caixa.tagName.toLowerCase()] ||
+    'a página';
+  return String(nome).slice(0, 80) || 'a página';
+}
+
+// O caminho como ele vai pro relatório. O /produto leva o slug junto (senão os
+// vinte produtos viram uma linha só, e "que produto ninguém abre" é justamente
+// o que a loja quer saber) e o /gente colapsa (o cantinho de cada pessoa não é
+// uma seção do site que a casa ajusta, e o handle é de uma pessoa).
+function rastroCaminho() {
+  const caminho = window.location.pathname || '/';
+  if (/^\/gente\/.+/.test(caminho)) return '/gente/…';
+  if (/^\/produto\/?$/.test(caminho)) {
+    const slug = new URLSearchParams(window.location.search).get('slug');
+    if (slug) return `/produto?slug=${slug}`.slice(0, 120);
+  }
+  return caminho.slice(0, 120);
+}
+
+function initRastros() {
+  if (!supabase || typeof window === 'undefined') return;
+
+  let visita = null;
+  try {
+    visita = sessionStorage.getItem(RASTRO_CHAVE);
+    if (!visita) {
+      visita = crypto.randomUUID();
+      sessionStorage.setItem(RASTRO_CHAVE, visita);
+    }
+  } catch {
+    // Aba anônima com storage trancado: segue sem rastro nenhum. Estatística da
+    // casa não vale um erro na cara de quem está visitando.
+    return;
+  }
+
+  const pagina = rastroCaminho();
+  const balde = [];
+  const secoesVistas = new Set();
+  let saida = null;
+  let primeiroPulso = true;
+  let pendente = true; // tem coisa nova pra contar? (a chegada na página já é)
+  let checkout = false;
+  let token = null;
+  let relogio = null;
+
+  // O token da sessão fica em cache porque o último envio acontece no
+  // `pagehide`, onde não dá pra esperar um `await`: quem pergunta ali chega
+  // tarde. Sem token a chamada vai como anon, que é o certo pra quem não entrou.
+  supabase.auth.getSession().then(({ data }) => {
+    token = data?.session?.access_token || null;
+  });
+  supabase.auth.onAuthStateChange((_evento, s) => {
+    token = s?.access_token || null;
+  });
+
+  const enviar = (urgente) => {
+    if (!pendente && !balde.length) return;
+    const eventos = balde.splice(0, RASTRO_MAX_EVENTOS);
+    const corpo = {
+      p_dados: {
+        visita,
+        pagina,
+        pagina_nova: primeiroPulso,
+        dispositivo: window.matchMedia('(max-width: 820px)').matches ? 'celular' : 'computador',
+        origem: rastroOrigem(),
+        saida,
+        carrinho: { itens: Cart.getCount(), centavos: Cart.getSubtotalCentavos() },
+        checkout,
+        comprou: /^\/checkout-sucesso/.test(window.location.pathname),
+        eventos,
+      },
+    };
+    primeiroPulso = false;
+    pendente = false;
+
+    const url = `${SUPABASE_URL}/rest/v1/rpc/registrar_rastro`;
+    const texto = JSON.stringify(corpo);
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: texto,
+        keepalive: urgente, // sobrevive à página sendo destruída
+      }).catch(() => {
+        /* rastro perdido não é problema de quem está navegando */
+      });
+    } catch {
+      // Reserva pro navegador que recusa `keepalive` no descarregamento. O
+      // sendBeacon não deixa mandar header, então a chave vai na query — é a
+      // MESMA anon key que já está no bundle, e a função é aberta a anon.
+      try {
+        navigator.sendBeacon?.(
+          `${url}?apikey=${encodeURIComponent(SUPABASE_ANON_KEY)}`,
+          new Blob([texto], { type: 'application/json' }),
+        );
+      } catch {
+        /* deixa quieto */
+      }
+    }
+  };
+
+  const marcar = (evento) => {
+    if (balde.length >= RASTRO_MAX_EVENTOS * 3) return; // balde cheio, para de encher
+    balde.push(evento);
+    pendente = true;
+  };
+
+  // --- clique -----------------------------------------------------------------
+  // Só conta o que é ALVO de verdade (link, botão, campo que envia). Clique no
+  // meio de um parágrafo não é sinal de nada, e contá-lo faria a "última coisa
+  // tocada" virar ruído justamente na hora de ler a saída.
+  document.addEventListener(
+    'click',
+    (e) => {
+      const alvo = e.target?.closest?.(
+        'a[href], button, summary, [role="button"], input[type="submit"], [data-rastro]',
+      );
+      if (!alvo) return;
+      const rotulo = rastroRotulo(alvo);
+      const secao = rastroSecao(alvo);
+      marcar({ tipo: 'clique', pagina, secao, alvo: rotulo });
+      saida = { pagina, secao, alvo: rotulo };
+      // O único marco que o clique carrega: quem apertou "finalizar compra"
+      // chegou no checkout, mesmo que desista na página do pagamento.
+      if (alvo.matches('[data-checkout]')) checkout = true;
+    },
+    true, // captura: pega o clique mesmo quando alguém chama stopPropagation
+  );
+
+  // --- vista de seção ---------------------------------------------------------
+  // Meia seção na tela por um segundo conta como vista. O segundo é o que separa
+  // "passou por cima rolando rápido" de "leu": sem ele, rolar a home até o
+  // rodapé marcaria todas as seções como vistas e a taxa de clique de todas
+  // desabaria junto, apagando a diferença que o relatório existe pra mostrar.
+  if ('IntersectionObserver' in window) {
+    const olho = new IntersectionObserver(
+      (entradas) => {
+        entradas.forEach((entrada) => {
+          const caixa = entrada.target;
+          // "Meia seção na tela" NÃO pode ser meio elemento: uma seção mais
+          // alta que a janela nunca chega a 50% de si mesma, e as seções
+          // grandes (que costumam ser as principais) jamais seriam contadas
+          // como vistas. Então vale o que for mais fácil de alcançar: metade
+          // da seção, ou 40% da altura da tela ocupada por ela.
+          const naTela = entrada.intersectionRect?.height || 0;
+          const altura = entrada.boundingClientRect?.height || 0;
+          const bastante =
+            entrada.isIntersecting &&
+            naTela >= Math.min(altura * 0.5, window.innerHeight * 0.4);
+          if (!bastante) {
+            clearTimeout(caixa._rastroEspera);
+            caixa._rastroEspera = null; // zerar é o que deixa a seção contar de novo se a pessoa voltar
+            return;
+          }
+          if (caixa._rastroEspera) return; // já está contando o segundo
+          caixa._rastroEspera = setTimeout(() => {
+            caixa._rastroEspera = null;
+            const secao = rastroSecao(caixa);
+            if (secoesVistas.has(secao)) return;
+            secoesVistas.add(secao);
+            marcar({ tipo: 'vista', pagina, secao, alvo: null });
+          }, 1000);
+        });
+      },
+      // Vários limiares porque o callback só dispara ao CRUZAR um deles: com
+      // `0.5` sozinho, a seção grande não geraria evento nenhum pra medir.
+      { threshold: [0, 0.15, 0.35, 0.6, 0.9] },
+    );
+    document
+      .querySelectorAll('main section, main [data-rastro-secao], [data-rastro-secao], footer:not([data-cart-footer])')
+      .forEach((secao) => olho.observe(secao));
+  }
+
+  // --- quando despejar o balde ------------------------------------------------
+  relogio = setInterval(() => enviar(false), RASTRO_INTERVALO);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) enviar(true);
+  });
+  // O `pagehide` é o último instante em que dá pra mandar qualquer coisa, e é
+  // ele que carrega a resposta da pergunta que abriu tudo isto: onde a pessoa
+  // estava quando fechou.
+  window.addEventListener('pagehide', () => {
+    clearInterval(relogio);
+    pendente = true;
+    enviar(true);
+  });
+}
+
+// De onde a pessoa veio: só o HOST, nunca a URL inteira. Link de rede social
+// carrega id de anúncio e às vezes id de pessoa na query, e isso não é da conta
+// da casa. Navegação dentro do próprio site não é origem nenhuma.
+function rastroOrigem() {
+  const de = document.referrer;
+  if (!de) return 'direto';
+  try {
+    const host = new URL(de).hostname.replace(/^www\./, '');
+    return host === window.location.hostname.replace(/^www\./, '') ? null : host.slice(0, 80);
+  } catch {
+    return null;
+  }
+}
+
+
 // --- Bootstrap -----------------------------------------------------------------
 export function initSite() {
   renderHeader();
@@ -9238,6 +9534,7 @@ export function initSite() {
   initCardapioFavoritos(); // corações no /cardapio (só age logado + [data-cardapio-favoritos])
   initLojaDesejos(); // "ficou pra depois" na loja/produto/perfil (só age logado + migration 0029)
   initReposicao(); // botões "me avisa quando voltar" nos produtos esgotados (migration 0030)
+  initRastros(); // conta por onde a pessoa andou e onde ela largou o site (0053)
   initNotificacoes(); // sino do header: "voltou pra vitrine" (toda página; migration 0030)
   // initTeuDeSempre(); // DESATIVADO (a pedido, 04/ago/2026): cartão pessoal no topo
   // da home. O visual/posição ainda vão ser repensados pra não competir com o hero.

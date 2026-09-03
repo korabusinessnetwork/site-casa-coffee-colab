@@ -2170,6 +2170,8 @@ a.tds-chip:hover { background: color-mix(in srgb, var(--gold) 34%, transparent) 
 
 /* ---------- relatórios ---------- */
 .ad-bloco { display: flex; flex-direction: column; gap: 14px }
+/* a aba dos rastros empilha cinco .ad-bloco; o div do corpo não tem gap próprio */
+.ad-rastros { display: flex; flex-direction: column; gap: 26px }
 .ad-bloco-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap }
 .ad-bloco-head .ad-head-sub { margin: 0; font-variant-numeric: tabular-nums }
 

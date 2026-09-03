@@ -1511,6 +1511,73 @@ de quem só está de passagem deixar contato.
 
 ---
 
+## Os rastros (onde a pessoa largou o site)
+
+O console sabia tudo sobre o que a casa **vende** e nada sobre o que a pessoa
+**faz** antes de comprar (ou de desistir). Dava pra ver o pedido pago e o mimo
+resgatado; não dava pra responder as três perguntas que a casa faz quando olha o
+site: em que tela a pessoa estava quando fechou a aba, que seção ninguém toca, e
+quanta gente encheu o carrinho e foi embora. A aba **rastros**
+(`/admin#rastros`, `perm: 'rastros.ver'`) responde as três.
+
+- **A "vista" de seção é a metade que faz a pergunta ter resposta.** Contar só
+  clique diz qual seção é quente; não diz qual é **fria**, porque seção sem
+  clique não gera linha nenhuma e **some** do relatório. Com a vista (a seção
+  ficou meio segundo na tela de alguém), "todo mundo passa e ninguém toca" e
+  "ninguém chega até lá" deixam de ser a mesma ausência, e são problemas
+  opostos. A tela chama as duas colunas de **olhos** e **dedos**, e marca como
+  fria a seção com 20 olhos ou mais e menos de 5% de toque.
+- **O nome da seção sai do próprio HTML** (`rastroSecao`): sobe até o container
+  mais próximo e usa o `data-rastro-secao` se a casa escreveu um, senão o
+  `aria-labelledby`, senão o primeiro título **que pertence àquela seção e não a
+  um card de dentro dela**. Sem essa última régua, a grade da `/loja` se
+  chamava "Café em grão · Alma do Casa · 250g" (o primeiro produto). Seção nova
+  no site já aparece no relatório sem tocar no JS; seção que nasce **sem título
+  nenhum** aparece como "sem título", e o conserto é escrever
+  `data-rastro-secao` nela (foi o que fizeram a agenda e os quatro atalhos da
+  home, e a vitrine da `/loja`).
+- **O `<footer>` do drawer do carrinho fica FORA da conta de seção.** Sem isso,
+  "finalizar compra", que é o clique mais importante da loja, saía atribuído ao
+  **rodapé do site**. Pulando ele, o `closest` sobe até o `<aside aria-label="Teu
+  carrinho">` e a saída lê o que tem que ler: `/produto?slug=… · Teu carrinho ·
+  finalizar compra`.
+- **A visita é uma ABA ABERTA, não uma pessoa.** O id nasce no `sessionStorage`
+  e morre quando a aba fecha, então ninguém é seguido de um dia pro outro e o
+  mesmo celular voltando amanhã conta como visita nova. Pro que a casa quer
+  saber (onde ESTA navegação terminou), a aba é a unidade certa, e é a escolha
+  mais privada das disponíveis. Quem está logado é reconhecido pelo **banco**,
+  por `auth.uid()`: a 0053 **ignora** um `user_id` que venha do corpo da
+  chamada, senão qualquer um carimbaria a visita dele com o id de outra pessoa.
+- **Os eventos vão em LOTE, e o último lote sai no `pagehide`.** O site é
+  multi-página, então uma requisição por clique seria uma dúzia de viagens por
+  visita, e a última, a mais importante, sairia no meio da página sendo
+  destruída. O envio usa `fetch(..., { keepalive: true })` (com `sendBeacon` de
+  reserva): sem isso o navegador cancela a requisição junto com a página, e **a
+  saída, que é o dado que a casa mais quer, é exatamente o que nunca chegaria**.
+- **Não guarda IP, não guarda o que a pessoa digitou e não guarda o que ela
+  leu** — só o caminho da página, o nome da seção e o rótulo do que foi tocado.
+  O `/privacidade` conta isso na cara, na lista do "o que a gente guarda", nos
+  cookies e no prazo (o rastro se apaga sozinho aos 180 dias, sorteado dentro da
+  própria função de escrita: cron seria peça nova de infra pra uma linha de SQL).
+- **A trava dos contatos é OUTRA, de propósito.** O relatório anônimo abre com
+  `rastros.ver`; a lista **"os carrinhos frios"**, que tem nome, e-mail e
+  telefone de quem comprou quase, exige `pedidos.ver` (ela sai de `orders`
+  pendente/cancelada, que a `create-checkout-session` já pré-criava desde a
+  0007, só não tinha tela). Deixar as duas atrás da mesma chave faria "ver que
+  seção está fria" virar, de graça, "ler a agenda de contatos da loja". Quem não
+  alcança os pedidos vê a seção explicando isso, não uma seção sumida.
+- **Três freios na escrita**, porque o endpoint é aberto a `anon` (a maior parte
+  de quem visita não tem conta, e é essa gente que a casa não enxergava): 40
+  eventos por chamada, 400 por visita, 400 visitas novas por hora. Passou do
+  teto, a resposta segue `ok:true` e nada é gravado, e **visita que já existe
+  continua escrevendo** — quem está navegando de verdade não é cortado no meio
+  por causa de uma enxurrada de fora.
+- **No ar:** migration aplicada em 03/set/2026, front na `main`. Nenhuma Edge
+  Function foi tocada nesta leva, e não há secret nem config de painel a fazer:
+  a `0053` vive inteira no banco e no front.
+
+---
+
 ## O console da equipe (/admin)
 
 Fica em **`/admin`**, com a porta em **`/admin/entrar`** (login `casa` ou o e-mail
@@ -1519,7 +1586,7 @@ de lugar nenhum do site público. Quem decide se a pessoa entra é o **banco**, 
 `pode_entrar_no_console()` + `tem_permissao(...)` (0017), e enquanto a senha inicial não
 for trocada de verdade a conta não tem privilégio nenhum (0032).
 
-**As 21 abas**, agrupadas por **seção do site** (é assim que a `0047` organiza as
+**As 22 abas**, agrupadas por **seção do site** (é assim que a `0047` organiza as
 permissões, e é assim que a casa pensa quando decide quem cuida do quê). O `perm` de cada
 aba é o `<pagina>.ver` dela, no array `NAV` do `admin.js`; `tudo` = owner vê todas. Todas
 as funções que o console chama foram rodadas contra um banco de verdade em 13/ago/2026
@@ -1535,6 +1602,7 @@ uma pessoa de cada nível chamando cada função, e todas respondem:
 |-------|-----|------------------------|-----------|
 | o dia a dia | painel | ver | os números do dia (`admin_dashboard`) |
 | o dia a dia | pautas | ver · mexer · arrumar | o quadro de briefings da equipe (0043/0045) |
+| o dia a dia | **rastros** | ver | **nova (0053):** onde a visita terminou, que seção está fria e o funil da loja |
 | a loja | pedidos | ver · mexer · arrumar | fila da loja, baixa de entrega/retirada, e arrumar o estado |
 | a loja | relatórios | ver | o que vendeu e o que saiu por pontos |
 | a loja | desejos | ver | ranking da loja (0029) |
@@ -1596,7 +1664,7 @@ de quem arruma."* O desenho tem **três camadas**, e as três moram no banco:
 
 O slug ficou `<pagina>.<acao>` (`pedidos.ver`, `mural.arrumar`), e quem tem um nível
 **alcança os de baixo na mesma página** (arrumar > mexer > ver): ninguém fica podendo
-consertar uma tela que não pode abrir. São **8 seções, 20 páginas, 43 permissões**.
+consertar uma tela que não pode abrir. São **8 seções, 20 páginas, 43 permissões** (a `0053` acrescentou a 21ª página, `rastros`, com uma ação só).
 
 - **O whitelist virou TABELA.** Era um CHECK escrito à mão, que a 0043 e a 0046 já tiveram
   que reescrever; agora são as tabelas `permissao_secoes` › `permissao_paginas` ›
@@ -1944,6 +2012,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
+- **Banco em dia (03/set/2026):** a **`0053_rastros`** foi aplicada no SQL Editor,
+  e o front foi pra `main` no mesmo dia. **Não há migration pendente**, e a
+  numeração livre pra próxima é a **`0054`**. Ela foi a mais barata de aplicar da
+  história do projeto: não pede Edge Function, não pede secret e não pede config
+  de painel, é só o arquivo. **A aba "rastros" do console só aparece depois desta
+  migration** (a permissão dela nasce no catálogo da 0047 aqui dentro), então
+  quem não a via antes de 03/set não estava com a tela quebrada.
 - **Banco em dia (19/ago/2026):** a **`0052_aviso_lead_evento`** foi aplicada no SQL Editor
   em 19/ago, e a numeração livre pra próxima é a **`0053`**. Diferente da leva anterior,
   **esta pede Edge Function**: a `avisar-lead-evento` foi deployada no mesmo dia com
@@ -2362,6 +2437,48 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > Function passou por `deno check` e por 24 asserções com Gemini e Telegram dublados, entre
   > elas o 401 de token errado, o escape de `<script>` no nome, e o Gemini com 429 e com
   > timeout **sem impedir o aviso**.
+- **`0053_rastros` — APLICADA em 03/set/2026.** "Os rastros": as tabelas
+  `rastro_visitas` (a aba aberta: por onde entrou, por onde saiu, quantos
+  cliques, se tinha carrinho) e `rastro_eventos` (clique e vista de seção), as
+  duas **deny-by-default** (RLS ligada e nenhuma policy); a página `rastros` e a
+  permissão `rastros.ver` entrando nas tabelas de catálogo da 0047 (**permissão
+  nova é INSERT no catálogo, não `alter constraint`** — é o que aquela migration
+  comprou), com backfill pra quem já tem `relatorios.ver`; e três funções:
+  `registrar_rastro(jsonb)` (a única porta de escrita, aberta a **anon**, com os
+  três tetos e a faxina de 180 dias sorteada por dentro),
+  `admin_rastros_resumo(dias)` (gated em `rastros.ver`) e
+  `admin_rastros_leads(dias, limite)` (gated em **`pedidos.ver`**, porque tem
+  nome e telefone). As duas leituras são `returns jsonb`, e não `returns table`,
+  pelo mesmo motivo da 0045: uma leitura composta teria duas dúzias de colunas
+  declaradas pra errar, e foi um erro desses que deixou cinco abas quebradas da
+  0017 até a 0042. Idempotente.
+  > **Como foi verificada:** as 53 migrations rodaram do zero num Postgres 16
+  > local (os mesmos stubs de `auth`/`storage` que a 0042 já descrevia; só a
+  > 0015, a 0016 e a 0052 seguem precisando do Supabase de verdade), a 0053 rodou
+  > **duas vezes** pra provar idempotência, e as funções foram **chamadas** com
+  > dado de verdade: pulso de visita nova e de visita que já existe, a saída nova
+  > ganhando da antiga e o pulso sem saída **não apagando** a que estava lá, os
+  > marcos que não desligam, o `user_id` vindo de `auth.uid()` mesmo com o corpo
+  > mandando o id do dono, uuid torto e jsonb que não é objeto (não gravam e não
+  > estouram), caminho forjado (`https://evil.com`, `javascript:`) virando
+  > 'outra', texto de 300 caracteres aparado em 80, os três tetos batendo no
+  > número exato (40 por chamada, 400 por visita com o contador da visita **sem
+  > divergir** do que entrou, 400 visitas novas na hora), as duas travas de
+  > permissão com cinco pessoas diferentes (dono, só-rastros, rastros+pedidos,
+  > cliente e deslogado) e o `anon` sem sequer poder executar as `admin_*`, e a
+  > RLS recusando leitura direta das duas tabelas **até pro dono**.
+  > **Um defeito foi pego aí**, e só com dado real: a lista de seções vinha
+  > ordenada com `nulls first`, então seção com ZERO vista (que não é fria, é
+  > sem informação) encabeçava o relatório e empurrava pra baixo justamente a
+  > seção com plateia e sem toque, que é a que a casa veio ver.
+  > **E o front foi rodado num navegador de verdade** (Chromium, contra um
+  > servidor falso que capturava os pulsos), que pegou outros quatro: seção
+  > mais alta que a janela **nunca** registrava vista (`threshold: 0.5` não
+  > alcança 50% de um elemento maior que a tela), seção sem título direto virando
+  > o texto "section", a grade da loja sendo batizada com o nome do primeiro
+  > produto, e o `<footer>` do drawer fazendo "finalizar compra" contar como
+  > clique no rodapé do site. Depois disso, os payloads que o navegador produziu
+  > foram injetados no Postgres e o relatório saiu correto de ponta a ponta.
 - `partners` e `tiers` têm PK = **slug**; FKs pra elas seguem a convenção `*_slug` (ex.: `profiles.tier_slug`, `rewards_catalog.partner_slug`), não `*_id`.
 
 ---
