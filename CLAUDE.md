@@ -1572,10 +1572,9 @@ quanta gente encheu o carrinho e foi embora. A aba **rastros**
   teto, a resposta segue `ok:true` e nada é gravado, e **visita que já existe
   continua escrevendo** — quem está navegando de verdade não é cortado no meio
   por causa de uma enxurrada de fora.
-- **No ar:** front na `main`; a **migration `0053` ainda precisa ser aplicada**
-  pelo humano no SQL Editor. Enquanto não for, o coletor chama uma função que
-  não existe e o pulso se perde em silêncio (o site não quebra), e a aba do
-  console não aparece pra ninguém.
+- **No ar:** migration aplicada em 03/set/2026, front na `main`. Nenhuma Edge
+  Function foi tocada nesta leva, e não há secret nem config de painel a fazer:
+  a `0053` vive inteira no banco e no front.
 
 ---
 
@@ -2013,13 +2012,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **MIGRATION PENDENTE: a `0053_rastros`.** É a única do repo que ainda não foi
-  aplicada. Ela é **autossuficiente**: não pede Edge Function, não pede secret e
-  não pede config de painel, é só rodar o arquivo inteiro no SQL Editor. O front
-  dela já está na `main` e é **tolerante** — sem a migration, o coletor chama uma
-  função que não existe, o pulso se perde em silêncio e nada na tela quebra; a
-  aba "rastros" simplesmente não aparece, porque a permissão dela ainda não
-  existe no catálogo. A numeração livre pra próxima é a **`0054`**.
+- **Banco em dia (03/set/2026):** a **`0053_rastros`** foi aplicada no SQL Editor,
+  e o front foi pra `main` no mesmo dia. **Não há migration pendente**, e a
+  numeração livre pra próxima é a **`0054`**. Ela foi a mais barata de aplicar da
+  história do projeto: não pede Edge Function, não pede secret e não pede config
+  de painel, é só o arquivo. **A aba "rastros" do console só aparece depois desta
+  migration** (a permissão dela nasce no catálogo da 0047 aqui dentro), então
+  quem não a via antes de 03/set não estava com a tela quebrada.
 - **Banco em dia (19/ago/2026):** a **`0052_aviso_lead_evento`** foi aplicada no SQL Editor
   em 19/ago, e a numeração livre pra próxima é a **`0053`**. Diferente da leva anterior,
   **esta pede Edge Function**: a `avisar-lead-evento` foi deployada no mesmo dia com
@@ -2438,7 +2437,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > Function passou por `deno check` e por 24 asserções com Gemini e Telegram dublados, entre
   > elas o 401 de token errado, o escape de `<script>` no nome, e o Gemini com 429 e com
   > timeout **sem impedir o aviso**.
-- **`0053_rastros` — PENDENTE (não aplicada).** "Os rastros": as tabelas
+- **`0053_rastros` — APLICADA em 03/set/2026.** "Os rastros": as tabelas
   `rastro_visitas` (a aba aberta: por onde entrou, por onde saiu, quantos
   cliques, se tinha carrinho) e `rastro_eventos` (clique e vista de seção), as
   duas **deny-by-default** (RLS ligada e nenhuma policy); a página `rastros` e a
