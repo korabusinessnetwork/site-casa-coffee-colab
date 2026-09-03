@@ -64,6 +64,10 @@ import {
   Coins,
   Wrench,
   SlidersHorizontal,
+  Footprints,
+  Snowflake,
+  DoorOpen,
+  MousePointerClick,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
 
@@ -119,6 +123,10 @@ const LUCIDE_ICONS = {
   Coins,
   Wrench,
   SlidersHorizontal,
+  Footprints,
+  Snowflake,
+  DoorOpen,
+  MousePointerClick,
 };
 
 function renderIcons() {
@@ -291,6 +299,10 @@ const NAV = [
   // O quadro de pautas (0043/0045) vem logo depois do painel porque é por onde o
   // dia começa pra quem trabalha no salão: o que a casa combinou pra hoje.
   { id: 'pautas', rotulo: 'pautas', icone: 'clipboard-list', perm: 'pautas.ver' },
+  // Os rastros (0053): por onde a visita andou e onde ela largou o site. Fica
+  // na fila do "dia a dia" porque é número do site inteiro, e é o tipo de coisa
+  // que se olha no começo da semana, não no meio do turno.
+  { id: 'rastros', rotulo: 'rastros', icone: 'footprints', perm: 'rastros.ver' },
   { id: 'pedidos', rotulo: 'pedidos', icone: 'shopping-bag', perm: 'pedidos.ver' },
   { id: 'resgates', rotulo: 'resgates', icone: 'gift', perm: 'resgates.ver' },
   { id: 'aniversarios', rotulo: 'brunches', icone: 'cake', perm: 'aniversarios.ver' },
@@ -736,6 +748,7 @@ function marcarAbaEabrir(item) {
   const telas = {
     painel: viewPainel,
     pautas: viewPautas,
+    rastros: viewRastros,
     pedidos: viewPedidos,
     resgates: viewResgates,
     aniversarios: viewAniversarios,
@@ -831,6 +844,310 @@ async function viewPainel(view) {
     erroNaTela(corpo, e);
   }
 }
+
+// ===== RASTROS (por onde a pessoa andou) ============================
+// A tela que faltava pra casa responder três perguntas que o console não
+// respondia: em que tela a pessoa estava quando fechou a aba, que seção todo
+// mundo vê e ninguém toca, e quanta gente encheu o carrinho e foi embora.
+//
+// Vem tudo da 0053: `admin_rastros_resumo` (anônimo, gated em `rastros.ver`) e
+// `admin_rastros_leads` (COM nome e telefone, gated em `pedidos.ver`). São duas
+// travas diferentes de propósito, e por isso a lista de contatos só é BUSCADA
+// quando a pessoa alcança os pedidos — pedir e tomar erro na cara seria dizer
+// que ela devia poder.
+const RASTRO_PERIODOS = [
+  { dias: 7, rotulo: '7 dias' },
+  { dias: 30, rotulo: '30 dias' },
+  { dias: 90, rotulo: '90 dias' },
+];
+let rastrosDias = 30;
+
+async function viewRastros(view) {
+  view.innerHTML =
+    cabecalho(
+      'os rastros',
+      'por onde a pessoa andou, e em que tela ela largou o site.',
+      `<button type="button" class="btn ghost sm" data-recarregar><i data-lucide="refresh-cw"></i>atualizar</button>`,
+    ) +
+    `<div class="ad-filtros" role="group" aria-label="período do relatório">
+      ${RASTRO_PERIODOS.map(
+        (p) => `<button type="button" class="filtro" data-f-dias="${p.dias}">${escapeHtml(p.rotulo)}</button>`,
+      ).join('')}
+    </div>
+    <div data-corpo></div>`;
+
+  const corpo = $('[data-corpo]', view);
+  const marcar = () =>
+    $$('[data-f-dias]', view).forEach((b) =>
+      b.setAttribute('aria-pressed', String(Number(b.dataset.fDias) === rastrosDias)),
+    );
+  $$('[data-f-dias]', view).forEach((b) =>
+    b.addEventListener('click', () => {
+      rastrosDias = Number(b.dataset.fDias) || 30;
+      marcar();
+      carregarRastros(corpo);
+    }),
+  );
+  $('[data-recarregar]', view).addEventListener('click', () => carregarRastros(corpo));
+  marcar();
+  renderIcons();
+  carregarRastros(corpo);
+}
+
+async function carregarRastros(corpo) {
+  carregando(corpo, 'seguindo os passos…');
+  try {
+    const [resumo, leads] = await Promise.all([
+      rpc('admin_rastros_resumo', { p_dias: rastrosDias }),
+      // Só pede os contatos se a pessoa alcança os pedidos: a lista tem nome e
+      // telefone de quem comprou quase, e `rastros.ver` não é chave pra isso.
+      pode('pedidos.ver') ? rpc('admin_rastros_leads', { p_dias: rastrosDias, p_limite: 50 }) : Promise.resolve(null),
+    ]);
+
+    const n = resumo?.numeros || {};
+    if (!Number(n.visitas)) {
+      corpo.innerHTML = vazio(
+        'ainda não tem rastro nenhum',
+        'assim que o site novo estiver no ar e alguém passar por lá, os passos começam a aparecer aqui.',
+      );
+      return;
+    }
+
+    // O respiro entre os blocos vem do `.ad-rastros`: o `.ad-conteudo` tem gap,
+    // mas o div do corpo é um bloco pelado, e cinco `.ad-bloco` irmãos ficariam
+    // colados um no outro.
+    corpo.innerHTML =
+      '<div class="ad-rastros">' +
+      [
+        blocoNumerosRastro(n),
+        blocoSaidas(resumo?.saidas || []),
+        blocoSecoes(resumo?.secoes || []),
+        blocoFunilLoja(resumo?.loja || {}, Number(n.visitas)),
+        blocoCarrinhosFrios(leads),
+      ].join('') +
+      '</div>';
+    renderIcons();
+  } catch (e) {
+    erroNaTela(corpo, e);
+  }
+}
+
+function blocoNumerosRastro(n) {
+  const visitas = Number(n.visitas) || 0;
+  const pct = (v) => (visitas ? `${Math.round((Number(v) || 0) * 100 / visitas)}%` : '0%');
+  const numeros = [
+    { n: formatNumero(n.visitas), l: 'visitas' },
+    { n: formatNumero(n.cliques), l: 'cliques' },
+    // A leitura mais dura da tela, e a que mais ensina: quem entrou, olhou e
+    // não tocou em nada.
+    { n: pct(n.sem_clique), l: 'saíram sem tocar em nada' },
+    { n: pct(n.uma_pagina), l: 'viram uma página só' },
+    { n: pct(n.no_celular), l: 'vieram pelo celular' },
+    { n: formatNumero(n.com_carrinho), l: 'encheram o carrinho' },
+  ];
+  return `
+    <div class="ad-stats">
+      ${numeros
+        .map(
+          (item) => `
+        <div class="stat card">
+          <p class="n">${escapeHtml(item.n)}</p>
+          <p class="l">${escapeHtml(item.l)}</p>
+        </div>`,
+        )
+        .join('')}
+    </div>`;
+}
+
+function blocoSaidas(saidas) {
+  if (!saidas.length) {
+    return secaoRastro(
+      'onde a visita terminou',
+      'a última tela antes de fechar',
+      vazio('ninguém saiu ainda', 'ou o rastro é novo demais pra ter fim de visita.'),
+    );
+  }
+  const linhas = saidas
+    .map(
+      (s) => `
+      <tr>
+        <td><span class="ad-td-forte">${escapeHtml(s.pagina || '—')}</span></td>
+        <td><span class="ad-td-meta">${escapeHtml(s.secao || '—')}</span></td>
+        <td>${
+          s.alvo
+            ? `<span class="ad-td-meta">${escapeHtml(s.alvo)}</span>`
+            : '<span class="tag">não tocou em nada</span>'
+        }</td>
+        <td class="num">${formatNumero(s.visitas)}</td>
+        <td class="num">${Number(s.com_carrinho) ? `<span class="tag coral">${formatNumero(s.com_carrinho)}</span>` : '—'}</td>
+      </tr>`,
+    )
+    .join('');
+  return secaoRastro(
+    'onde a visita terminou',
+    'a última coisa tocada antes de fechar o site',
+    `<div class="ad-tabela-wrap">
+       <table class="ad-tabela">
+         <thead><tr><th>página</th><th>seção</th><th>último clique</th><th class="num">visitas</th><th class="num">com carrinho</th></tr></thead>
+         <tbody>${linhas}</tbody>
+       </table>
+     </div>
+     <p class="ad-dica">a coluna "com carrinho" é a que dói: são visitas que escolheram alguma coisa e foram embora dessa tela.</p>`,
+  );
+}
+
+function blocoSecoes(secoes) {
+  if (!secoes.length) {
+    return secaoRastro('o que está frio', 'quem todo mundo vê e ninguém toca', vazio('sem seção medida ainda', 'volta aqui depois de umas visitas.'));
+  }
+  const linhas = secoes
+    .map((s) => {
+      const vistas = Number(s.vistas) || 0;
+      const cliques = Number(s.cliques) || 0;
+      // Sem plateia não há o que concluir: a linha aparece, mas não finge ter
+      // uma taxa que signifique alguma coisa.
+      const taxa = vistas ? Math.round((cliques / vistas) * 100) : null;
+      const largura = taxa === null ? 0 : Math.min(100, Math.max(3, taxa));
+      return `
+      <tr>
+        <td>
+          <span class="ad-td-forte">${escapeHtml(s.secao || '—')}</span>
+          <span class="ad-td-meta">${escapeHtml(s.pagina || '')}</span>
+        </td>
+        <td class="num">${formatNumero(vistas)}</td>
+        <td class="num">${formatNumero(cliques)}</td>
+        <td>
+          <div class="ad-fav-bar"><span style="width:${largura}%"></span></div>
+        </td>
+        <td class="num">${taxa === null ? '—' : `${taxa}%`}</td>
+        <td>${s.fria ? '<span class="tag blue"><i data-lucide="snowflake"></i>fria</span>' : ''}</td>
+      </tr>`;
+    })
+    .join('');
+  return secaoRastro(
+    'o que está frio',
+    'a seção que muita gente vê e quase ninguém toca',
+    `<div class="ad-tabela-wrap">
+       <table class="ad-tabela">
+         <thead><tr><th>seção</th><th class="num">olhos</th><th class="num">dedos</th><th>toque</th><th class="num">taxa</th><th></th></tr></thead>
+         <tbody>${linhas}</tbody>
+       </table>
+     </div>
+     <p class="ad-dica">"olhos" é quantas vezes a seção ficou meio segundo na tela de alguém; "dedos" é quantas vezes alguém tocou nela. A fria leva selo quando teve 20 olhos ou mais e menos de 5% de toque. Seção sem olho nenhum fica no fim da fila: ali não é frieza, é que ninguém chegou até lá.</p>`,
+  );
+}
+
+function blocoFunilLoja(loja, visitas) {
+  const degraus = [
+    { l: 'abriram a loja', v: loja.viram_loja },
+    { l: 'abriram um produto', v: loja.viram_produto },
+    { l: 'puseram no carrinho', v: loja.com_carrinho },
+    { l: 'foram ao checkout', v: loja.foram_ao_checkout },
+    { l: 'compraram', v: loja.compraram },
+  ];
+  const topo = Math.max(...degraus.map((d) => Number(d.v) || 0), 1);
+  const frio = Number(loja.carrinho_frio_centavos) || 0;
+  return secaoRastro(
+    'o funil da loja',
+    `de ${formatNumero(visitas)} visitas até a compra`,
+    `<div class="ad-fav-lista">
+       ${degraus
+         .map((d, i) => {
+           const v = Number(d.v) || 0;
+           const pct = Math.max(3, Math.round((v / topo) * 100));
+           return `
+        <div class="ad-fav-row">
+          <span class="ad-fav-pos">${i + 1}</span>
+          <div class="ad-fav-main">
+            <p class="ad-fav-nome">${escapeHtml(d.l)}</p>
+            <div class="ad-fav-bar"><span style="width:${pct}%"></span></div>
+          </div>
+          <span class="ad-fav-n">${formatNumero(v)}</span>
+        </div>`;
+         })
+         .join('')}
+     </div>
+     ${
+       frio > 0
+         ? `<div class="notice info"><p>ficou <strong>${escapeHtml(formatBRL(frio))}</strong> parado em carrinho que não virou compra no período.</p></div>`
+         : ''
+     }
+     <p class="ad-dica">a queda entre dois degraus é onde a compra morre. Se muita gente abre produto e pouca põe no carrinho, o problema é a página do produto; se enche o carrinho e não vai ao checkout, é o carrinho.</p>`,
+  );
+}
+
+function blocoCarrinhosFrios(leads) {
+  // `null` = a pessoa não alcança os pedidos, então a lista nem foi buscada.
+  // Dizer isso é melhor do que sumir com a seção: quem lê o relatório precisa
+  // saber que existe uma metade acionável, e a quem pedir.
+  if (leads === null) {
+    return secaoRastro(
+      'os carrinhos frios',
+      'quem chegou perto de comprar',
+      `<div class="notice"><p>quem enche o carrinho e não paga tem nome e telefone, então essa lista mora atrás da permissão dos <strong>pedidos</strong>. pede pro adm do Casa se tu precisa falar com essa gente.</p></div>`,
+    );
+  }
+  if (!leads.length) {
+    return secaoRastro(
+      'os carrinhos frios',
+      'quem chegou perto de comprar',
+      vazio('ninguém parou no meio do caminho', 'todo checkout aberto no período virou compra, ou ainda não houve nenhum.'),
+    );
+  }
+  const linhas = leads
+    .map((l) => {
+      const digitos = String(l.telefone || '').replace(/\D/g, '');
+      const zap = digitos.length >= 10 ? `https://wa.me/55${digitos.slice(-11)}` : null;
+      const itens = Array.isArray(l.itens) ? l.itens : [];
+      const oQue = itens.length
+        ? itens.map((i) => `${i.qtd}× ${i.nome}${i.variante ? ` (${i.variante})` : ''}`).join(', ')
+        : 'não chegou a escolher';
+      return `
+      <tr>
+        <td>
+          <span class="ad-td-forte">${escapeHtml(l.nome || 'sem nome')}</span>
+          <span class="ad-td-meta">${escapeHtml(l.email || '')}</span>
+        </td>
+        <td>${
+          zap
+            ? `<a class="form-link" href="${escapeHtml(zap)}" target="_blank" rel="noopener">${escapeHtml(l.telefone)}</a>`
+            : `<span class="ad-td-meta">${escapeHtml(l.telefone || '—')}</span>`
+        }</td>
+        <td><span class="ad-td-meta">${escapeHtml(oQue)}</span></td>
+        <td class="num">${escapeHtml(formatBRL(l.total_centavos))}</td>
+        <td><span class="ad-td-meta">${escapeHtml(formatData(l.criado_em, false))}</span></td>
+        <td>${
+          l.voltou
+            ? '<span class="tag green">voltou e comprou</span>'
+            : '<span class="tag gold">esfriou</span>'
+        }</td>
+      </tr>`;
+    })
+    .join('');
+  return secaoRastro(
+    'os carrinhos frios',
+    'quem abriu o checkout e não pagou',
+    `<div class="ad-tabela-wrap">
+       <table class="ad-tabela">
+         <thead><tr><th>quem</th><th>telefone</th><th>o que ficou no carrinho</th><th class="num">valor</th><th>quando</th><th></th></tr></thead>
+         <tbody>${linhas}</tbody>
+       </table>
+     </div>
+     <p class="ad-dica">o telefone abre a conversa no WhatsApp daqui mesmo. quem já "voltou e comprou" não precisa de recado, foi tentativa que deu errado e resolveu sozinha.</p>`,
+  );
+}
+
+function secaoRastro(titulo, sub, dentro) {
+  return `
+    <section class="ad-bloco">
+      <div class="ad-bloco-head">
+        <h2 class="title sm">${escapeHtml(titulo)}</h2>
+        <p class="ad-head-sub">${escapeHtml(sub)}</p>
+      </div>
+      ${dentro}
+    </section>`;
+}
+
 
 // ===== PAUTAS (o quadro da casa) ====================================
 // A 0043 entregou um quadro só, com três colunas fixas e um formulário grande
