@@ -1161,6 +1161,14 @@ quantos nem do quê.
   > novo sem redigitar) e a tela mostra o telefone e o e-mail da casa. É um `tel:`, uma
   > ligação, **não** o `wa.me` — reabrir o link do WhatsApp ali traria de volta justamente
   > a confusão que se quis tirar.
+  > **E o pedido REPETIDO diz que é repetido (0055):** o anti-flood de 30s da 0040
+  > não cria linha nova e respondia igualzinho a um pedido que entrou. Com o
+  > WhatsApp no meio isso era invisível, porque a conversa levava a versão certa;
+  > sem ele, quem viu um erro no recado, corrigiu e reenviou dentro da janela lia
+  > "anotado" e ia embora achando que a casa tinha a correção. A RPC passou a
+  > devolver `repetido: true`, a tela conta isso ("esse pedido já tá com a gente,
+  > se tu mudou alguma coisa espera um minutinho e manda de novo") e **não limpa
+  > o formulário**, pra o reenvio não pedir tudo de novo.
   > **E no sucesso o formulário limpa:** sem a aba do WhatsApp abrindo, era a única coisa na
   > tela dizendo "foi", senão o estado de sucesso fica idêntico ao de antes de apertar.
 - **Migration `0040_leads_evento` (APLICADA em 13/ago/2026):** tabela `leads_evento`
@@ -1235,6 +1243,15 @@ a pessoa já ter fechado com outro lugar.
   verdade antes, só que o estrago parava na tabela; com o sino ligado, viraria o celular de
   quem atende tocando a noite inteira. Acima do teto **o pedido entra normalmente e aparece
   no console**, só não vira ping.
+- **O corte da mensagem é por CAMPO, nunca na mensagem montada.** O `parse_mode`
+  é HTML e o `esc` transforma um "&" em "&amp;", então cortar os 4096 caracteres
+  do Telegram na mensagem pronta partia uma entidade no meio e, pior, deixava um
+  `<blockquote>` sem fechar: o Telegram recusa com 400, a function devolve 500, o
+  `pg_net` não repete, e o lead fica salvo com o sino mudo. Um recado de 600 "&"
+  chegava a 10 mil caracteres e caía nisso. Agora cada valor de fora entra
+  aparado pelo `cortarEscapado` (recado 1200, resumo 500, resposta 900), com a
+  soma provada abaixo do teto no pior caso, e as tags são fechadas por fora do
+  corte.
 - **Rastro:** a coluna `leads_evento.aviso_em` é carimbada pela function depois que o Telegram
   aceita a mensagem, pra responder "o sino tocou?" sem cavar log. O carimbo é best-effort: se
   não gravar, o aviso já chegou, e devolver erro ali faria parecer que não.
@@ -1589,6 +1606,18 @@ quanta gente encheu o carrinho e foi embora. A aba **rastros**
   O `/privacidade` conta isso na cara, na lista do "o que a gente guarda", nos
   cookies e no prazo (o rastro se apaga sozinho aos 180 dias, sorteado dentro da
   própria função de escrita: cron seria peça nova de infra pra uma linha de SQL).
+- **O rótulo do clique não pode ser o nome de ninguém.** O `rastroRotulo` lê,
+  nesta ordem, `data-rastro`, `aria-label`, o `alt` da imagem e só então o TEXTO
+  do elemento, e foi o texto que abriu um buraco: o gatilho da conta no topo
+  mostra o nome de quem está logado, e o cartão do menu do celular mostra nome,
+  saldo e plano. O rastro guardava `"MA Maria Souza Andrade 0 pontos · sem plano
+  ainda"` como rótulo, ao lado do `user_id`, e o relatório que se diz anônimo
+  (e que abre com `rastros.ver`, não com `pedidos.ver`) passava a ter gente com
+  nome dentro. Os dois ganharam **`data-rastro`**, que é o jeito de dizer como
+  aquele botão se chama no relatório. **Elemento novo cujo texto é dado da
+  pessoa precisa de `data-rastro`**, e o `limparRotulo` é a rede embaixo: ele
+  troca e-mail e sequência longa de dígitos por "(e-mail)" e "(número)" antes de
+  qualquer coisa ir pro banco.
 - **A trava dos contatos é OUTRA, de propósito.** O relatório anônimo abre com
   `rastros.ver`; a lista **"os carrinhos frios"**, que tem nome, e-mail e
   telefone de quem comprou quase, exige `pedidos.ver` (ela sai de `orders`
@@ -2044,8 +2073,26 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **PENDENTE (09/set/2026): a `0054_fotos_do_site`.** É a única migration ainda não
-  aplicada. **O humano roda `supabase/migrations/0054_fotos_do_site.sql` no SQL Editor**,
+- **PENDENTE (09/set/2026): a `0055_tetos_e_repetido`.** A segunda da fila (roda depois
+  da `0054`). São as duas correções que a auditoria dos dez últimos commits achou no banco,
+  as duas nas funções abertas a `anon`, que são as únicas portas de escrita que qualquer
+  pessoa alcança com a chave do bundle. O corpo das duas funções é o que já estava no ar;
+  só o marcado com "(0055)" muda. **Teto global de 20 mil eventos por hora** no
+  `registrar_rastro`: os dois tetos da 0053 (400 visitas novas por hora, 400 eventos por
+  visita) seguram cada dimensão sozinha, mas se **multiplicam**, e o teto de verdade era
+  160 mil linhas por hora, uns meio giga por dia. O contador de `paginas` da visita também
+  ganhou fim (500), porque visita que já existe não passa pelo freio horário. E o
+  `registrar_lead_evento` passou a devolver **`repetido: true`** quando o anti-flood segura
+  o pedido (ver "/eventos" acima). Nenhuma tabela, coluna, policy ou permissão muda, e
+  nada aqui pede re-deploy de function. **A numeração livre pra próxima é a `0056`.**
+  > **Como foi verificada:** as 55 migrations rodaram do zero num Postgres 16 local, a 0055
+  > rodou **duas vezes** pra provar idempotência, e as duas funções foram **chamadas** com
+  > dado de verdade: lead novo entra, o mesmo contato em seguida volta `repetido: true` e
+  > **não** grava (o recado corrigido não entra, que é justamente o bug), contato diferente
+  > entra; 600 pulsos de página nova param em 500; com a hora cheia de eventos o pulso não
+  > grava evento nenhum, **a visita entra do mesmo jeito** e o contador de cliques dela fica
+  > em 0 em vez de mentir; e com a hora limpa os dois eventos entram e o contador bate.
+- **PENDENTE (09/set/2026): a `0054_fotos_do_site`.** A primeira da fila. **O humano roda `supabase/migrations/0054_fotos_do_site.sql` no SQL Editor**,
   e é só isso: não pede Edge Function, não pede secret e não pede config de painel. Ela
   cria o bucket `fotos-site`, as tabelas `fotos_galeria` e `site_fotos`, a página `fotos`
   no catálogo de permissões da 0047 e as seis funções da aba. **Sem ela o site não quebra**
@@ -2053,7 +2100,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   porque a permissão dela nasce aqui dentro. Depois de aplicada, o dono já enxerga a aba;
   quem mais for cuidar das fotos precisa receber `fotos.mexer` na aba **equipe** — a
   migration **não** dá essa permissão a ninguém automaticamente, de propósito (é a cara do
-  site na internet, e poder novo se dá na mão). A numeração livre pra próxima é a **`0055`**.
+  site na internet, e poder novo se dá na mão). **Roda ela ANTES da `0055`.**
   > **Como foi verificada:** as 54 migrations rodaram do zero num Postgres 16 local (os
   > mesmos stubs de `auth`/`storage` que a 0042 já descrevia; só a 0015, a 0016 e a 0052
   > seguem precisando do Supabase de verdade), a 0054 rodou **duas vezes** pra provar
