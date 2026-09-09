@@ -68,8 +68,13 @@ import {
   Snowflake,
   DoorOpen,
   MousePointerClick,
+  Image,
+  ImagePlus,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
+// A lista dos lugares do site que mostram foto. Mesma lista que o app.js usa
+// pra trocar de verdade — ver o cabeçalho do fotos-do-site.js.
+import { FOTOS_BUCKET, FOTOS_DO_SITE, fotosPorPagina } from './fotos-do-site.js';
 
 const LUCIDE_ICONS = {
   LayoutDashboard,
@@ -127,6 +132,8 @@ const LUCIDE_ICONS = {
   Snowflake,
   DoorOpen,
   MousePointerClick,
+  Image,
+  ImagePlus,
 };
 
 function renderIcons() {
@@ -329,6 +336,9 @@ const NAV = [
   { id: 'recados', rotulo: 'recados', icone: 'megaphone', perm: 'recados.ver' },
   { id: 'trilha', rotulo: 'trilha', icone: 'music', perm: 'trilha.ver' },
   { id: 'agenda', rotulo: 'agenda', icone: 'calendar-days', perm: 'agenda.ver' },
+  // As fotos do site (0054): fica junto com o resto do que a casa PUBLICA
+  // (mural, recado, trilha, agenda), que é a seção 'a casa' do catálogo.
+  { id: 'fotos', rotulo: 'fotos', icone: 'image', perm: 'fotos.ver' },
   { id: 'conta', rotulo: 'tua conta', icone: 'key-round', perm: null },
 ];
 
@@ -767,6 +777,7 @@ function marcarAbaEabrir(item) {
     recados: viewRecados,
     trilha: viewTrilha,
     agenda: viewAgenda,
+    fotos: viewFotos,
     conta: viewConta,
   };
   // TODA view é `async`. Se uma delas estoura ANTES do try/catch que ela tem por
@@ -3992,6 +4003,410 @@ async function viewAgenda(view) {
   if (form) $('[data-a-cancelar]', form).addEventListener('click', limparForm);
 
   carregarAgenda();
+}
+
+// ===== FOTOS DO SITE ================================================
+// A aba que deixa a casa trocar as fotos do site sem esperar deploy (0054).
+//
+// São duas coisas na mesma tela, e a ordem importa: primeiro OS LUGARES (cada
+// `<img>` do site que dá pra trocar, com o nome do lugar, o que ele mostra e
+// que formato de foto cai bem ali), depois O ACERVO (as fotos que a casa já
+// subiu). Quem chega aqui quer trocar a foto de um lugar, não administrar
+// arquivo: o acervo é o meio, e por isso vem embaixo.
+//
+// A lista dos lugares vem do `fotos-do-site.js`, o mesmo arquivo que o site
+// importa pra trocar. Ela NÃO é reescrita aqui — foi por escrever a mesma lista
+// em dois lugares que o catálogo de permissões da 0047 divergiu do que o banco
+// cobrava.
+const FOTO_TIPOS = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
+const FOTO_EXTENSOES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif' };
+const FOTO_MAX_BYTES = 8 * 1024 * 1024; // o mesmo teto do bucket (0054)
+
+// O banco guarda o CAMINHO do arquivo, nunca a URL: o endereço é montado aqui,
+// com o host vindo do env. Ver o cabeçalho da 0054.
+function fotoUrl(caminho) {
+  if (!supabase || !caminho) return null;
+  try {
+    const { data } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(caminho);
+    return data?.publicUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+function tamanhoLegivel(bytes) {
+  const n = Number(bytes || 0);
+  if (!n) return '';
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
+}
+
+// Nome de arquivo previsível a partir do nome que a casa deu: sem acento, sem
+// espaço, sem maiúscula. O caminho ainda ganha um sufixo sorteado, então subir
+// duas fotos com o mesmo nome nunca sobrescreve uma a outra.
+function slugDeFoto(nome) {
+  return (
+    String(nome || 'foto')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'foto'
+  );
+}
+
+async function subirFotoDoSite({ arquivo, nome, alt }) {
+  if (!supabase) throw new Error('o banco ainda não está configurado por aqui');
+  if (!FOTO_TIPOS.includes(arquivo.type)) {
+    throw new Error('essa a gente não abre. manda jpg, png, webp ou avif?');
+  }
+  if (arquivo.size > FOTO_MAX_BYTES) {
+    throw new Error(`essa tem ${tamanhoLegivel(arquivo.size)} e o limite é 8 MB. dá uma diminuída?`);
+  }
+
+  const agora = new Date();
+  const pasta = `${agora.getFullYear()}/${String(agora.getMonth() + 1).padStart(2, '0')}`;
+  const sufixo = (crypto.randomUUID?.() || String(Math.random())).replace(/-/g, '').slice(0, 8);
+  const caminho = `${pasta}/${slugDeFoto(nome)}-${sufixo}.${FOTO_EXTENSOES[arquivo.type]}`;
+
+  const { error } = await supabase.storage.from(FOTOS_BUCKET).upload(caminho, arquivo, {
+    contentType: arquivo.type,
+    // O caminho leva um sufixo sorteado, então cada arquivo é único e pode
+    // ficar guardado no cache do CDN pra sempre. Trocar a foto de um lugar sobe
+    // um arquivo NOVO — nunca reescreve o antigo, que segue servindo quem
+    // ainda tem a página aberta.
+    cacheControl: '31536000',
+    upsert: false,
+  });
+  if (error) {
+    throw new Error(
+      /row-level security|policy/i.test(error.message || '')
+        ? 'o banco não deixou subir o arquivo. confere se tu tem a permissão de mexer nas fotos.'
+        : `não deu pra subir o arquivo: ${error.message || 'tenta de novo daqui a pouco'}`,
+    );
+  }
+
+  return rpc('admin_foto_registrar', {
+    p_caminho: caminho,
+    p_nome: nome,
+    p_alt: alt || null,
+    p_bytes: arquivo.size,
+    p_tipo: arquivo.type,
+  });
+}
+
+// A folhinha de escolher foto do acervo. Promise<id da foto | null>.
+function escolherFotoDoAcervo(galeria, lugar) {
+  return new Promise((resolve) => {
+    const fundo = document.createElement('div');
+    fundo.className = 'ad-modal';
+    const grade = (galeria || [])
+      .map((f) => {
+        const url = fotoUrl(f.caminho);
+        return `
+          <button type="button" class="ad-foto-escolha" data-escolher="${escapeHtml(f.id)}">
+            <span class="ad-foto-thumb">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" />` : ''}</span>
+            <span class="ad-foto-escolha-nome">${escapeHtml(f.nome || 'sem nome')}</span>
+          </button>`;
+      })
+      .join('');
+
+    fundo.innerHTML = `
+      <div class="ad-modal-caixa ad-modal-largo" role="dialog" aria-modal="true" aria-label="escolher a foto">
+        <h3 class="title sm">que foto vai aqui?</h3>
+        <p class="ad-modal-texto">${escapeHtml(lugar)}</p>
+        ${
+          grade
+            ? `<div class="ad-fotos-escolher">${grade}</div>`
+            : `<div class="notice info"><p>o acervo ainda está vazio. sobe a primeira foto ali embaixo, em "o acervo da casa", e ela aparece aqui.</p></div>`
+        }
+        <div class="ad-modal-acoes">
+          <button type="button" class="btn ghost sm" data-nao>deixa pra lá</button>
+        </div>
+      </div>`;
+
+    const fechar = (resposta) => {
+      document.removeEventListener('keydown', aoTeclar);
+      fundo.remove();
+      resolve(resposta);
+    };
+    const aoTeclar = (e) => {
+      if (e.key === 'Escape') fechar(null);
+    };
+    fundo.addEventListener('click', (e) => {
+      if (e.target === fundo) fechar(null);
+    });
+    $('[data-nao]', fundo).addEventListener('click', () => fechar(null));
+    $$('[data-escolher]', fundo).forEach((b) => {
+      b.addEventListener('click', () => fechar(b.dataset.escolher));
+    });
+    document.addEventListener('keydown', aoTeclar);
+    document.body.appendChild(fundo);
+  });
+}
+
+async function viewFotos(view) {
+  const podeMexer = pode('fotos.mexer');
+  const podeApagar = pode('fotos.arrumar');
+
+  view.innerHTML =
+    cabecalho(
+      'as fotos do site',
+      'cada foto que o site mostra, com o lugar dela. troca aqui e ela troca no ar, sem esperar ninguém publicar nada.',
+    ) +
+    (podeMexer
+      ? ''
+      : soLeitura('tu enxerga o acervo e sabe que foto está em cada lugar, mas quem troca é quem tem a permissão de mexer aqui.')) +
+    '<div data-fotos-corpo></div>';
+
+  const corpo = $('[data-fotos-corpo]', view);
+  let galeria = [];
+  let lugares = new Map();
+
+  // Um índice do contrário: pra cada foto do acervo, em que lugares do site ela
+  // está. É o que faz o cartão do acervo dizer "essa é a do hero da home" em
+  // vez de só "usada em 2 lugares".
+  function ondeEstaAFoto(caminho) {
+    return FOTOS_DO_SITE.filter((l) => lugares.get(l.slot)?.caminho === caminho)
+      .map((l) => `${l.pagina} · ${l.local}`);
+  }
+
+  function lugarHTML(lugar) {
+    const posta = lugares.get(lugar.slot);
+    const url = posta ? fotoUrl(posta.caminho) : lugar.padrao;
+    const quando = posta ? formatData(posta.atualizado_em, false) : '';
+    const quem = posta?.quem ? ` por ${escapeHtml(posta.quem)}` : '';
+    return `
+      <article class="ad-foto-lugar" data-lugar="${escapeHtml(lugar.slot)}">
+        <div class="ad-foto-thumb">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" />` : ''}</div>
+        <div class="ad-foto-txt">
+          <p class="ad-foto-onde">${escapeHtml(lugar.local)}</p>
+          <p class="ad-foto-oque">${escapeHtml(lugar.oque)}</p>
+          <p class="ad-dica">${escapeHtml(lugar.formato)}</p>
+          <p class="ad-foto-estado">
+            ${
+              posta
+                ? `<span class="tag olive">foto da casa</span> <span class="ad-card-meta">trocada em ${escapeHtml(quando)}${quem}</span>`
+                : `<span class="tag">a que veio de fábrica</span>`
+            }
+          </p>
+        </div>
+        <div class="ad-foto-acoes">
+          ${podeMexer ? `<button type="button" class="btn ghost sm" data-foto-trocar="${escapeHtml(lugar.slot)}">trocar</button>` : ''}
+          ${
+            podeMexer && posta
+              ? `<button type="button" class="btn ghost sm" data-foto-soltar="${escapeHtml(lugar.slot)}">voltar pra de fábrica</button>`
+              : ''
+          }
+        </div>
+      </article>`;
+  }
+
+  function acervoHTML() {
+    if (!galeria.length) {
+      return vazio(
+        'o acervo ainda está vazio',
+        podeMexer
+          ? 'sobe a primeira foto aí em cima. depois ela serve pra quantos lugares do site tu quiser.'
+          : 'quando alguém da casa subir uma foto, ela aparece aqui.',
+      );
+    }
+    return `<div class="ad-fotos-grade">${galeria
+      .map((f) => {
+        const url = fotoUrl(f.caminho);
+        const onde = ondeEstaAFoto(f.caminho);
+        const meta = [tamanhoLegivel(f.bytes), formatData(f.enviada_em, false), f.quem]
+          .filter(Boolean)
+          .map((t) => escapeHtml(t))
+          .join(' · ');
+        return `
+          <article class="card ad-foto-item">
+            <div class="ad-foto-thumb grande">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" />` : ''}</div>
+            <p class="ad-card-nome">${escapeHtml(f.nome || 'sem nome')}</p>
+            <p class="ad-card-meta">${meta}</p>
+            <p class="ad-card-meta">${
+              onde.length
+                ? `no site: ${onde.map((o) => escapeHtml(o)).join('; ')}`
+                : 'não está em nenhum lugar do site'
+            }</p>
+            ${
+              !podeApagar
+                ? ''
+                : onde.length
+                  ? `<p class="ad-dica">pra apagar essa foto, tira ela dos lugares acima primeiro.</p>`
+                  : `<div class="ad-card-acoes"><button type="button" class="btn ghost sm" data-foto-apagar="${escapeHtml(f.id)}" data-foto-nome="${escapeHtml(f.nome || 'essa foto')}">apagar do acervo</button></div>`
+            }
+          </article>`;
+      })
+      .join('')}</div>`;
+  }
+
+  function desenhar() {
+    corpo.innerHTML = `
+      <div class="ad-fotos">
+        <section class="ad-bloco">
+          <div class="ad-bloco-head">
+            <h2 class="title sm">os lugares do site</h2>
+            <p class="ad-head-sub">${FOTOS_DO_SITE.length} lugares · ${lugares.size} com foto da casa</p>
+          </div>
+          <div class="notice info">
+            <p>a foto de fábrica é a que veio com o site: enquanto ninguém troca um lugar, é ela que aparece, e "voltar pra de fábrica" traz ela de volta a qualquer hora.</p>
+            <p>o vídeo de abertura da home e as telas que ainda são fundo colorido (loja, produto) não estão aqui: essas duas entram quando virarem foto.</p>
+          </div>
+          ${fotosPorPagina()
+            .map(
+              (grupo) => `
+            <div class="ad-fotos-pagina">
+              <h3 class="ad-fotos-pagina-nome">${escapeHtml(grupo.pagina)} <a class="ad-fotos-pagina-link" href="${escapeHtml(grupo.url)}" target="_blank" rel="noopener">ver a página</a></h3>
+              <div class="ad-fotos-lista">${grupo.fotos.map(lugarHTML).join('')}</div>
+            </div>`,
+            )
+            .join('')}
+        </section>
+
+        <section class="ad-bloco">
+          <div class="ad-bloco-head">
+            <h2 class="title sm">o acervo da casa</h2>
+            <p class="ad-head-sub">${galeria.length} foto${galeria.length === 1 ? '' : 's'} guardada${galeria.length === 1 ? '' : 's'}</p>
+          </div>
+          ${
+            !podeMexer
+              ? ''
+              : `<form class="card ad-form-recado" data-form-foto novalidate>
+                   <div class="field">
+                     <label for="f-arquivo">a foto</label>
+                     <input id="f-arquivo" type="file" data-f-arquivo accept="image/jpeg,image/png,image/webp,image/avif" required />
+                     <p class="ad-dica">jpg, png, webp ou avif, até 8 MB. quanto mais leve, mais rápido o site abre.</p>
+                   </div>
+                   <div class="field">
+                     <label for="f-nome">como a casa chama essa foto</label>
+                     <input id="f-nome" data-f-nome maxlength="80" placeholder="fachada no fim da tarde" required />
+                   </div>
+                   <div class="field">
+                     <label for="f-alt">o que aparece nela</label>
+                     <input id="f-alt" data-f-alt maxlength="220" placeholder="a fachada do Casa com as mesas na calçada e gente conversando" />
+                     <p class="ad-dica">isso é o que quem não enxerga vai ouvir no lugar da foto, e o que aparece se ela não carregar. escreve como se estivesse contando pra alguém do outro lado do telefone.</p>
+                   </div>
+                   <div data-f-aviso></div>
+                   <div class="ad-card-acoes">
+                     <button type="submit" class="btn solid" data-f-salvar><i data-lucide="image-plus"></i> subir pro acervo</button>
+                   </div>
+                 </form>`
+          }
+          <div data-acervo>${acervoHTML()}</div>
+        </section>
+      </div>`;
+    renderIcons();
+    ligar();
+  }
+
+  function ligar() {
+    $$('[data-foto-trocar]', corpo).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const slot = b.dataset.fotoTrocar;
+        const lugar = FOTOS_DO_SITE.find((l) => l.slot === slot);
+        const escolhida = await escolherFotoDoAcervo(galeria, `${lugar.pagina} · ${lugar.local}`);
+        if (!escolhida) return;
+        b.disabled = true;
+        try {
+          await rpc('admin_foto_definir', { p_slot: slot, p_foto_id: escolhida });
+          toast('foto trocada, já está no ar 💛');
+          await carregar();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+
+    $$('[data-foto-soltar]', corpo).forEach((b) => {
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try {
+          await rpc('admin_foto_soltar', { p_slot: b.dataset.fotoSoltar });
+          toast('voltou a foto de fábrica');
+          await carregar();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+
+    $$('[data-foto-apagar]', corpo).forEach((b) => {
+      b.addEventListener('click', async () => {
+        const ok = await confirmar({
+          titulo: `apagar "${b.dataset.fotoNome}"?`,
+          texto: 'o arquivo sai do acervo e não dá pra desfazer. pra usar de novo, seria subir outra vez.',
+          ok: 'sim, apagar',
+          tom: 'perigo',
+        });
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          // O banco primeiro: é ele que recusa apagar foto que ainda está em
+          // algum lugar do site. Só depois o arquivo sai do Storage — na ordem
+          // contrária, uma recusa deixaria o lugar apontando pra um arquivo que
+          // não existe mais.
+          const r = await rpc('admin_foto_remover', { p_id: b.dataset.fotoApagar });
+          if (r?.caminho && supabase) {
+            await supabase.storage.from(FOTOS_BUCKET).remove([r.caminho]);
+          }
+          toast('foto apagada do acervo');
+          await carregar();
+        } catch (e) {
+          toast(e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+    });
+
+    const form = $('[data-form-foto]', corpo);
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const aviso = $('[data-f-aviso]', form);
+      const campoArquivo = $('[data-f-arquivo]', form);
+      const arquivo = campoArquivo.files?.[0];
+      const nome = $('[data-f-nome]', form).value.trim();
+      aviso.innerHTML = '';
+      if (!arquivo) {
+        aviso.innerHTML = '<div class="notice err"><p>escolhe a foto no teu computador 💛</p></div>';
+        return;
+      }
+      if (!nome) {
+        aviso.innerHTML = '<div class="notice err"><p>dá um nome pra foto, pra achar ela depois.</p></div>';
+        return;
+      }
+      const botao = $('[data-f-salvar]', form);
+      botao.disabled = true;
+      botao.textContent = 'subindo…';
+      try {
+        await subirFotoDoSite({ arquivo, nome, alt: $('[data-f-alt]', form).value.trim() });
+        toast('foto no acervo 💛');
+        await carregar();
+      } catch (e2) {
+        aviso.innerHTML = `<div class="notice err"><p>${escapeHtml(e2.message)}</p></div>`;
+        botao.disabled = false;
+        botao.innerHTML = '<i data-lucide="image-plus"></i> subir pro acervo';
+        renderIcons();
+      }
+    });
+  }
+
+  async function carregar() {
+    carregando(corpo, 'buscando as fotos…');
+    try {
+      const dados = await rpc('admin_fotos_painel');
+      galeria = Array.isArray(dados?.galeria) ? dados.galeria : [];
+      lugares = new Map((Array.isArray(dados?.lugares) ? dados.lugares : []).map((l) => [l.slot, l]));
+      desenhar();
+    } catch (e) {
+      erroNaTela(corpo, e);
+    }
+  }
+
+  await carregar();
 }
 
 // ===== FAVORITOS (o que a casa mais ama) ============================

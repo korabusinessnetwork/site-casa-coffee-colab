@@ -80,6 +80,7 @@ import {
   PartyPopper,
 } from 'lucide';
 import { createClient } from '@supabase/supabase-js';
+import { FOTOS_BUCKET } from './fotos-do-site.js';
 
 // Ícones Lucide usados no site. createIcons() substitui <i data-lucide="..."> por SVG.
 // Chamar sempre DEPOIS de injetar markup novo no DOM.
@@ -838,6 +839,83 @@ function initHeaderInteractions() {
       },
       { passive: false }
     );
+  }
+}
+
+// --- As fotos do site (trocadas no console) ------------------------------------
+// Toda foto que a casa pode trocar sozinha é um `<img data-foto="…">` no HTML,
+// e a lista dos lugares mora no `fotos-do-site.js` (o console lê a mesma lista).
+// O `src` escrito no HTML é o PADRÃO: enquanto ninguém trocar nada, é ele que
+// aparece. Isso é o que faz esta função ser inteiramente tolerante — banco fora
+// do ar, migration 0054 ainda não aplicada, visita sem rede: a página segue com
+// as fotos de sempre, nunca com um quadro quebrado.
+//
+// O que se guarda no banco é o CAMINHO do arquivo no bucket, nunca a URL: quem
+// monta o endereço é o `getPublicUrl`, com o host vindo do env. Assim não há
+// endereço de fora entrando na página por essa porta.
+const FOTOS_CACHE_KEY = 'casa_fotos';
+
+// A mesma régua do `foto_caminho_ok` da 0054, repetida aqui pelo que vem do
+// localStorage (que é o único caminho que não passou pelo banco antes).
+function fotoCaminhoOk(caminho) {
+  const c = String(caminho || '');
+  return /^[a-z0-9][a-z0-9._/-]{2,180}$/.test(c) && !c.includes('..') && !c.includes('//');
+}
+
+function urlDaFoto(caminho) {
+  if (!supabase || !fotoCaminhoOk(caminho)) return null;
+  try {
+    const { data } = supabase.storage.from(FOTOS_BUCKET).getPublicUrl(caminho);
+    return data?.publicUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+// Troca o src (e a descrição, quando a foto tem uma) dos lugares que a casa
+// mexeu. Lugar que não está na lista nem é tocado.
+function pintarFotos(lista) {
+  (Array.isArray(lista) ? lista : []).forEach((f) => {
+    const slot = String(f?.slot || '');
+    if (!/^[a-z0-9][a-z0-9-]{1,59}$/.test(slot)) return;
+    const url = urlDaFoto(f?.caminho);
+    if (!url) return;
+    document.querySelectorAll(`img[data-foto="${slot}"]`).forEach((img) => {
+      if (img.src !== url) img.src = url;
+      const alt = String(f?.alt || '').trim();
+      if (alt) img.alt = alt;
+    });
+  });
+}
+
+async function aplicarFotosDoSite() {
+  if (!document.querySelector('img[data-foto]')) return;
+
+  // O cache existe por causa do PISCA. Sem ele, toda visita mostrava a foto de
+  // fábrica por um instante e só depois a foto da casa entrava no lugar — no
+  // hero, que ocupa a tela inteira, isso é uma troca de imagem na cara de quem
+  // acabou de chegar. Com ele, a segunda visita já nasce certa e a leitura do
+  // banco só confirma (ou corrige) o que já está na tela.
+  try {
+    const guardado = JSON.parse(localStorage.getItem(FOTOS_CACHE_KEY) || '[]');
+    pintarFotos(guardado);
+  } catch {
+    /* sem localStorage, ou lixo guardado: segue pro banco */
+  }
+
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase.rpc('fotos_do_site');
+    if (error) return; // migration pendente ou banco fora: fica o padrão do HTML
+    const lista = Array.isArray(data) ? data : [];
+    pintarFotos(lista);
+    try {
+      localStorage.setItem(FOTOS_CACHE_KEY, JSON.stringify(lista));
+    } catch {
+      /* aba anônima com storage trancado: só perde o atalho do pisca */
+    }
+  } catch {
+    /* rede fora: fica o padrão do HTML */
   }
 }
 
@@ -9516,6 +9594,7 @@ function rastroOrigem() {
 // --- Bootstrap -----------------------------------------------------------------
 export function initSite() {
   renderHeader();
+  aplicarFotosDoSite(); // troca as fotos que a casa mexeu no console (0054)
   renderAvisoBar(); // tarja "recado da casa" no topo (só se houver um vigente)
   renderFooter();
   initListaEspera(); // campinho "avisa quando a loja abrir" do rodapé (migration 0031)

@@ -29,6 +29,12 @@ Código **consolidado**: UM arquivo grande por camada, pra facilitar busca duran
 - `src/styles.css` — entrada Tailwind + estilos base.
 - `src/schema.sql` — (futuro) todo o schema do banco.
 
+**Uma exceção, e só uma:** o `src/fotos-do-site.js`, a lista dos lugares do site que
+mostram foto. Ela é a única coisa que o `app.js` (que troca a foto) e o `admin.js` (que
+mostra qual é qual) precisam saber igualzinho, e o `admin.js` não pode importar do `app.js`
+sem trazer junto o bootstrap inteiro do site. Escrita nos dois, ela divergiria. Ver "As
+fotos do site" abaixo.
+
 **Header, footer e menu são funções dentro do `app.js`** que injetam HTML nos placeholders da página (`<div id="site-header"></div>` / `<div id="site-footer"></div>`).
 
 **Páginas `.html` continuam separadas** — cada uma é uma URL. Ficam direto em `src/` (a área logada em `src/conta/`), porque **o caminho do arquivo é a URL**: `src/o-casa.html` vira `/o-casa`, `src/conta/perfil.html` vira `/conta/perfil`.
@@ -98,24 +104,48 @@ perfil por lá, e link morto no rodapé é promessa que não se cumpre. Fonte ú
 
 ---
 
-## Imagens / fotos reais (TODO)
+## As fotos do site (e o acervo da casa)
 
-Ainda **não temos fotos**. Todas as imagens são **placeholders de gradiente** com as
-cores da marca, via utilitários no `styles.css`:
+As fotos que o site mostra **se trocam no console**, na aba **fotos** (`/admin#fotos`,
+migration `0054`), sem esperar deploy. Um café troca de foto quando a estação muda, quando
+a fachada ganha toldo novo, quando o prato sai bonito, e nada disso pode passar por
+programador.
 
-- `.photo-warm` — gradiente terracota→caramelo→café (quente).
-- `.photo-green` — gradiente verde→café.
-- `.photo-bege` — gradiente bege→caramelo (claro).
-
-> **TODO (trocar por fotos reais):** substituir os `div.photo-*` por `<img>`/`background-image`
-> reais quando as fotos chegarem. Onde entram fotos hoje (na `home.html`):
-> - **Hero** — 3 slides (fundo full-bleed de cada `article.carousel-slide`).
-> - **Feito no Casa** — 4 cards de cardápio (topo de cada card, `aspect-[4/3]`).
-> - **Gente do Casa** — 3 cards de colab (faixa lateral de cada card).
-> - **A loja do Casa** — 4 cards de produto (`aspect-square`).
-> - **Playlists** — o card placeholder vira o embed real do Spotify (`<iframe>`, já
->   comentado no HTML).
-> As classes `.photo-*` podem permanecer como fallback/skeleton.
+- **Onde entram fotos hoje:** `home` (2 telas do hero, os 4 cartões do "o que acontece no
+  Casa", as 2 metades do bloco duplo), `o-casa` (hero), `colab` (hero + 4 cartões do
+  carrossel) e `eventos` (os 6 cartões do "a casa por dentro"). São **20 lugares**, e os
+  arquivos de fábrica estão em `src/assets/fotos` (servidos em `/fotos/…`).
+- **A lista dos lugares mora no `src/fotos-do-site.js`**, que o `app.js` e o `admin.js`
+  importam. É o **único** arquivo compartilhado pelas duas camadas, e a exceção à regra do
+  "um arquivo grande por camada" está explicada no cabeçalho dele: o site precisa da lista
+  pra achar o `<img>`, o console precisa dela pra dizer em português que foto é aquela, o
+  `admin.js` não pode importar do `app.js` (viria o bootstrap inteiro do site junto), e
+  escrever a mesma lista duas vezes é o erro que o catálogo de permissões da 0047 já
+  cometeu. Ela **não** mora no banco porque é um fato sobre o HTML: lugar novo é um
+  `data-foto` no `.html` e uma linha lá, no mesmo commit, nunca um INSERT pra alguém
+  lembrar de rodar.
+- **O `src` do HTML é o PADRÃO, e continua valendo.** O banco só guarda os lugares que a
+  casa trocou; "voltar pra de fábrica" é um DELETE da linha. Com a migration pendente, o
+  banco fora do ar ou a visita sem rede, a página mostra a foto de sempre, nunca um quadro
+  quebrado.
+- **O que se guarda é o CAMINHO do arquivo, nunca a URL.** Quem monta o endereço é o
+  `getPublicUrl`, com o host vindo do env, então não há URL de fora entrando na página por
+  essa porta (um "contador de acesso disfarçado de foto" no hero, por exemplo). O
+  `aplicarFotosDoSite` ainda repete no client a régua do `foto_caminho_ok` do banco, porque
+  o cache do localStorage é o único caminho que não passou pelo banco antes.
+- **O cache existe por causa do pisca:** sem ele, toda visita mostrava a foto de fábrica
+  por um instante antes de a foto da casa entrar, e no hero isso é a tela inteira trocando
+  na cara de quem chegou. O `casa_fotos` do localStorage pinta na hora, e a leitura do banco
+  confirma (ou corrige) depois.
+- **Cada arquivo subido tem caminho único** (`ano/mês/nome-sufixo.ext`), então ele vai pro
+  Storage com cache de um ano e trocar a foto de um lugar **nunca reescreve** o arquivo
+  antigo, que segue servindo quem está com a página aberta.
+- **O que ainda NÃO passa por aqui:** o **vídeo** de abertura da home (é vídeo, e o `<img>`
+  é o contrato desta aba), o `og:image` das páginas (é a miniatura do link compartilhado,
+  escrita no `<head>`) e as telas que ainda são **gradiente**, não foto: a loja, a página de
+  produto e o cartão de playlist usam os utilitários `.photo-warm` / `.photo-green` /
+  `.photo-bege` do `styles.css`. Quando esses virarem `<img>`, viram lugar da aba com uma
+  linha no `fotos-do-site.js`.
 
 ---
 
@@ -1586,7 +1616,7 @@ de lugar nenhum do site público. Quem decide se a pessoa entra é o **banco**, 
 `pode_entrar_no_console()` + `tem_permissao(...)` (0017), e enquanto a senha inicial não
 for trocada de verdade a conta não tem privilégio nenhum (0032).
 
-**As 22 abas**, agrupadas por **seção do site** (é assim que a `0047` organiza as
+**As 23 abas**, agrupadas por **seção do site** (é assim que a `0047` organiza as
 permissões, e é assim que a casa pensa quando decide quem cuida do quê). O `perm` de cada
 aba é o `<pagina>.ver` dela, no array `NAV` do `admin.js`; `tudo` = owner vê todas. Todas
 as funções que o console chama foram rodadas contra um banco de verdade em 13/ago/2026
@@ -1617,6 +1647,7 @@ uma pessoa de cada nível chamando cada função, e todas respondem:
 | a casa | recados | ver · mexer · arrumar | a tarja no topo do site (0022) |
 | a casa | trilha | ver · mexer · arrumar | playlists da home (0023) |
 | a casa | agenda | ver · mexer · arrumar | encontros da casa (0026) |
+| a casa | **fotos** | ver · mexer · arrumar | **nova (0054):** as 20 fotos do site, o acervo, e apagar do acervo |
 | a gente | pessoas | ver | quem já passou por aqui, com plano e pontos |
 | a gente | lista de espera | ver · arrumar | e-mails do rodapé (0031/0034), e tirar quem pediu pra sair |
 | os eventos | eventos | ver · mexer · arrumar | pedidos de evento (0040), atender e apagar |
@@ -1664,7 +1695,7 @@ de quem arruma."* O desenho tem **três camadas**, e as três moram no banco:
 
 O slug ficou `<pagina>.<acao>` (`pedidos.ver`, `mural.arrumar`), e quem tem um nível
 **alcança os de baixo na mesma página** (arrumar > mexer > ver): ninguém fica podendo
-consertar uma tela que não pode abrir. São **8 seções, 20 páginas, 43 permissões** (a `0053` acrescentou a 21ª página, `rastros`, com uma ação só).
+consertar uma tela que não pode abrir. São **8 seções, 20 páginas, 43 permissões** (a `0053` acrescentou a 21ª página, `rastros`, com uma ação só, e a `0054` a 22ª, `fotos`, com as três).
 
 - **O whitelist virou TABELA.** Era um CHECK escrito à mão, que a 0043 e a 0046 já tiveram
   que reescrever; agora são as tabelas `permissao_secoes` › `permissao_paginas` ›
@@ -1903,6 +1934,7 @@ dia precisar, o caminho é uma tabela de definição de coluna, não remendo no 
 │   ├── index.html        # raiz "/" → redireciona pra /home
 │   ├── home.html         # /home … e assim por diante, uma página por URL
 │   ├── app.js            # header/footer/menu + lógica de UI
+│   ├── fotos-do-site.js  # a lista dos lugares do site que mostram foto (site + console)
 │   ├── styles.css        # entrada Tailwind + base
 │   ├── conta/            # área logada (/conta/perfil, /conta/pontos, …)
 │   └── assets/           # publicDir: servido na raiz (/fotos/…)
@@ -2012,6 +2044,35 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
+- **PENDENTE (09/set/2026): a `0054_fotos_do_site`.** É a única migration ainda não
+  aplicada. **O humano roda `supabase/migrations/0054_fotos_do_site.sql` no SQL Editor**,
+  e é só isso: não pede Edge Function, não pede secret e não pede config de painel. Ela
+  cria o bucket `fotos-site`, as tabelas `fotos_galeria` e `site_fotos`, a página `fotos`
+  no catálogo de permissões da 0047 e as seis funções da aba. **Sem ela o site não quebra**
+  (as fotos de fábrica do HTML continuam no ar) e **a aba "fotos" não aparece pra ninguém**,
+  porque a permissão dela nasce aqui dentro. Depois de aplicada, o dono já enxerga a aba;
+  quem mais for cuidar das fotos precisa receber `fotos.mexer` na aba **equipe** — a
+  migration **não** dá essa permissão a ninguém automaticamente, de propósito (é a cara do
+  site na internet, e poder novo se dá na mão). A numeração livre pra próxima é a **`0055`**.
+  > **Como foi verificada:** as 54 migrations rodaram do zero num Postgres 16 local (os
+  > mesmos stubs de `auth`/`storage` que a 0042 já descrevia; só a 0015, a 0016 e a 0052
+  > seguem precisando do Supabase de verdade), a 0054 rodou **duas vezes** pra provar
+  > idempotência, e as funções foram **chamadas** com dado de verdade por cinco pessoas
+  > diferentes (dono, só-enxerga, quem-mexe, quem-arruma e um cliente sem nada): registrar
+  > foto, caminho torto (`../../etc/passwd`, `https://…`, `//`) recusado, foto sem nome
+  > recusada, trocar o lugar, slot inválido recusado, id de foto que não existe recusado,
+  > soltar (e soltar de novo, que responde `ja_era`), apagar do acervo recusado enquanto a
+  > foto está em uso e aceito depois de solta, a leitura pública devolvendo só slot/caminho/
+  > alt, a RLS recusando leitura direta das duas tabelas **até pro dono**, o `anon` sem poder
+  > executar as `admin_*`, e as policies do bucket deixando subir só quem tem `fotos.mexer`
+  > e apagar só quem tem `fotos.arrumar`.
+  > **E o front foi rodado num navegador de verdade** (Chromium, contra um Supabase dublado):
+  > na home, o lugar trocado troca de `src` e de descrição, o lugar intacto fica com a foto de
+  > fábrica, foto sem descrição nova **não** apaga o `alt` do HTML, caminho torto vindo do
+  > banco é ignorado, slot que não existe não estoura, e com o banco fora do ar o cache
+  > segura a foto certa (sem cache, volta a de fábrica). No console, as 20 fichas nascem
+  > agrupadas pelas 4 páginas, quem tem só `fotos.mexer` não vê o botão de apagar, o texto
+  > vindo do banco sai escapado, e trocar/soltar redesenham a ficha.
 - **Banco em dia (03/set/2026):** a **`0053_rastros`** foi aplicada no SQL Editor,
   e o front foi pra `main` no mesmo dia. **Não há migration pendente**, e a
   numeração livre pra próxima é a **`0054`**. Ela foi a mais barata de aplicar da
