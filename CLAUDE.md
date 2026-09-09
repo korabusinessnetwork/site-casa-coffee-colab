@@ -140,6 +140,9 @@ programador.
 - **Cada arquivo subido tem caminho único** (`ano/mês/nome-sufixo.ext`), então ele vai pro
   Storage com cache de um ano e trocar a foto de um lugar **nunca reescreve** o arquivo
   antigo, que segue servindo quem está com a página aberta.
+- **Arquivo órfão tem varredor:** `npm run fotos-orfas` (ver "O acervo de fotos também",
+  em Comandos). Subir é arquivo primeiro e ficha depois, apagar é linha primeiro e arquivo
+  depois, então a aba fechada no meio deixa arquivo sem dono, e o Storage não tem cascata.
 - **O que ainda NÃO passa por aqui:** o **vídeo** de abertura da home (é vídeo, e o `<img>`
   é o contrato desta aba), o `og:image` das páginas (é a miniatura do link compartilhado,
   escrita no `<head>`) e as telas que ainda são **gradiente**, não foto: a loja, a página de
@@ -1986,6 +1989,8 @@ dia precisar, o caminho é uma tabela de definição de coluna, não remendo no 
 - `npm run preview` — pré-visualiza o build.
 - `npm run avatares-orfaos` — varre o bucket `avatares` do Storage e lista as fotos
   que ninguém usa. Ver "Fotos órfãs no Storage" abaixo.
+- `npm run fotos-orfas` — o mesmo pro bucket `fotos-site` (o acervo da 0054). Mesmo
+  desenho, mesma carência, mesmo dry-run por padrão.
 - `npm run criar-adm-master` — cria a conta do adm master do console (login `casa`,
   e-mail interno `casa@casacoffeecolab.com.br`, `role='owner'` + `master=true`).
   Precisa da **service_role no ambiente** (mesmo esquema do comando acima) e das
@@ -2027,6 +2032,34 @@ node scripts/avatares-orfaos.mjs --apagar   # relata e limpa
   andamento com o `update` do perfil ainda a caminho). Override: `--horas=0`.
 - Também avisa **referência quebrada** (perfil aponta pra arquivo que não existe mais) —
   não é lixo, mas é avatar que não carrega.
+
+### O acervo de fotos também (`scripts/fotos-orfas.mjs`, `npm run fotos-orfas`)
+
+O irmão do de cima, pro bucket **`fotos-site`** da 0054, com as mesmas regras (service_role
+só no ambiente, dry-run por padrão, `--apagar`, `--horas=`). O que muda é o que ele
+considera dono, e por quê:
+
+- **Órfão é o arquivo que nem o ACERVO (`fotos_galeria`) nem os LUGARES (`site_fotos`)
+  apontam.** Ele sobra de dois jeitos, os dois porque a aba faz duas coisas em sequência:
+  subir é primeiro o arquivo e depois a ficha (`admin_foto_registrar`), e apagar do acervo
+  é primeiro a linha e depois o arquivo. Fechou a aba no meio, sobra arquivo pago e
+  invisível.
+- **Foto no acervo e em lugar nenhum do site NÃO é órfã**, e essa é a diferença que importa
+  em relação ao de avatares: o acervo existe justamente pra guardar foto que a casa vai usar
+  no mês que vem. Quem confundisse isso apagaria o acervo inteiro.
+- **Arquivo que está num lugar do site mas perdeu a ficha também não é apagado.** Não
+  deveria acontecer (a `admin_foto_remover` recusa apagar foto em uso), mas se alguém mexer
+  no banco pelo SQL Editor, apagar esse arquivo abriria um buraco na página pública.
+- **Referência quebrada vem em duas listas, e a do site vem primeiro:** ficha do acervo sem
+  arquivo é miniatura que não carrega no console; **lugar do site sem arquivo é foto
+  quebrada na página pública**, e o recado diz o conserto ("voltar pra de fábrica" naquele
+  lugar).
+  > **Como foi verificado:** rodado contra um Supabase dublado, com um bucket de 111
+  > arquivos em três pastas (pra exercitar a recursão e a paginação de 100 em 100): a foto
+  > do acervo sem lugar ficou, a que está num lugar sem ficha ficou, a recém-subida e a
+  > **sem data legível** ficaram, as duas referências quebradas foram listadas separadas, e
+  > o `--apagar` mandou apagar **exatamente um caminho**, o único órfão de verdade. Com
+  > `--horas=0` a recente vira órfã e a sem data continua protegida.
 
 ## Segurança (regras obrigatórias — valem a partir da Fase 2)
 
@@ -2073,8 +2106,7 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - Não existe mais um schema.sql único — as migrations numeradas são a fonte da verdade do banco.
 - Aplicadas até agora: `0001_init` (tabelas + funções de papel + triggers), `0002_rls` (RLS + policies), `0003_seed` (tiers/produtos/conquistas/parceiros), `0004_reconcile` (5 tabelas da Fase 3: `rewards_catalog`, `events`, `coupons`, `pos_webhook_events`, `unclaimed_points` + colunas `tiers.points_multiplier/discount_percent` e `profiles.points_balance/tier_slug`), `0005_profiles_phone` (coluna `profiles.telefone` + `handle_new_user` populando telefone + trigger `prevent_points_tamper` blindando `points_balance`/`tier_slug` contra escrita do client), `0006_stripe` (`stripe_events` + `profiles.stripe_customer_id` + UNIQUE em `subscriptions.stripe_subscription_id` + price IDs dos tiers), `0007_orders_stripe` (UNIQUE em `orders.stripe_checkout_id` pra idempotência da loja), `0008_points` (Fase 3: `points_ledger.ref_type/ref_id` + UNIQUE `(ref_type,ref_id)`, trigger `update_points_balance` que sincroniza o cache, `prevent_points_tamper` com bypass via GUC `casa.trusted_points`, `recalc_points_balance`, `redeem_reward` atômica, `rewards_catalog.slug/cupom_valor_centavos` + seed de recompensas), `0009_achievements` (Fase 3 conquistas: coluna `achievements.criterios` jsonb + função `check_achievements(uuid)` SECURITY DEFINER que avalia os critérios e concede os emblemas server-side, chamada nos webhooks e no resgate), `0010_achievement_hints` (coluna `achievements.dica` + seed das dicas "como desbloquear" por slug, mostradas no card bloqueado e no tooltip dos emblemas do painel), `0011_asaas` (**migração Stripe→Asaas**: `profiles.asaas_customer_id`, `subscriptions.asaas_customer_id`/`asaas_subscription_id` (UNIQUE), `orders.asaas_checkout_id` (UNIQUE)/`asaas_payment_id`, tabela `asaas_events` com RLS), `0012_asaas_checkout_link` (`subscriptions.asaas_checkout_id` — o elo que liga o `CHECKOUT_PAID`, que sabe user+tier, ao `PAYMENT_*`, que sabe o id da assinatura), `0012_downgrade` (`subscriptions.scheduled_downgrade_to` — sem ela a `downgrade-subscription` não roda; os dois arquivos `0012` são independentes entre si, a ordem entre eles não importa), `0013_redeem_reward_user_lock` (trava a linha do usuário antes de ler o saldo, matando o gasto duplo de pontos em resgates simultâneos).
 - **Banco em dia:** o humano aplicou a leva `0011_asaas` → `0012_asaas_checkout_link` → `0012_downgrade` → `0013_redeem_reward_user_lock` no SQL Editor em **28/jul/2026**, e a `0014_perfil` (campos novos do `/conta/perfil`) na sequência.
-- **PENDENTE (09/set/2026): a `0055_tetos_e_repetido`.** A segunda da fila (roda depois
-  da `0054`). São as duas correções que a auditoria dos dez últimos commits achou no banco,
+- **`0055_tetos_e_repetido` — APLICADA em 09/set/2026** (na sequência da `0054`). São as duas correções que a auditoria dos dez últimos commits achou no banco,
   as duas nas funções abertas a `anon`, que são as únicas portas de escrita que qualquer
   pessoa alcança com a chave do bundle. O corpo das duas funções é o que já estava no ar;
   só o marcado com "(0055)" muda. **Teto global de 20 mil eventos por hora** no
@@ -2092,15 +2124,15 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > entra; 600 pulsos de página nova param em 500; com a hora cheia de eventos o pulso não
   > grava evento nenhum, **a visita entra do mesmo jeito** e o contador de cliques dela fica
   > em 0 em vez de mentir; e com a hora limpa os dois eventos entram e o contador bate.
-- **PENDENTE (09/set/2026): a `0054_fotos_do_site`.** A primeira da fila. **O humano roda `supabase/migrations/0054_fotos_do_site.sql` no SQL Editor**,
-  e é só isso: não pede Edge Function, não pede secret e não pede config de painel. Ela
+- **`0054_fotos_do_site` — APLICADA em 09/set/2026**, junto com a `0055`, e o front das
+  duas foi pra `main` no mesmo dia. Não pediu Edge Function, secret nem config de painel. Ela
   cria o bucket `fotos-site`, as tabelas `fotos_galeria` e `site_fotos`, a página `fotos`
   no catálogo de permissões da 0047 e as seis funções da aba. **Sem ela o site não quebra**
   (as fotos de fábrica do HTML continuam no ar) e **a aba "fotos" não aparece pra ninguém**,
   porque a permissão dela nasce aqui dentro. Depois de aplicada, o dono já enxerga a aba;
   quem mais for cuidar das fotos precisa receber `fotos.mexer` na aba **equipe** — a
   migration **não** dá essa permissão a ninguém automaticamente, de propósito (é a cara do
-  site na internet, e poder novo se dá na mão). **Roda ela ANTES da `0055`.**
+  site na internet, e poder novo se dá na mão).
   > **Como foi verificada:** as 54 migrations rodaram do zero num Postgres 16 local (os
   > mesmos stubs de `auth`/`storage` que a 0042 já descrevia; só a 0015, a 0016 e a 0052
   > seguem precisando do Supabase de verdade), a 0054 rodou **duas vezes** pra provar
@@ -2120,6 +2152,13 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
   > segura a foto certa (sem cache, volta a de fábrica). No console, as 20 fichas nascem
   > agrupadas pelas 4 páginas, quem tem só `fotos.mexer` não vê o botão de apagar, o texto
   > vindo do banco sai escapado, e trocar/soltar redesenham a ficha.
+- **Banco em dia (09/set/2026):** a **`0054_fotos_do_site`** e a **`0055_tetos_e_repetido`**
+  foram aplicadas no SQL Editor nessa ordem, e o front das duas está na `main`. **Não há
+  migration pendente**, e a numeração livre pra próxima é a **`0056`**. O que ficou fora do
+  banco nesta leva, e é passo de terminal, não de SQL: **re-deployar a `avisar-lead-evento`**
+  (`npx supabase functions deploy avisar-lead-evento --no-verify-jwt`), que é onde mora o
+  corte seguro da mensagem do Telegram. Sem ela o sino segue tocando igual, só continua
+  quebrando com recado gigante.
 - **Banco em dia (03/set/2026):** a **`0053_rastros`** foi aplicada no SQL Editor,
   e o front foi pra `main` no mesmo dia. **Não há migration pendente**, e a
   numeração livre pra próxima é a **`0054`**. Ela foi a mais barata de aplicar da

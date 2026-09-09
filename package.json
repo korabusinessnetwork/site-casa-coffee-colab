@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "security-check": "node scripts/security-check.mjs",
     "avatares-orfaos": "node scripts/avatares-orfaos.mjs",
+    "fotos-orfas": "node scripts/fotos-orfas.mjs",
     "criar-adm-master": "node scripts/criar-adm-master.mjs",
     "spotify-token": "node scripts/spotify-token.mjs"
   },
