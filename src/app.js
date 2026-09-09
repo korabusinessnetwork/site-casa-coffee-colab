@@ -2735,6 +2735,7 @@ function initEventosPage() {
     aviso.hidden = true;
 
     let guardou = false;
+    let repetido = false;
     if (supabase) {
       try {
         const { data: r, error } = await supabase.rpc('registrar_lead_evento', {
@@ -2753,6 +2754,13 @@ function initEventosPage() {
           botao.disabled = false;
           return;
         }
+        // O anti-flood da 0040 segura o mesmo contato por 30 segundos e NÃO cria
+        // linha nova. Enquanto o WhatsApp era o canal isso era invisível, porque
+        // a conversa levava a versão certa junto. Sem ele, quem viu um erro no
+        // recado, corrigiu e mandou de novo lia "anotado" e ia embora achando
+        // que a gente tinha a correção. Desde a 0055 a função avisa (`repetido`),
+        // e aqui a tela para de dizer que guardou o que não guardou.
+        repetido = Boolean(r && r.repetido);
         guardou = true;
       } catch (err) {
         // Sem o WhatsApp como segunda porta, aqui é o fim da linha: falhar
@@ -2762,7 +2770,15 @@ function initEventosPage() {
       }
     }
 
-    if (guardou) {
+    if (guardou && repetido) {
+      // Os campos ficam como estão de propósito: se a pessoa mudou alguma coisa,
+      // ela reenvia daqui a pouco sem redigitar nada.
+      dizer(
+        '<strong>esse pedido já tá com a gente 💛</strong> se tu mudou alguma coisa agora, ' +
+          'espera um minutinho e manda de novo, que aí a versão nova chega aqui.',
+        'ok',
+      );
+    } else if (guardou) {
       // Sem a aba do WhatsApp abrindo, o formulário limpo é o que diz "foi" pra
       // quem enviou. Sem isso a tela fica idêntica à de antes de apertar.
       form.reset();
@@ -4918,7 +4934,8 @@ function contaLinksHTML(classe, { menuLink = false } = {}) {
 function authDesktopLogado(nome, inicial) {
   return `
     <div class="relative" data-user-panel-wrap>
-      <button type="button" data-user-panel-trigger aria-expanded="false" aria-controls="painel-conta" class="hdr-user-trigger">
+      <button type="button" data-user-panel-trigger aria-expanded="false" aria-controls="painel-conta" class="hdr-user-trigger"
+        data-rastro="conta (painel do topo)">
         <span class="hdr-user-avatar" data-hdr-avatar>${inicial}</span>
         <span class="hdr-user-name">${nome}</span>
         <i data-lucide="chevron-down" style="width:15px;height:15px;opacity:.55"></i>
@@ -4945,7 +4962,7 @@ function authMobileDeslogado() {
 // hydrateAuthHeader, que já ia ao banco buscar o saldo.
 function authMobileLogado(nome, inicial) {
   return `
-    <a href="/conta/perfil" class="menu-conta-cartao" data-menu-link>
+    <a href="/conta/perfil" class="menu-conta-cartao" data-menu-link data-rastro="conta (cartão do menu)">
       <span class="menu-conta-avatar" data-hdr-avatar>${inicial}</span>
       <span class="menu-conta-txt">
         <b>${nome}</b>
@@ -9333,6 +9350,24 @@ const RASTRO_INTERVALO = 12000;
 // casa escreveu à mão (`data-rastro`), o que o leitor de tela lê, e só então o
 // texto visível. Nada de `value` de campo: rótulo é o que a pessoa TOCOU, nunca
 // o que ela digitou.
+// O rótulo do que foi tocado. A ordem importa: `data-rastro` vem primeiro
+// justamente pra quem escreve markup poder DIZER como aquele botão se chama no
+// relatório, em vez de deixar o texto dele virar o nome.
+//
+// O último degrau da fila é o texto do elemento, e foi ele que abriu um buraco:
+// o gatilho da conta no topo mostra o NOME de quem está logado, e o cartão do
+// menu do celular mostra nome, saldo e plano. Sem marcação, o rastro guardava
+// "MA Maria Souza Andrade 0 pontos · sem plano ainda" como rótulo do clique, e o
+// relatório que se diz anônimo passava a ter gente com nome dentro. Os dois
+// ganharam `data-rastro`, e o `limparRotulo` é a rede embaixo: se um elemento
+// novo nascer mostrando e-mail ou uma sequência longa de dígitos (telefone,
+// código, documento), ele não entra no banco por descuido.
+function limparRotulo(txt) {
+  return String(txt || '')
+    .replace(/[^@\s]+@[^@\s]+\.[^@\s]+/g, '(e-mail)')
+    .replace(/\d[\d.\-/\s]{5,}\d/g, '(número)');
+}
+
 function rastroRotulo(el) {
   if (!el) return null;
   const bruto =
@@ -9342,7 +9377,7 @@ function rastroRotulo(el) {
     (el.textContent || '').replace(/\s+/g, ' ').trim() ||
     el.getAttribute?.('title') ||
     el.tagName?.toLowerCase();
-  const limpo = String(bruto || '').replace(/\s+/g, ' ').trim();
+  const limpo = limparRotulo(String(bruto || '').replace(/\s+/g, ' ').trim());
   return limpo ? limpo.slice(0, 80) : null;
 }
 
@@ -9403,6 +9438,16 @@ function rastroCaminho() {
   return caminho.slice(0, 120);
 }
 
+// O navegador entende `keepalive` no fetch? Só o Request enxerga a opção, e a
+// resposta não muda no meio da visita, então a pergunta é feita uma vez só.
+const RASTRO_TEM_KEEPALIVE = (() => {
+  try {
+    return 'keepalive' in new Request('/', { method: 'POST' });
+  } catch {
+    return false;
+  }
+})();
+
 function initRastros() {
   if (!supabase || typeof window === 'undefined') return;
 
@@ -9461,6 +9506,32 @@ function initRastros() {
 
     const url = `${SUPABASE_URL}/rest/v1/rpc/registrar_rastro`;
     const texto = JSON.stringify(corpo);
+
+    // O sendBeacon era só a RESERVA, dentro do catch do fetch, e essa reserva
+    // nunca corria: o navegador que ignora `keepalive` não estoura, ele
+    // simplesmente cancela a requisição junto com a página, em silêncio. Ou
+    // seja, justamente no aparelho em que o último pulso se perdia, o
+    // salva-vidas nunca era chamado. Agora, no pulso urgente, quem não tem
+    // `keepalive` vai direto de beacon. O beacon não manda header, então a
+    // chave vai na query, e ali vai a MESMA anon key que já está no bundle,
+    // numa função aberta a anon: nada de novo é exposto. O preço é o pulso
+    // sair como anônimo (sem o Authorization, o banco não carimba o user_id),
+    // e entre um pulso anônimo e nenhum pulso, fica o anônimo.
+    const mandarPorBeacon = () => {
+      try {
+        return Boolean(
+          navigator.sendBeacon?.(
+            `${url}?apikey=${encodeURIComponent(SUPABASE_ANON_KEY)}`,
+            new Blob([texto], { type: 'application/json' }),
+          ),
+        );
+      } catch {
+        return false;
+      }
+    };
+
+    if (urgente && !RASTRO_TEM_KEEPALIVE && mandarPorBeacon()) return;
+
     try {
       fetch(url, {
         method: 'POST',
@@ -9475,17 +9546,7 @@ function initRastros() {
         /* rastro perdido não é problema de quem está navegando */
       });
     } catch {
-      // Reserva pro navegador que recusa `keepalive` no descarregamento. O
-      // sendBeacon não deixa mandar header, então a chave vai na query — é a
-      // MESMA anon key que já está no bundle, e a função é aberta a anon.
-      try {
-        navigator.sendBeacon?.(
-          `${url}?apikey=${encodeURIComponent(SUPABASE_ANON_KEY)}`,
-          new Blob([texto], { type: 'application/json' }),
-        );
-      } catch {
-        /* deixa quieto */
-      }
+      mandarPorBeacon();
     }
   };
 

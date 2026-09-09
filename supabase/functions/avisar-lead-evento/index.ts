@@ -73,6 +73,20 @@ function esc(v: unknown): string {
     .replace(/>/g, '&gt;');
 }
 
+// Corta texto JÁ ESCAPADO sem partir uma entidade no meio. O `esc` transforma
+// um "&" em "&amp;", então um corte cego pode deixar "&am" solto no fim, e o
+// Telegram recusa a mensagem inteira com 400 ("can't parse entities"). Recusa
+// que, aqui, quer dizer aviso que nunca chega: o pg_net não repete, e o lead
+// fica salvo com o sino mudo. Por isso cada pedaço de fora entra aparado, e
+// nunca a mensagem montada (cortar ela partiria uma tag de fechamento).
+function cortarEscapado(txt: string, max: number): string {
+  if (txt.length <= max) return txt;
+  let corte = txt.slice(0, max);
+  const amp = corte.lastIndexOf('&');
+  if (amp > -1 && !corte.slice(amp).includes(';')) corte = corte.slice(0, amp);
+  return `${corte}…`;
+}
+
 // A data vem do banco como AAAA-MM-DD. Formatar na mão evita o drift de fuso do
 // `new Date`, pelo mesmo motivo do dataDiaMes/dataBonita do app.js.
 function dataBonita(v: unknown): string {
@@ -205,8 +219,11 @@ function montarMensagem(lead: Lead, ia: Leitura | null): string {
   const quando = dataBonita(lead.data_pretendida);
 
   // A segunda linha é a ficha inteira de relance: tipo, tamanho e quando.
+  // Os tetos somados (200 + 200 + 120 + 300 + 1200 + 500 + 900, mais o texto
+  // fixo) ficam bem abaixo dos 4096 do Telegram MESMO no pior caso, que é um
+  // recado só de "&" (cada um vira "&amp;", cinco vezes maior).
   const ficha = [
-    esc(lead.tipo),
+    cortarEscapado(esc(lead.tipo), 200),
     lead.pessoas ? `cerca de ${esc(lead.pessoas)} pessoas` : null,
     quando ? esc(quando) : 'sem data ainda',
   ].filter(Boolean).join(' · ');
@@ -214,26 +231,31 @@ function montarMensagem(lead: Lead, ia: Leitura | null): string {
   const partes = [
     `${selo} <b>pedido de evento novo</b>`,
     '',
-    `<b>${esc(lead.nome)}</b>`,
+    `<b>${cortarEscapado(esc(lead.nome), 200)}</b>`,
     ficha,
     '',
-    `📱 ${esc(lead.contato)}`,
+    `📱 ${cortarEscapado(esc(lead.contato), 120)}`,
   ];
-  if (lead.email) partes.push(`✉️ ${esc(lead.email)}`);
+  if (lead.email) partes.push(`✉️ ${cortarEscapado(esc(lead.email), 300)}`);
 
   if (lead.mensagem) {
-    partes.push('', `<blockquote>${esc(lead.mensagem)}</blockquote>`);
+    partes.push('', `<blockquote>${cortarEscapado(esc(lead.mensagem), 1200)}</blockquote>`);
   }
 
   if (ia) {
-    partes.push('', `🤖 <i>${esc(ia.resumo)}</i>`);
+    partes.push('', `🤖 <i>${cortarEscapado(esc(ia.resumo), 500)}</i>`);
     if (ia.resposta_sugerida) {
-      partes.push('', '<b>pra responder:</b>', `<code>${esc(ia.resposta_sugerida)}</code>`);
+      partes.push('', '<b>pra responder:</b>', `<code>${cortarEscapado(esc(ia.resposta_sugerida), 900)}</code>`);
     }
   }
 
+  // Rede final. Com os tetos acima ela não deve disparar nunca; se disparar, é
+  // porque alguém mexeu nos números, e aí é melhor um aviso cortado no fim de
+  // uma linha do que um aviso que o Telegram recusa inteiro.
   const msg = partes.join('\n');
-  return msg.length > TELEGRAM_MAX ? `${msg.slice(0, TELEGRAM_MAX - 2)}…` : msg;
+  if (msg.length <= TELEGRAM_MAX) return msg;
+  const ate = msg.slice(0, TELEGRAM_MAX - 1);
+  return `${ate.slice(0, Math.max(ate.lastIndexOf('\n'), 0)) || ate}…`;
 }
 
 // Os botões: responder é a única coisa que se faz com este aviso, então ela fica
