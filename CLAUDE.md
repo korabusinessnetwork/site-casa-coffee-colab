@@ -2061,6 +2061,50 @@ considera dono, e por quê:
   > o `--apagar` mandou apagar **exatamente um caminho**, o único órfão de verdade. Com
   > `--horas=0` a recente vira órfã e a sem data continua protegida.
 
+## O deploy (quem sobe o quê, e sozinho ou na mão)
+
+São **dois** deploys, e essa é a confusão que vale desfazer de uma vez:
+
+- **O site é automático.** A Vercel observa a `main`: merge lá, e o front (páginas,
+  `app.js`, `admin.js`, CSS) está no ar em minutos. Nada a fazer.
+- **As Edge Functions também, desde 10/set/2026**, pelo GitHub Action
+  `.github/workflows/deploy-functions.yml`. Antes disso o `supabase functions deploy` era
+  manual, e o jeito de descobrir que alguém esqueceu era o comportamento antigo seguir no ar
+  sem ninguém entender por quê (aconteceu com o corte da mensagem do Telegram, que ficou
+  dias na `main` sem estar em produção).
+- **Migration continua na mão**, no SQL Editor, como sempre. Isso é decisão, não pendência:
+  SQL que altera dado de produção não roda sozinho por push.
+
+**Como o workflow funciona:**
+
+- **Roda** no push pra `main` que toque em `supabase/functions/**` (e no botão "Run
+  workflow", pra forçar).
+- **Duas filas escritas na mão**, no `env` do job, e é a decisão central do arquivo: o
+  `--no-verify-jwt` é **por function**, não do projeto. As três de `PUBLICAS`
+  (`asaas-webhook`, `avisar-lead-evento`, `spotify-now-playing`) sobem com a flag, porque
+  quem chama elas (o Asaas, o `pg_net`, o site deslogado) não tem sessão nenhuma. As oito de
+  `COM_JWT` sobem sem. Passar a flag em todas **abriria as oito pra qualquer um da
+  internet**; não passar nas três mataria os webhooks.
+- **Function nova para o deploy inteiro** enquanto não entrar numa das listas. É o passo
+  "confere a lista", e ele existe justamente porque o erro silencioso aqui é caro nos dois
+  sentidos.
+- **`deno check` em todas antes de subir qualquer uma**: erro de tipo vira job vermelho, não
+  function quebrada no ar.
+- **Sobe TODAS, não só as que mudaram.** Quase toda function importa o `_shared/lib.ts`, e um
+  filtro por arquivo alterado deixaria a maioria pra trás numa mudança lá. Deploy é
+  idempotente; dois minutos valem menos que uma function velha em produção.
+- **Usa a CLI do `package-lock`** (`npx --no-install supabase`), não uma action de terceiro:
+  a mesma versão que roda na máquina de quem desenvolve.
+- **Ele não mexe em secret** (`supabase secrets set`). Segredo vive no projeto do Supabase e
+  sobrevive a deploy; mudou um, é no terminal, na mão, e segue fora do repo.
+
+**Os dois secrets do repositório** (GitHub › Settings › Secrets and variables › Actions):
+`SUPABASE_ACCESS_TOKEN` (Supabase › Account › Access Tokens) e `SUPABASE_PROJECT_REF` (o
+`<ref>` de `https://<ref>.supabase.co`). Sem eles o job falha na cara, de propósito: deploy
+que não acontece tem que fazer barulho.
+
+---
+
 ## Segurança (regras obrigatórias — valem a partir da Fase 2)
 
 **Favicon em arquivo, não embutido no `href` (console).** As duas páginas de `/admin`
@@ -2155,10 +2199,10 @@ Todo SQL que precisa rodar no SQL Editor do Supabase vira um arquivo numerado em
 - **Banco em dia (09/set/2026):** a **`0054_fotos_do_site`** e a **`0055_tetos_e_repetido`**
   foram aplicadas no SQL Editor nessa ordem, e o front das duas está na `main`. **Não há
   migration pendente**, e a numeração livre pra próxima é a **`0056`**. O que ficou fora do
-  banco nesta leva, e é passo de terminal, não de SQL: **re-deployar a `avisar-lead-evento`**
-  (`npx supabase functions deploy avisar-lead-evento --no-verify-jwt`), que é onde mora o
-  corte seguro da mensagem do Telegram. Sem ela o sino segue tocando igual, só continua
-  quebrando com recado gigante.
+  banco nesta leva: o re-deploy da **`avisar-lead-evento`**, onde mora o corte seguro da
+  mensagem do Telegram. **Isso deixou de ser passo de terminal em 10/set/2026**, quando
+  entrou o GitHub Action (ver "O deploy"): agora o push pra `main` que toca em
+  `supabase/functions/**` sobe as onze functions sozinho.
 - **Banco em dia (03/set/2026):** a **`0053_rastros`** foi aplicada no SQL Editor,
   e o front foi pra `main` no mesmo dia. **Não há migration pendente**, e a
   numeração livre pra próxima é a **`0054`**. Ela foi a mais barata de aplicar da

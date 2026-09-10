@@ -1,0 +1,151 @@
+# =============================================================================
+# Casa Coffee Colab — deploy das Edge Functions
+#
+# A Vercel observa a `main` e publica o SITE sozinha, mas as Edge Functions
+# moram no Supabase e não têm nada a ver com isso: elas só sobem por
+# `supabase functions deploy`. Até este arquivo existir, esse passo era manual,
+# e o jeito de descobrir que alguém esqueceu era o comportamento antigo seguir
+# no ar sem ninguém entender por quê (foi o que aconteceu com o corte da
+# mensagem do Telegram, que ficou dias na `main` sem estar em produção).
+#
+# QUANDO RODA: push na `main` que toque em `supabase/functions/**`, mais o
+# botão "Run workflow" (workflow_dispatch) pra quando precisar forçar.
+#
+# O QUE PRECISA ESTAR CADASTRADO (Settings › Secrets and variables › Actions):
+#   SUPABASE_ACCESS_TOKEN  — token pessoal (Supabase › Account › Access Tokens)
+#   SUPABASE_PROJECT_REF   — o <ref> de https://<ref>.supabase.co
+# Sem os dois o job falha na cara, de propósito: deploy que não acontece tem
+# que fazer barulho.
+#
+# O QUE ELE **NÃO** FAZ: mexer em secret de function (`supabase secrets set`).
+# Segredo vive no projeto do Supabase e sobrevive a deploy; se um dia mudar, é
+# no terminal, na mão, e continua fora do repo.
+# =============================================================================
+name: deploy das edge functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:
+
+# Deploy não se atropela: dois pushes seguidos entram em fila em vez de correr
+# junto, e nenhum é cancelado no meio (cancelar um deploy pela metade deixaria
+# o projeto com uma function velha e outra nova).
+concurrency:
+  group: deploy-functions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      # ── A LISTA, e é a decisão que mais importa neste arquivo ──────────────
+      # O `--no-verify-jwt` é POR FUNCTION, não do projeto. Passar em todas
+      # abriria as oito que exigem login pra qualquer um da internet; não passar
+      # nas três de baixo mataria os webhooks, porque quem chama elas (o Asaas,
+      # o pg_net, o site deslogado) não tem sessão de usuário nenhuma. Por isso
+      # as duas filas são escritas na mão, e o passo "confere a lista" abaixo
+      # não deixa nascer function fora delas.
+      PUBLICAS: >-
+        asaas-webhook
+        avisar-lead-evento
+        spotify-now-playing
+      COM_JWT: >-
+        cancel-subscription
+        create-checkout-session
+        delete-account
+        downgrade-subscription
+        postar-mural
+        redeem-reward
+        resgatar-presente
+        resume-subscription
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 1. confere a lista ────────────────────────────────────────────────
+      # Function nova sem entrada nas listas para o deploy INTEIRO, em vez de
+      # subir errado ou ser esquecida em silêncio. O recado diz o que fazer.
+      - name: confere se toda function está numa das duas filas
+        run: |
+          set -euo pipefail
+          faltando=""
+          for dir in supabase/functions/*/; do
+            nome=$(basename "$dir")
+            [ -f "$dir/index.ts" ] || continue
+            case " $PUBLICAS $COM_JWT " in
+              *" $nome "*) ;;
+              *) faltando="$faltando $nome" ;;
+            esac
+          done
+          if [ -n "$faltando" ]; then
+            echo "::error::function fora das listas do workflow:$faltando"
+            echo "Põe cada uma em PUBLICAS (deploy com --no-verify-jwt: webhook," >&2
+            echo "ou leitura que o site faz deslogado) ou em COM_JWT (exige login)." >&2
+            echo "A escolha errada abre uma porta ou mata um webhook, então ela é" >&2
+            echo "escrita na mão, de propósito." >&2
+            exit 1
+          fi
+          echo "todas as functions estão classificadas."
+
+      # ── 2. portão de tipo ─────────────────────────────────────────────────
+      # `deno check` em todas antes de subir qualquer uma: erro de tipo que
+      # passaria batido vira job vermelho aqui, não function quebrada no ar.
+      - name: instala o Deno
+        run: |
+          set -euo pipefail
+          curl -fsSL https://deno.land/install.sh | DENO_INSTALL="$HOME/.deno" sh -s -- -y
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+
+      - name: deno check em todas as functions
+        run: |
+          set -euo pipefail
+          for dir in supabase/functions/*/; do
+            [ -f "$dir/index.ts" ] || continue
+            echo "→ $(basename "$dir")"
+            deno check "$dir/index.ts"
+          done
+
+      # ── 3. a CLI, na versão que o repo já fixa ────────────────────────────
+      # Usa a `supabase` do package-lock em vez de uma action de terceiro: é a
+      # mesma versão que roda na máquina de quem desenvolve.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # ── 4. deploy ─────────────────────────────────────────────────────────
+      # Sobe TODAS, não só as que mudaram, e isso é escolha: quase toda function
+      # importa o `_shared/lib.ts`, então uma mudança lá precisa de todas de
+      # novo, e um filtro por arquivo alterado deixaria a maioria pra trás sem
+      # avisar. Deploy é idempotente, e dois minutos valem menos que uma
+      # function velha no ar.
+      - name: sobe as functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] || [ -z "${REF:-}" ]; then
+            echo "::error::faltam os secrets SUPABASE_ACCESS_TOKEN e/ou SUPABASE_PROJECT_REF"
+            echo "Cadastra os dois em Settings › Secrets and variables › Actions." >&2
+            exit 1
+          fi
+          for nome in $PUBLICAS; do
+            echo "→ $nome (--no-verify-jwt)"
+            npx --no-install supabase functions deploy "$nome" --project-ref "$REF" --no-verify-jwt
+          done
+          for nome in $COM_JWT; do
+            echo "→ $nome (exige JWT)"
+            npx --no-install supabase functions deploy "$nome" --project-ref "$REF"
+          done
+          echo "pronto: $(echo $PUBLICAS $COM_JWT | wc -w) functions no ar."

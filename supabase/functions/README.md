@@ -101,6 +101,15 @@ supabase secrets list
 
 ## 2) Deploy das functions
 
+> **Desde 10/set/2026 isto acontece sozinho.** O GitHub Action
+> `.github/workflows/deploy-functions.yml` sobe **todas** as functions a cada push na
+> `main` que toque em `supabase/functions/**`, cada uma com a flag certa (as três
+> públicas com `--no-verify-jwt`, as oito com login sem ela) e só depois de um
+> `deno check` em todas. Os comandos abaixo seguem valendo pra rodar na mão, que é o
+> que se faz quando o Action está fora do ar ou quando se quer subir só uma.
+> **Function nova precisa entrar numa das duas listas do workflow**, senão ele para o
+> deploy inteiro e diz o que fazer, o que é melhor do que subir com a trava errada.
+
 ```bash
 supabase functions deploy create-checkout-session
 supabase functions deploy cancel-subscription
